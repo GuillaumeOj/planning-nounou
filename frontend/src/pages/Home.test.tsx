@@ -1,6 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getHealth } from '../api/client'
@@ -18,7 +17,6 @@ vi.mock('../auth/AuthContext', () => ({ useAuth: vi.fn() }))
 
 const mockGetHealth = vi.mocked(getHealth)
 const mockUseAuth = vi.mocked(useAuth)
-const logout = vi.fn()
 
 function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({
@@ -37,7 +35,6 @@ beforeEach(() => {
     makeAuth({
       user: { id: 1, email: 'me@example.com', first_name: '', last_name: '' },
       isAuthenticated: true,
-      logout,
     }),
   )
 })
@@ -58,14 +55,5 @@ describe('Home', () => {
     await waitFor(() =>
       expect(screen.getByText('unreachable')).toBeInTheDocument(),
     )
-  })
-
-  it('logs out when the button is clicked', async () => {
-    mockGetHealth.mockResolvedValue({ status: 'ok' })
-    render(<Home />, { wrapper })
-
-    await userEvent.click(screen.getByRole('button', { name: 'Log out' }))
-
-    expect(logout).toHaveBeenCalled()
   })
 })

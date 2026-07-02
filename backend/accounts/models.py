@@ -19,3 +19,13 @@ class User(AbstractUser):
 
     def __str__(self) -> str:
         return self.email
+
+
+class Child(models.Model):
+    """A child belonging to a parent user."""
+
+    parent = models.ForeignKey(User, on_delete=models.CASCADE, related_name="children")
+    first_name = models.CharField(max_length=150)
+
+    def __str__(self) -> str:
+        return self.first_name

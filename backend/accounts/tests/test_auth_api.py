@@ -165,3 +165,157 @@ def test_me_accepts_bearer_token(client, user):
 
     assert resp.status_code == 200
     assert resp.data["email"] == "existing@example.com"
+
+
+# --- Update profile (names) -------------------------------------------------
+
+
+def test_me_patch_updates_names(client, user):
+    client.force_authenticate(user=user)
+
+    resp = client.patch(
+        reverse("accounts:me"),
+        {"first_name": "Ada", "last_name": "Lovelace"},
+        format="json",
+    )
+
+    assert resp.status_code == 200
+    assert resp.data["first_name"] == "Ada"
+    assert resp.data["last_name"] == "Lovelace"
+    user.refresh_from_db()
+    assert user.first_name == "Ada"
+    assert user.last_name == "Lovelace"
+
+
+def test_me_patch_cannot_change_email(client, user):
+    client.force_authenticate(user=user)
+
+    resp = client.patch(
+        reverse("accounts:me"),
+        {"email": "hijack@example.com"},
+        format="json",
+    )
+
+    assert resp.status_code == 200
+    user.refresh_from_db()
+    # Email is read-only on the profile endpoint; it is unchanged.
+    assert user.email == "existing@example.com"
+
+
+def test_me_patch_requires_authentication(client):
+    resp = client.patch(reverse("accounts:me"), {"first_name": "Ada"}, format="json")
+
+    assert resp.status_code == 401
+
+
+# --- Change email -----------------------------------------------------------
+
+
+def test_change_email_succeeds_with_correct_password(client, user):
+    client.force_authenticate(user=user)
+
+    resp = client.put(
+        reverse("accounts:change-email"),
+        {"current_password": VALID_PASSWORD, "email": "renamed@example.com"},
+        format="json",
+    )
+
+    assert resp.status_code == 200
+    assert resp.data["email"] == "renamed@example.com"
+    user.refresh_from_db()
+    assert user.email == "renamed@example.com"
+
+
+def test_change_email_rejects_wrong_password(client, user):
+    client.force_authenticate(user=user)
+
+    resp = client.put(
+        reverse("accounts:change-email"),
+        {"current_password": "wrong-password-99", "email": "renamed@example.com"},
+        format="json",
+    )
+
+    assert resp.status_code == 400
+    assert "current_password" in resp.data
+    user.refresh_from_db()
+    assert user.email == "existing@example.com"
+
+
+def test_change_email_rejects_duplicate(client, user):
+    User.objects.create_user(email="taken@example.com", password=VALID_PASSWORD)
+    client.force_authenticate(user=user)
+
+    resp = client.put(
+        reverse("accounts:change-email"),
+        {"current_password": VALID_PASSWORD, "email": "taken@example.com"},
+        format="json",
+    )
+
+    assert resp.status_code == 400
+    assert resp.data["email"][0] == "A user with this email already exists."
+
+
+def test_change_email_requires_authentication(client):
+    resp = client.put(
+        reverse("accounts:change-email"),
+        {"current_password": VALID_PASSWORD, "email": "renamed@example.com"},
+        format="json",
+    )
+
+    assert resp.status_code == 401
+
+
+# --- Change password --------------------------------------------------------
+
+
+def test_change_password_succeeds_with_correct_current(client, user):
+    client.force_authenticate(user=user)
+    new_password = "another-long-pass-77"
+
+    resp = client.put(
+        reverse("accounts:change-password"),
+        {"current_password": VALID_PASSWORD, "new_password": new_password},
+        format="json",
+    )
+
+    assert resp.status_code == 204
+    user.refresh_from_db()
+    assert user.check_password(new_password)
+
+
+def test_change_password_rejects_wrong_current(client, user):
+    client.force_authenticate(user=user)
+
+    resp = client.put(
+        reverse("accounts:change-password"),
+        {"current_password": "wrong-password-99", "new_password": "another-long-pass-77"},
+        format="json",
+    )
+
+    assert resp.status_code == 400
+    assert "current_password" in resp.data
+    user.refresh_from_db()
+    assert user.check_password(VALID_PASSWORD)
+
+
+def test_change_password_rejects_weak_new(client, user):
+    client.force_authenticate(user=user)
+
+    resp = client.put(
+        reverse("accounts:change-password"),
+        {"current_password": VALID_PASSWORD, "new_password": "123"},
+        format="json",
+    )
+
+    assert resp.status_code == 400
+    assert "new_password" in resp.data
+
+
+def test_change_password_requires_authentication(client):
+    resp = client.put(
+        reverse("accounts:change-password"),
+        {"current_password": VALID_PASSWORD, "new_password": "another-long-pass-77"},
+        format="json",
+    )
+
+    assert resp.status_code == 401

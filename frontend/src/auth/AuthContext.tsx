@@ -22,6 +22,10 @@ export interface AuthContextValue {
   login: (credentials: Credentials) => Promise<void>
   register: (credentials: Credentials) => Promise<void>
   logout: () => void
+  // Update the cached user after a profile or email change. Pass the updated
+  // user when the caller already has it (e.g. an endpoint that returns it) to
+  // avoid a redundant round-trip; omit it to re-fetch from the server.
+  refreshUser: (updated?: User) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -65,6 +69,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
   }, [])
 
+  const refreshUser = useCallback(async (updated?: User): Promise<void> => {
+    setUser(updated ?? (await getMe()))
+  }, [])
+
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
@@ -73,8 +81,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       register,
       logout,
+      refreshUser,
     }),
-    [user, isLoading, login, register, logout],
+    [user, isLoading, login, register, logout, refreshUser],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

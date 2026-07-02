@@ -1,6 +1,6 @@
 import pytest
 
-from accounts.models import User
+from accounts.models import Child, User
 
 pytestmark = pytest.mark.django_db
 
@@ -45,3 +45,11 @@ def test_create_superuser_rejects_bad_flags(field, value):
 def test_str_is_email():
     user = User.objects.create_user(email="who@example.com", password="s3cret-pass")
     assert str(user) == "who@example.com"
+
+
+def test_child_str_is_first_name():
+    user = User.objects.create_user(email="parent@example.com", password="s3cret-pass")
+    child = Child.objects.create(parent=user, first_name="Mia")
+
+    assert str(child) == "Mia"
+    assert list(user.children.all()) == [child]

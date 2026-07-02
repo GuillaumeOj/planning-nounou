@@ -17,6 +17,7 @@ export function makeAuth(
     login: vi.fn(),
     register: vi.fn(),
     logout: vi.fn(),
+    refreshUser: vi.fn(),
     ...overrides,
   }
 }

@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
-from .models import User
+from .models import Child, User
 
 
 @admin.register(User)
@@ -23,3 +23,11 @@ class UserAdmin(DjangoUserAdmin):
     add_fieldsets = (
         (None, {"classes": ("wide",), "fields": ("email", "password1", "password2")}),
     )
+
+
+@admin.register(Child)
+class ChildAdmin(admin.ModelAdmin):
+    """Admin listing of children and their parent user."""
+
+    list_display = ("first_name", "parent")
+    search_fields = ("first_name", "parent__email")

@@ -19,3 +19,7 @@ msgstr ""
 #: accounts/serializers.py:34
 msgid "A user with this email already exists."
 msgstr "Un utilisateur avec cette adresse e-mail existe déjà."
+
+#: accounts/serializers.py
+msgid "The current password is incorrect."
+msgstr "Le mot de passe actuel est incorrect."

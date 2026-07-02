@@ -36,3 +36,32 @@ export async function getMe(): Promise<User> {
   const { data } = await api.get<User>('/auth/me/')
   return data
 }
+
+export interface ProfileUpdate {
+  first_name: string
+  last_name: string
+}
+
+export async function updateProfile(profile: ProfileUpdate): Promise<User> {
+  const { data } = await api.patch<User>('/auth/me/', profile)
+  return data
+}
+
+export interface EmailChange {
+  current_password: string
+  email: string
+}
+
+export async function changeEmail(payload: EmailChange): Promise<User> {
+  const { data } = await api.put<User>('/auth/email/', payload)
+  return data
+}
+
+export interface PasswordChange {
+  current_password: string
+  new_password: string
+}
+
+export async function changePassword(payload: PasswordChange): Promise<void> {
+  await api.put('/auth/password/', payload)
+}

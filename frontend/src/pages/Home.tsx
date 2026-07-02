@@ -4,7 +4,7 @@ import { useAuth } from '../auth/AuthContext'
 import { useI18n } from '../i18n/I18nContext'
 
 export default function Home() {
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
   const { t } = useI18n()
   const { data, isLoading, isError } = useQuery({
     queryKey: ['health'],
@@ -23,16 +23,8 @@ export default function Home() {
       : 'badge-ok'
 
   return (
-    <main className="home">
-      <div className="home-top">
-        <div>
-          <h1>{t('home.title')}</h1>
-          <p className="lead">{t('home.lead')}</p>
-        </div>
-        <button className="btn btn-ghost" type="button" onClick={logout}>
-          {t('home.logout')}
-        </button>
-      </div>
+    <main className="page">
+      <h1>{t('home.title')}</h1>
       <div className="card">
         <p>
           {t('home.signedInAs')} <strong>{user?.email}</strong>
