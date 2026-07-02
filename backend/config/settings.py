@@ -5,6 +5,7 @@ Configuration is environment-driven via django-environ so the same code runs
 locally (Docker + Postgres) and on Vercel (Python function + Neon Postgres).
 """
 
+from datetime import timedelta
 from pathlib import Path
 
 import environ
@@ -40,8 +41,10 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     # Third-party
     "rest_framework",
+    "rest_framework_simplejwt",
     "corsheaders",
     # Local
+    "accounts",
     "tracking",
 ]
 
@@ -51,6 +54,9 @@ MIDDLEWARE = [
     "whitenoise.middleware.WhiteNoiseMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    # Activates the request locale from the Accept-Language header so API error
+    # messages come back in the caller's language (English or French).
+    "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -91,6 +97,27 @@ DATABASES = {
 DATABASES["default"]["CONN_MAX_AGE"] = env("CONN_MAX_AGE")
 
 
+# Custom user model — email is the login identifier (see accounts/models.py).
+AUTH_USER_MODEL = "accounts.User"
+
+
+# Django REST Framework — JWT bearer auth, authenticated-by-default. Individual
+# public endpoints (health, register, login) opt out with AllowAny.
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
+    ],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
+}
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+}
+
+
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -101,7 +128,15 @@ AUTH_PASSWORD_VALIDATORS = [
 
 
 # Internationalization
-LANGUAGE_CODE = "en-us"
+# The SPA sends Accept-Language (driven by the browser). LocaleMiddleware picks
+# the best match from LANGUAGES; DRF/Django ship the built-in French strings and
+# our own messages live in locale/fr/.
+LANGUAGE_CODE = "en"
+LANGUAGES = [
+    ("en", "English"),
+    ("fr", "French"),
+]
+LOCALE_PATHS = [BASE_DIR / "locale"]
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True

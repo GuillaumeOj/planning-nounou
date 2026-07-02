@@ -5,6 +5,22 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>frontend</title>
+    <script>
+      // Resolve the saved theme (or system) before first paint to avoid a flash.
+      // The key/query mirror THEME_KEY/DARK_QUERY in src/theme/ThemeContext.tsx.
+      (() => {
+        try {
+          const pref = localStorage.getItem('nounou.theme') || 'system'
+          const dark =
+            pref === 'dark' ||
+            (pref === 'system' &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches)
+          document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+        } catch {
+          /* fall back to the CSS default */
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

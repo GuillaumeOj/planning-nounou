@@ -1,26 +1,28 @@
-import { useQuery } from '@tanstack/react-query'
-import { getHealth } from './api/client'
+import { Navigate, Route, Routes } from 'react-router-dom'
+import { ProtectedRoute } from './auth/ProtectedRoute'
+import { SettingsBar } from './components/SettingsBar'
+import Home from './pages/Home'
+import LoginPage from './pages/LoginPage'
+import RegisterPage from './pages/RegisterPage'
 
 function App() {
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['health'],
-    queryFn: getHealth,
-  })
-
-  const backendStatus = isLoading
-    ? 'checking…'
-    : isError
-      ? 'unreachable'
-      : (data?.status ?? 'unknown')
-
   return (
-    <main>
-      <h1>Nanny Hours Tracker</h1>
-      <p>Track hours worked by a nanny across families.</p>
-      <p>
-        Backend: <strong>{backendStatus}</strong>
-      </p>
-    </main>
+    <>
+      <SettingsBar />
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Home />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </>
   )
 }
 
