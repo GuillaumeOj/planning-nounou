@@ -7,7 +7,18 @@ from . import views
 app_name = "accounts"
 
 router = DefaultRouter()
-router.register("children", views.ChildViewSet, basename="child")
+router.register("families", views.FamilyViewSet, basename="family")
+
+# Nested, family-scoped collections. Wired by hand to avoid a nested-router
+# dependency; each maps HTTP verbs to viewset actions under a family_pk prefix.
+child_list = views.ChildViewSet.as_view({"get": "list", "post": "create"})
+child_detail = views.ChildViewSet.as_view(
+    {"get": "retrieve", "put": "update", "patch": "partial_update", "delete": "destroy"}
+)
+member_list = views.FamilyMemberViewSet.as_view({"get": "list"})
+member_detail = views.FamilyMemberViewSet.as_view({"delete": "destroy"})
+invitation_list = views.InvitationViewSet.as_view({"get": "list", "post": "create"})
+invitation_detail = views.InvitationViewSet.as_view({"delete": "destroy"})
 
 urlpatterns = [
     path("register/", views.RegisterView.as_view(), name="register"),
@@ -16,5 +27,32 @@ urlpatterns = [
     path("me/", views.MeView.as_view(), name="me"),
     path("email/", views.ChangeEmailView.as_view(), name="change-email"),
     path("password/", views.ChangePasswordView.as_view(), name="change-password"),
+    # Family-scoped children.
+    path("families/<int:family_pk>/children/", child_list, name="family-children"),
+    path("families/<int:family_pk>/children/<int:pk>/", child_detail, name="family-child"),
+    # Family members.
+    path("families/<int:family_pk>/members/", member_list, name="family-members"),
+    path("families/<int:family_pk>/members/<int:pk>/", member_detail, name="family-member"),
+    # Family invitations.
+    path("families/<int:family_pk>/invitations/", invitation_list, name="family-invitations"),
+    path(
+        "families/<int:family_pk>/invitations/<int:pk>/",
+        invitation_detail,
+        name="family-invitation",
+    ),
+    # Token-addressed invitation flows (preview is public; accept/decline need auth).
+    path(
+        "invitations/<str:token>/", views.InvitationPreviewView.as_view(), name="invitation-preview"
+    ),
+    path(
+        "invitations/<str:token>/accept/",
+        views.InvitationAcceptView.as_view(),
+        name="invitation-accept",
+    ),
+    path(
+        "invitations/<str:token>/decline/",
+        views.InvitationDeclineView.as_view(),
+        name="invitation-decline",
+    ),
     *router.urls,
 ]

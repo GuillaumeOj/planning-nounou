@@ -1,6 +1,6 @@
 import pytest
 
-from accounts.models import Child, User
+from accounts.models import Child, Family, FamilyMembership, User
 
 pytestmark = pytest.mark.django_db
 
@@ -48,8 +48,44 @@ def test_str_is_email():
 
 
 def test_child_str_is_first_name():
-    user = User.objects.create_user(email="parent@example.com", password="s3cret-pass")
-    child = Child.objects.create(parent=user, first_name="Mia")
+    family = Family.objects.create(name="The Smiths")
+    child = Child.objects.create(family=family, first_name="Mia")
 
     assert str(child) == "Mia"
-    assert list(user.children.all()) == [child]
+    assert list(family.children.all()) == [child]
+
+
+def test_family_claim_and_access_rules():
+    creator = User.objects.create_user(email="creator@example.com", password="s3cret-pass")
+    stranger = User.objects.create_user(email="stranger@example.com", password="s3cret-pass")
+    family = Family.objects.create(name="For Someone", created_by=creator)
+
+    # Unclaimed: no owner yet, creator can access and manage, stranger cannot.
+    assert family.is_claimed is False
+    assert family.can_access(creator) is True
+    assert family.can_manage(creator) is True
+    assert family.can_access(stranger) is False
+
+    # Once the stranger claims it as owner, the creator loses access.
+    FamilyMembership.objects.create(family=family, user=stranger, role=FamilyMembership.Role.OWNER)
+    assert family.is_claimed is True
+    assert family.can_access(stranger) is True
+    assert family.can_manage(stranger) is True
+    assert family.can_access(creator) is False
+    assert family.can_manage(creator) is False
+
+
+def test_accessible_to_spans_membership_and_unclaimed_created():
+    user = User.objects.create_user(email="u@example.com", password="s3cret-pass")
+    member_family = Family.objects.create(name="Member of")
+    FamilyMembership.objects.create(family=member_family, user=user)
+    unclaimed = Family.objects.create(name="Unclaimed", created_by=user)
+    claimed_by_other = Family.objects.create(name="Other", created_by=user)
+    other = User.objects.create_user(email="o@example.com", password="s3cret-pass")
+    FamilyMembership.objects.create(
+        family=claimed_by_other, user=other, role=FamilyMembership.Role.OWNER
+    )
+
+    accessible = set(Family.objects.accessible_to(user).values_list("id", flat=True))
+
+    assert accessible == {member_family.id, unclaimed.id}
