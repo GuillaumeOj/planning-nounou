@@ -13,62 +13,66 @@ import { extractErrorMessages } from '../api/errors'
 import { useAuth } from '../auth/AuthContext'
 import { FormErrors } from '../components/FormErrors'
 import { Modal } from '../components/Modal'
+import { Button } from '../components/ui/button'
+import { Card, CardContent } from '../components/ui/card'
+import { Input } from '../components/ui/input'
+import { Label } from '../components/ui/label'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { useI18n } from '../i18n/I18nContext'
 import type { TranslationKey } from '../i18n/translations'
 
-type Tab = 'informations' | 'children'
-
 export default function SettingsPage() {
   const { t } = useI18n()
-  const [tab, setTab] = useState<Tab>('informations')
 
   return (
-    <main className="page settings-page">
-      <h1>{t('settings.title')}</h1>
-      <div className="tabs" role="tablist" aria-label={t('settings.title')}>
-        <TabButton tab="informations" active={tab} onSelect={setTab}>
-          {t('settings.tabs.informations')}
-        </TabButton>
-        <TabButton tab="children" active={tab} onSelect={setTab}>
-          {t('settings.tabs.children')}
-        </TabButton>
-      </div>
-      {tab === 'informations' ? (
-        <div role="tabpanel" className="tab-panel">
+    <main className="flex flex-1 flex-col gap-6 p-6 sm:p-10">
+      <h1 className="text-3xl font-semibold tracking-tight">
+        {t('settings.title')}
+      </h1>
+      <Tabs defaultValue="informations" className="w-full max-w-xl gap-6">
+        <TabsList>
+          <TabsTrigger value="informations">
+            {t('settings.tabs.informations')}
+          </TabsTrigger>
+          <TabsTrigger value="children">
+            {t('settings.tabs.children')}
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="informations" className="flex flex-col gap-6">
           <ProfileSection />
           <EmailSection />
           <PasswordSection />
-        </div>
-      ) : (
-        <div role="tabpanel" className="tab-panel">
+        </TabsContent>
+        <TabsContent value="children">
           <ChildrenSection />
-        </div>
-      )}
+        </TabsContent>
+      </Tabs>
     </main>
   )
 }
 
-function TabButton({
-  tab,
-  active,
-  onSelect,
+// A titled card section used by each settings block.
+function Section({
+  title,
+  description,
   children,
 }: {
-  tab: Tab
-  active: Tab
-  onSelect: (tab: Tab) => void
+  title: string
+  description?: string
   children: React.ReactNode
 }) {
   return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active === tab}
-      className={active === tab ? 'tab active' : 'tab'}
-      onClick={() => onSelect(tab)}
-    >
-      {children}
-    </button>
+    <Card>
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <h2 className="font-heading text-lg font-medium">{title}</h2>
+          {description && (
+            <p className="text-sm text-muted-foreground">{description}</p>
+          )}
+        </div>
+        {children}
+      </CardContent>
+    </Card>
   )
 }
 
@@ -82,7 +86,7 @@ function useSectionStatus() {
 function SuccessNote({ messageKey }: { messageKey: TranslationKey }) {
   const { t } = useI18n()
   return (
-    <p className="settings-success" role="status">
+    <p className="text-sm text-emerald-600 dark:text-emerald-400" role="status">
       {t(messageKey)}
     </p>
   )
@@ -111,10 +115,12 @@ function ProfileSection() {
   })
 
   return (
-    <section className="card">
-      <h2>{t('settings.profile.title')}</h2>
-      <p className="settings-current">{t('settings.profile.description')}</p>
+    <Section
+      title={t('settings.profile.title')}
+      description={t('settings.profile.description')}
+    >
       <form
+        className="flex flex-col gap-4"
         onSubmit={(event) => {
           event.preventDefault()
           event.stopPropagation()
@@ -123,51 +129,55 @@ function ProfileSection() {
       >
         <form.Field name="first_name">
           {(field) => (
-            <label className="field">
-              <span>{t('settings.profile.firstName')}</span>
-              <input
-                className="input"
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="profile-first-name">
+                {t('settings.profile.firstName')}
+              </Label>
+              <Input
+                id="profile-first-name"
                 name={field.name}
                 value={field.state.value}
                 onBlur={field.handleBlur}
                 onChange={(event) => field.handleChange(event.target.value)}
                 autoComplete="given-name"
               />
-            </label>
+            </div>
           )}
         </form.Field>
         <form.Field name="last_name">
           {(field) => (
-            <label className="field">
-              <span>{t('settings.profile.lastName')}</span>
-              <input
-                className="input"
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="profile-last-name">
+                {t('settings.profile.lastName')}
+              </Label>
+              <Input
+                id="profile-last-name"
                 name={field.name}
                 value={field.state.value}
                 onBlur={field.handleBlur}
                 onChange={(event) => field.handleChange(event.target.value)}
                 autoComplete="family-name"
               />
-            </label>
+            </div>
           )}
         </form.Field>
         <FormErrors messages={errors} />
         {success && <SuccessNote messageKey="settings.profile.saved" />}
         <form.Subscribe selector={(state) => state.isSubmitting}>
           {(isSubmitting) => (
-            <button
-              className="btn btn-primary"
+            <Button
               type="submit"
+              className="self-start"
               disabled={isSubmitting}
             >
               {isSubmitting
                 ? t('settings.profile.saving')
                 : t('settings.profile.save')}
-            </button>
+            </Button>
           )}
         </form.Subscribe>
       </form>
-    </section>
+    </Section>
   )
 }
 
@@ -210,64 +220,59 @@ function EmailSection() {
   }
 
   return (
-    <section className="card">
-      <h2>{t('settings.email.title')}</h2>
-      <p className="settings-current">{user?.email}</p>
-      <form onSubmit={openDialog}>
-        <label className="field">
-          <span>{t('settings.email.new')}</span>
-          <input
-            className="input"
+    <Section title={t('settings.email.title')}>
+      <p className="text-sm text-muted-foreground">{user?.email}</p>
+      <form className="flex flex-col gap-4" onSubmit={openDialog}>
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="new-email">{t('settings.email.new')}</Label>
+          <Input
+            id="new-email"
             type="email"
             value={newEmail}
             onChange={(event) => setNewEmail(event.target.value)}
             autoComplete="email"
             required
           />
-        </label>
+        </div>
         {success && <SuccessNote messageKey="settings.email.saved" />}
-        <button className="btn btn-primary" type="submit">
+        <Button type="submit" className="self-start">
           {t('settings.email.save')}
-        </button>
+        </Button>
       </form>
       {dialogOpen && (
         <Modal title={t('settings.email.dialogTitle')} onClose={closeDialog}>
-          <p className="settings-current">{t('settings.email.dialogHint')}</p>
-          <form onSubmit={confirm}>
-            <label className="field">
-              <span>{t('settings.currentPassword')}</span>
-              <input
-                className="input"
+          <p className="text-sm text-muted-foreground">
+            {t('settings.email.dialogHint')}
+          </p>
+          <form className="flex flex-col gap-4" onSubmit={confirm}>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="confirm-password">
+                {t('settings.currentPassword')}
+              </Label>
+              <Input
+                id="confirm-password"
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 autoComplete="current-password"
                 required
               />
-            </label>
+            </div>
             <FormErrors messages={errors} />
-            <div className="modal-actions">
-              <button
-                className="btn btn-ghost"
-                type="button"
-                onClick={closeDialog}
-              >
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" type="button" onClick={closeDialog}>
                 {t('common.cancel')}
-              </button>
-              <button
-                className="btn btn-primary"
-                type="submit"
-                disabled={submitting}
-              >
+              </Button>
+              <Button type="submit" disabled={submitting}>
                 {submitting
                   ? t('settings.email.saving')
                   : t('settings.email.confirm')}
-              </button>
+              </Button>
             </div>
           </form>
         </Modal>
       )}
-    </section>
+    </Section>
   )
 }
 
@@ -291,9 +296,9 @@ function PasswordSection() {
   })
 
   return (
-    <section className="card">
-      <h2>{t('settings.password.title')}</h2>
+    <Section title={t('settings.password.title')}>
       <form
+        className="flex flex-col gap-4"
         onSubmit={(event) => {
           event.preventDefault()
           event.stopPropagation()
@@ -302,10 +307,12 @@ function PasswordSection() {
       >
         <form.Field name="current_password">
           {(field) => (
-            <label className="field">
-              <span>{t('settings.currentPassword')}</span>
-              <input
-                className="input"
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="current-password">
+                {t('settings.currentPassword')}
+              </Label>
+              <Input
+                id="current-password"
                 type="password"
                 name={field.name}
                 value={field.state.value}
@@ -314,15 +321,15 @@ function PasswordSection() {
                 autoComplete="current-password"
                 required
               />
-            </label>
+            </div>
           )}
         </form.Field>
         <form.Field name="new_password">
           {(field) => (
-            <label className="field">
-              <span>{t('settings.password.new')}</span>
-              <input
-                className="input"
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="new-password">{t('settings.password.new')}</Label>
+              <Input
+                id="new-password"
                 type="password"
                 name={field.name}
                 value={field.state.value}
@@ -331,26 +338,26 @@ function PasswordSection() {
                 autoComplete="new-password"
                 required
               />
-            </label>
+            </div>
           )}
         </form.Field>
         <FormErrors messages={errors} />
         {success && <SuccessNote messageKey="settings.password.saved" />}
         <form.Subscribe selector={(state) => state.isSubmitting}>
           {(isSubmitting) => (
-            <button
-              className="btn btn-primary"
+            <Button
               type="submit"
+              className="self-start"
               disabled={isSubmitting}
             >
               {isSubmitting
                 ? t('settings.password.saving')
                 : t('settings.password.save')}
-            </button>
+            </Button>
           )}
         </form.Subscribe>
       </form>
-    </section>
+    </Section>
   )
 }
 
@@ -401,15 +408,26 @@ function ChildrenSection() {
   })
 
   return (
-    <section className="card">
-      <h2>{t('settings.children.title')}</h2>
-      <p className="settings-current">{t('settings.children.description')}</p>
-      {isLoading && <p>{t('settings.children.loading')}</p>}
-      {isError && <p className="alert">{t('settings.children.error')}</p>}
-      {children && children.length === 0 && (
-        <p className="settings-current">{t('settings.children.empty')}</p>
+    <Section
+      title={t('settings.children.title')}
+      description={t('settings.children.description')}
+    >
+      {isLoading && (
+        <p className="text-sm text-muted-foreground">
+          {t('settings.children.loading')}
+        </p>
       )}
-      <ul className="children-list">
+      {isError && (
+        <p className="text-sm text-destructive">
+          {t('settings.children.error')}
+        </p>
+      )}
+      {children && children.length === 0 && (
+        <p className="text-sm text-muted-foreground">
+          {t('settings.children.empty')}
+        </p>
+      )}
+      <ul className="flex flex-col gap-3">
         {children?.map((child) => (
           <ChildRow
             key={child.id}
@@ -423,7 +441,7 @@ function ChildrenSection() {
       </ul>
       <FormErrors messages={errors} />
       <form
-        className="children-add"
+        className="flex flex-col gap-4 border-t pt-4"
         onSubmit={(event) => {
           event.preventDefault()
           event.stopPropagation()
@@ -432,34 +450,36 @@ function ChildrenSection() {
       >
         <addForm.Field name="first_name">
           {(field) => (
-            <label className="field">
-              <span>{t('settings.children.firstName')}</span>
-              <input
-                className="input"
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="child-first-name">
+                {t('settings.children.firstName')}
+              </Label>
+              <Input
+                id="child-first-name"
                 name={field.name}
                 value={field.state.value}
                 onBlur={field.handleBlur}
                 onChange={(event) => field.handleChange(event.target.value)}
                 required
               />
-            </label>
+            </div>
           )}
         </addForm.Field>
         <addForm.Subscribe selector={(state) => state.isSubmitting}>
           {(isSubmitting) => (
-            <button
-              className="btn btn-primary"
+            <Button
               type="submit"
+              className="self-start"
               disabled={isSubmitting}
             >
               {isSubmitting
                 ? t('settings.children.adding')
                 : t('settings.children.add')}
-            </button>
+            </Button>
           )}
         </addForm.Subscribe>
       </form>
-    </section>
+    </Section>
   )
 }
 
@@ -476,24 +496,29 @@ function ChildRow({
   const [name, setName] = useState(child.first_name)
 
   return (
-    <li className="child-row">
-      <input
-        className="input"
+    <li className="flex items-center gap-2">
+      <Input
+        className="flex-1"
         value={name}
         aria-label={t('settings.children.firstName')}
         onChange={(event) => setName(event.target.value)}
       />
-      <button
-        className="btn btn-ghost"
+      <Button
+        variant="outline"
         type="button"
         onClick={() => onRename(name)}
         disabled={name.trim() === '' || name === child.first_name}
       >
         {t('settings.children.save')}
-      </button>
-      <button className="btn btn-ghost" type="button" onClick={onDelete}>
+      </Button>
+      <Button
+        variant="ghost"
+        type="button"
+        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+        onClick={onDelete}
+      >
         {t('settings.children.delete')}
-      </button>
+      </Button>
     </li>
   )
 }

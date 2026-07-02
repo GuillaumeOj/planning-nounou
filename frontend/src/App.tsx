@@ -23,9 +23,9 @@ function AuthLayout({ children }: { children: ReactNode }) {
 function AppLayout() {
   return (
     <ProtectedRoute>
-      <div className="app-shell">
+      <div className="flex min-h-0 flex-1 items-stretch">
         <NavBar />
-        <div className="app-content">
+        <div className="flex min-w-0 flex-1 flex-col">
           <Outlet />
         </div>
       </div>

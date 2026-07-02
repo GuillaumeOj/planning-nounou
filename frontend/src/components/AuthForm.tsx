@@ -7,6 +7,17 @@ import { extractErrorMessages } from '../api/errors'
 import { useI18n } from '../i18n/I18nContext'
 import type { TranslationKey } from '../i18n/translations'
 import { FormErrors } from './FormErrors'
+import { Button } from './ui/button'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from './ui/card'
+import { Input } from './ui/input'
+import { Label } from './ui/label'
 
 interface AuthFormProps {
   variant: 'login' | 'register'
@@ -43,73 +54,89 @@ export function AuthForm({ variant, onSubmit }: AuthFormProps) {
   })
 
   return (
-    <main className="auth">
-      <div className="auth-card">
-        <div className="brand" aria-hidden="true">
-          <Baby size={28} />
-        </div>
-        <h1>{tk('title')}</h1>
-        <p className="auth-sub">{tk('subtitle')}</p>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault()
-            event.stopPropagation()
-            form.handleSubmit()
-          }}
-        >
-          <form.Field name="email">
-            {(field) => (
-              <label className="field">
-                <span>{t('field.email')}</span>
-                <input
-                  className="input"
-                  type="email"
-                  name={field.name}
-                  value={field.state.value}
-                  onBlur={field.handleBlur}
-                  onChange={(event) => field.handleChange(event.target.value)}
-                  placeholder={t('field.emailPlaceholder')}
-                  autoComplete="email"
-                  required
-                />
-              </label>
-            )}
-          </form.Field>
-          <form.Field name="password">
-            {(field) => (
-              <label className="field">
-                <span>{t('field.password')}</span>
-                <input
-                  className="input"
-                  type="password"
-                  name={field.name}
-                  value={field.state.value}
-                  onBlur={field.handleBlur}
-                  onChange={(event) => field.handleChange(event.target.value)}
-                  placeholder={passwordPlaceholder}
-                  autoComplete={passwordAutoComplete}
-                  required
-                />
-              </label>
-            )}
-          </form.Field>
-          <FormErrors messages={errors} />
-          <form.Subscribe selector={(state) => state.isSubmitting}>
-            {(isSubmitting) => (
-              <button
-                className="btn btn-primary"
-                type="submit"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? tk('submitting') : tk('submit')}
-              </button>
-            )}
-          </form.Subscribe>
-        </form>
-        <p className="auth-alt">
-          {tk('altPrompt')} <Link to={altTo}>{tk('altLink')}</Link>
-        </p>
-      </div>
+    <main className="flex flex-1 items-center justify-center p-6">
+      <Card className="w-full max-w-sm">
+        <CardHeader className="items-center text-center">
+          <div
+            className="mx-auto mb-2 flex size-13 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/20"
+            aria-hidden="true"
+          >
+            <Baby size={28} />
+          </div>
+          <CardTitle className="text-2xl">{tk('title')}</CardTitle>
+          <CardDescription>{tk('subtitle')}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form
+            className="flex flex-col gap-4"
+            onSubmit={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              form.handleSubmit()
+            }}
+          >
+            <form.Field name="email">
+              {(field) => (
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor={field.name}>{t('field.email')}</Label>
+                  <Input
+                    id={field.name}
+                    type="email"
+                    name={field.name}
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                    placeholder={t('field.emailPlaceholder')}
+                    autoComplete="email"
+                    required
+                  />
+                </div>
+              )}
+            </form.Field>
+            <form.Field name="password">
+              {(field) => (
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor={field.name}>{t('field.password')}</Label>
+                  <Input
+                    id={field.name}
+                    type="password"
+                    name={field.name}
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                    placeholder={passwordPlaceholder}
+                    autoComplete={passwordAutoComplete}
+                    required
+                  />
+                </div>
+              )}
+            </form.Field>
+            <FormErrors messages={errors} />
+            <form.Subscribe selector={(state) => state.isSubmitting}>
+              {(isSubmitting) => (
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? tk('submitting') : tk('submit')}
+                </Button>
+              )}
+            </form.Subscribe>
+          </form>
+        </CardContent>
+        <CardFooter className="justify-center">
+          <p className="text-sm text-muted-foreground">
+            {tk('altPrompt')}{' '}
+            <Link
+              className="font-medium text-primary underline-offset-4 hover:underline"
+              to={altTo}
+            >
+              {tk('altLink')}
+            </Link>
+          </p>
+        </CardFooter>
+      </Card>
     </main>
   )
 }

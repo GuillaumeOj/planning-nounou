@@ -1,5 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -230,24 +236,49 @@ describe('Nannies', () => {
     expect(screen.getByText('Add a nanny')).toBeInTheDocument()
   })
 
-  it('deletes a nanny when confirmed', async () => {
+  it('deletes a nanny after confirming in the dialog', async () => {
     mockGetNannies.mockResolvedValue([marie])
     mockDeleteNanny.mockResolvedValue()
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     renderPage()
 
     await userEvent.click(await screen.findByRole('button', { name: 'Delete' }))
+    const dialog = await screen.findByRole('alertdialog')
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Delete' }),
+    )
 
     await waitFor(() => expect(mockDeleteNanny).toHaveBeenCalledWith(1))
   })
 
-  it('does not delete when the confirmation is dismissed', async () => {
+  it('does not delete when the dialog is cancelled', async () => {
     mockGetNannies.mockResolvedValue([marie])
-    vi.spyOn(window, 'confirm').mockReturnValue(false)
     renderPage()
 
     await userEvent.click(await screen.findByRole('button', { name: 'Delete' }))
+    const dialog = await screen.findByRole('alertdialog')
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Cancel' }),
+    )
 
     expect(mockDeleteNanny).not.toHaveBeenCalled()
+  })
+
+  it('clears the add form after a successful add', async () => {
+    mockGetNannies.mockResolvedValue([])
+    mockCreateNanny.mockResolvedValue(marie)
+    renderPage()
+    await screen.findByText('No nannies yet. Add your first one below.')
+
+    await userEvent.type(screen.getByLabelText('First name'), 'Marie')
+    await userEvent.type(screen.getByLabelText('Last name'), 'Dupont')
+    fireEvent.change(screen.getByLabelText('Starting date'), {
+      target: { value: '01/05/2026' },
+    })
+    await userEvent.click(screen.getByRole('button', { name: 'Add nanny' }))
+
+    await waitFor(() => expect(mockCreateNanny).toHaveBeenCalled())
+    await waitFor(() =>
+      expect(screen.getByLabelText('Starting date')).toHaveValue(''),
+    )
   })
 })

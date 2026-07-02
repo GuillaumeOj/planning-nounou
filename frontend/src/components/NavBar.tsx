@@ -4,9 +4,15 @@ import { NavLink } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { useI18n } from '../i18n/I18nContext'
 import { AppearanceControls } from './AppearanceControls'
+import { Button } from './ui/button'
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
-  isActive ? 'nav-link active' : 'nav-link'
+  [
+    'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors',
+    isActive
+      ? 'bg-primary/10 text-primary'
+      : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+  ].join(' ')
 
 // Left sidebar shown on authenticated views: primary navigation plus an account
 // menu (appearance controls + logout) anchored to the bottom.
@@ -38,12 +44,15 @@ export function NavBar() {
   }, [menuOpen])
 
   return (
-    <nav className="navbar" aria-label={t('nav.primary')}>
-      <div className="navbar-brand">
+    <nav
+      className="flex w-56 shrink-0 flex-col gap-1 border-r bg-background p-3 max-[1024px]:w-48"
+      aria-label={t('nav.primary')}
+    >
+      <div className="flex items-center gap-2.5 px-2.5 pt-2 pb-4 font-heading text-lg font-semibold text-foreground">
         <Baby size={24} aria-hidden="true" />
         <span>Nounou</span>
       </div>
-      <ul className="navbar-links">
+      <ul className="flex flex-col gap-1">
         <li>
           <NavLink to="/" end className={linkClass}>
             <HomeIcon size={18} aria-hidden="true" />
@@ -63,29 +72,32 @@ export function NavBar() {
           </NavLink>
         </li>
       </ul>
-      <div className="navbar-user" ref={userRef}>
+      <div className="relative mt-auto" ref={userRef}>
         {menuOpen && (
-          <div className="navbar-menu" role="menu">
+          <div
+            className="absolute right-0 bottom-[calc(100%+8px)] left-0 flex flex-col gap-2.5 rounded-xl border bg-popover p-3 shadow-md"
+            role="menu"
+          >
             <AppearanceControls />
-            <button
-              className="btn btn-ghost navbar-logout"
-              type="button"
+            <Button
+              variant="ghost"
               role="menuitem"
+              className="w-full justify-center text-destructive hover:bg-destructive/10 hover:text-destructive"
               onClick={logout}
             >
               {t('home.logout')}
-            </button>
+            </Button>
           </div>
         )}
         <button
-          className="navbar-user-button"
           type="button"
+          className="flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm text-foreground transition-colors hover:bg-muted"
           aria-haspopup="menu"
           aria-expanded={menuOpen}
           aria-label={t('nav.account')}
           onClick={() => setMenuOpen((open) => !open)}
         >
-          <span className="navbar-user-name">{displayName}</span>
+          <span className="truncate">{displayName}</span>
           <ChevronUp size={16} aria-hidden="true" />
         </button>
       </div>

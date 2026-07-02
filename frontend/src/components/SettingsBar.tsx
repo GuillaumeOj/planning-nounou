@@ -5,7 +5,7 @@ import { AppearanceControls } from './AppearanceControls'
 // account menu.
 export function SettingsBar() {
   return (
-    <div className="settings-bar">
+    <div className="flex justify-end gap-3 p-3">
       <AppearanceControls />
     </div>
   )
