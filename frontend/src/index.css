@@ -590,3 +590,50 @@ a:hover {
   justify-content: flex-end;
   gap: 10px;
 }
+
+/* --- Nannies ------------------------------------------------------------- */
+.card h2 {
+  margin: 0;
+  font-size: 20px;
+}
+.nanny-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.nanny-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.nanny-row:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+.nanny-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.nanny-name {
+  color: var(--text-h);
+  font-weight: 600;
+}
+.nanny-dates {
+  color: var(--text);
+  font-size: 14px;
+}
+.nanny-actions {
+  display: flex;
+  gap: 8px;
+}
+.form-actions {
+  display: flex;
+  gap: 8px;
+}

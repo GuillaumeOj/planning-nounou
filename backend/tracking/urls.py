@@ -6,6 +6,6 @@ app_name = "tracking"
 
 urlpatterns = [
     path("health/", views.health, name="health"),
-    # Domain endpoints (families, nannies, work entries) will be added here once
-    # the data model is finalized.
+    path("nannies/", views.NannyListCreateView.as_view(), name="nanny-list"),
+    path("nannies/<int:pk>/", views.NannyDetailView.as_view(), name="nanny-detail"),
 ]

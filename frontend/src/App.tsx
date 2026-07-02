@@ -5,6 +5,7 @@ import { NavBar } from './components/NavBar'
 import { SettingsBar } from './components/SettingsBar'
 import Home from './pages/Home'
 import LoginPage from './pages/LoginPage'
+import Nannies from './pages/Nannies'
 import RegisterPage from './pages/RegisterPage'
 import SettingsPage from './pages/SettingsPage'
 
@@ -53,6 +54,7 @@ function App() {
       />
       <Route element={<AppLayout />}>
         <Route path="/" element={<Home />} />
+        <Route path="/nannies" element={<Nannies />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

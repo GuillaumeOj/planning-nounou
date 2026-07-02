@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
+import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getHealth } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
@@ -24,7 +25,9 @@ function wrapper({ children }: { children: ReactNode }) {
   })
   return (
     <I18nProvider>
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      <QueryClientProvider client={client}>
+        <MemoryRouter>{children}</MemoryRouter>
+      </QueryClientProvider>
     </I18nProvider>
   )
 }
