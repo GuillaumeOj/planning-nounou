@@ -102,32 +102,38 @@ cd frontend && bun add <pkg>                         # exact via bunfig.toml
 
 ## Deployment (Vercel + Neon)
 
-Deployed as **two Vercel projects** from this one repo. Django-on-Vercel is auto-detected
-(Vercel finds `manage.py`, reads `WSGI_APPLICATION`, and runs `collectstatic` itself).
+Deployed as **one Vercel project** using [Services](https://vercel.com/docs/services): the
+root `vercel.json` builds `frontend/` (Vite SPA) and `backend/` (Django WSGI function) as two
+services and routes `/api/*` → backend, everything else → frontend on a single domain. No CORS
+needed — the browser stays same-origin. Django-on-Vercel is auto-detected (Vercel finds
+`manage.py`, reads `config.wsgi:application`, and runs `collectstatic` itself).
 
-### 1. Backend project
+### 1. Create the project
 
-- **Root Directory**: `backend`
-- Dependencies install from `pyproject.toml` + `uv.lock`; Python version from `.python-version` (3.13).
-- Add the **Neon** Postgres integration (Vercel Marketplace) → it sets `DATABASE_URL`.
-  Use Neon's **pooled** connection string.
-- Set env vars: `SECRET_KEY`, `DEBUG=0`, `DJANGO_ALLOWED_HOSTS`.
+- **Root Directory**: `/` (the repo root — the `services` block in `vercel.json` points each
+  service at its own subdirectory). Services is a Beta feature; enable it on your plan if the
+  deploy rejects the `services` key.
+- Frontend installs via `bun` (`bun.lock`); backend installs from `pyproject.toml` + `uv.lock`,
+  Python from `.python-version` (3.13).
+
+### 2. Add Neon and env vars
+
+- Add the **Neon** Postgres integration (Vercel Marketplace) to the project. It injects
+  `DATABASE_URL` (**pooled**, `-pooler` host) and `DATABASE_URL_UNPOOLED` (**direct**), plus
+  `PG*` vars. `settings.py` reads `DATABASE_URL`, so the app uses the pooled endpoint — correct
+  for serverless (many short-lived invocations; `CONN_MAX_AGE=0`).
+- Set the remaining env vars: `SECRET_KEY`, `DEBUG=0`, `DJANGO_ALLOWED_HOSTS`,
+  `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS`.
 - Static files (incl. admin) are collected automatically and served from the Vercel CDN.
 
-### 2. Frontend project
+### 3. Migrations
 
-- **Root Directory**: `frontend` (Vite preset auto-detected; bun via `bun.lock`).
-- Edit `frontend/vercel.json`: replace `REPLACE-WITH-BACKEND-PROJECT.vercel.app` with the
-  backend project's domain. This proxies `/api/*` to the backend so the browser stays
-  same-origin (no CORS needed).
-
-### Migrations
-
-Migrations never run in the serverless runtime. Run them from your machine against Neon:
+Migrations never run in the serverless runtime, and pooled (PgBouncer) connections are unreliable
+for DDL — run them from your machine against Neon's **direct** connection:
 
 ```bash
 cd backend
-vercel pull                 # writes env (incl. DATABASE_URL) to .env.local
-# point settings at it, or:
-DATABASE_URL="<neon-pooled-url>" uv run python manage.py migrate
+vercel pull                              # writes env (incl. DATABASE_URL_UNPOOLED) to .env.local
+DATABASE_URL="$(grep DATABASE_URL_UNPOOLED .env.local | cut -d= -f2-)" \
+  uv run python manage.py migrate
 ```
