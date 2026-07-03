@@ -54,6 +54,15 @@ export interface InvitationPreview {
   expires_at: string
 }
 
+// A pending invitation addressed to the current user, for their inbox.
+export interface MyInvitation {
+  id: number
+  family_name: string
+  role: FamilyRole
+  token: string
+  expires_at: string
+}
+
 export async function getFamilies(): Promise<Family[]> {
   const { data } = await api.get<Family[]>('/families/')
   return data
@@ -119,6 +128,11 @@ export async function revokeInvitation(
   invitationId: number,
 ): Promise<void> {
   await api.delete(`/families/${familyId}/invitations/${invitationId}/`)
+}
+
+export async function getMyInvitations(): Promise<MyInvitation[]> {
+  const { data } = await api.get<MyInvitation[]>('/invitations/')
+  return data
 }
 
 export async function getInvitationPreview(

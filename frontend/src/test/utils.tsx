@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { MemoryRouter } from 'react-router-dom'
@@ -22,15 +23,20 @@ export function makeAuth(
   }
 }
 
-// Render a UI tree inside the app-wide providers (theme, i18n, router).
+// Render a UI tree inside the app-wide providers (theme, i18n, query, router).
 export function renderWithProviders(
   ui: ReactElement,
   { route = '/' }: { route?: string } = {},
 ) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
   return render(
     <ThemeProvider>
       <I18nProvider>
-        <MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>
+        <QueryClientProvider client={client}>
+          <MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>
+        </QueryClientProvider>
       </I18nProvider>
     </ThemeProvider>,
   )

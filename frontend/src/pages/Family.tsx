@@ -10,14 +10,17 @@ import {
 } from '../api/children'
 import { extractErrorMessages } from '../api/errors'
 import {
+  acceptInvitation,
   createFamily,
   createInvitation,
+  declineInvitation,
   deleteFamily,
   type Family,
   type FamilyRole,
   getFamilies,
   getFamilyMembers,
   getInvitations,
+  getMyInvitations,
   leaveFamily,
   removeFamilyMember,
   revokeInvitation,
@@ -67,6 +70,8 @@ export default function FamilyPage() {
         </Button>
       </div>
 
+      <PendingInvitationsSection />
+
       <Card className="max-w-2xl">
         <CardContent>
           {isLoading ? (
@@ -112,6 +117,75 @@ export default function FamilyPage() {
         />
       )}
     </main>
+  )
+}
+
+// Invitations addressed to the logged-in user — the way an existing account
+// discovers a family they've been invited to claim/join.
+function PendingInvitationsSection() {
+  const { t } = useI18n()
+  const queryClient = useQueryClient()
+
+  const { data: invitations } = useQuery({
+    queryKey: ['my-invitations'],
+    queryFn: getMyInvitations,
+  })
+
+  const acceptMutation = useMutation({
+    mutationFn: (token: string) => acceptInvitation(token),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-invitations'] })
+      queryClient.invalidateQueries({ queryKey: ['families'] })
+    },
+  })
+  const declineMutation = useMutation({
+    mutationFn: (token: string) => declineInvitation(token),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: ['my-invitations'] }),
+  })
+
+  if (!invitations || invitations.length === 0) return null
+  const busy = acceptMutation.isPending || declineMutation.isPending
+
+  return (
+    <SectionCard title={t('family.inbox.title')} className="max-w-2xl">
+      <ul className="flex flex-col divide-y">
+        {invitations.map((invite) => (
+          <li
+            key={invite.id}
+            className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+          >
+            <div className="flex flex-col gap-1">
+              <span className="font-medium text-foreground">
+                {invite.family_name}
+              </span>
+              <Badge variant="secondary" className="w-fit">
+                {roleLabel(t, invite.role)}
+              </Badge>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                size="sm"
+                disabled={busy}
+                onClick={() => acceptMutation.mutate(invite.token)}
+              >
+                {t('invite.accept')}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={busy}
+                onClick={() => declineMutation.mutate(invite.token)}
+              >
+                {t('invite.decline')}
+              </Button>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </SectionCard>
   )
 }
 

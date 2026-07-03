@@ -135,6 +135,58 @@ def test_duplicate_pending_invite_rejected(client, owner):
     assert client.post(url, payload, format="json").status_code == 400
 
 
+# --- Invitation inbox (addressed to the current user) -----------------------
+
+
+def test_inbox_lists_pending_invitations_for_current_user(client, owner, friend):
+    fam = make_family(owner, name="Dupont")
+    invitation = Invitation.objects.create(family=fam, email=friend.email)
+    client.force_authenticate(user=friend)
+
+    resp = client.get(reverse("accounts:my-invitations"))
+
+    assert resp.status_code == 200
+    assert len(resp.data) == 1
+    assert resp.data[0]["family_name"] == "Dupont"
+    assert resp.data[0]["token"] == invitation.token
+
+
+def test_inbox_matches_email_case_insensitively(client, owner):
+    upper = User.objects.create_user(email="Cap@Example.com", password=VALID_PASSWORD)
+    fam = make_family(owner)
+    Invitation.objects.create(family=fam, email="cap@example.com")
+    client.force_authenticate(user=upper)
+
+    resp = client.get(reverse("accounts:my-invitations"))
+
+    assert resp.status_code == 200
+    assert len(resp.data) == 1
+
+
+def test_inbox_excludes_others_and_non_actionable(client, owner, friend):
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    fam = make_family(owner)
+    # Addressed to someone else.
+    Invitation.objects.create(family=fam, email="other@example.com")
+    # Already accepted.
+    Invitation.objects.create(family=fam, email=friend.email, status=Invitation.Status.ACCEPTED)
+    # Expired.
+    Invitation.objects.create(
+        family=fam,
+        email=friend.email,
+        expires_at=timezone.now() - timedelta(days=1),
+    )
+    client.force_authenticate(user=friend)
+
+    resp = client.get(reverse("accounts:my-invitations"))
+
+    assert resp.status_code == 200
+    assert resp.data == []
+
+
 # --- Invitations: new user claims via registration --------------------------
 
 

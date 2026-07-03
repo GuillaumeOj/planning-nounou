@@ -1,6 +1,7 @@
 from typing import cast
 
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import generics, mixins, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -18,6 +19,7 @@ from .serializers import (
     FamilySerializer,
     InvitationPreviewSerializer,
     InvitationSerializer,
+    MyInvitationSerializer,
     ProfileSerializer,
     RegisterSerializer,
 )
@@ -195,6 +197,22 @@ class InvitationViewSet(
         """Revoke rather than hard-delete, keeping an audit trail."""
         instance.status = Invitation.Status.REVOKED
         instance.save(update_fields=["status"])
+
+
+class MyInvitationsView(generics.ListAPIView):
+    """Pending invitations addressed to the requesting user's email — the inbox
+    that surfaces claims to an already-registered user when they log in."""
+
+    serializer_class = MyInvitationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = cast(User, self.request.user)
+        return Invitation.objects.filter(
+            email__iexact=user.email,
+            status=Invitation.Status.PENDING,
+            expires_at__gt=timezone.now(),
+        ).select_related("family")
 
 
 class InvitationPreviewView(generics.RetrieveAPIView):

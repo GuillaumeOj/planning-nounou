@@ -10,6 +10,7 @@ import {
   getFamilyMembers,
   getInvitationPreview,
   getInvitations,
+  getMyInvitations,
   leaveFamily,
   removeFamilyMember,
   revokeInvitation,
@@ -122,6 +123,17 @@ describe('family api', () => {
     await revokeInvitation(3, 4)
 
     expect(del).toHaveBeenCalledWith('/families/3/invitations/4/')
+  })
+
+  it('getMyInvitations fetches the current user inbox', async () => {
+    const get = vi
+      .spyOn(api, 'get')
+      .mockResolvedValue(resolved([{ id: 7, family_name: 'Dupont' }]))
+
+    const result = await getMyInvitations()
+
+    expect(get).toHaveBeenCalledWith('/invitations/')
+    expect(result).toEqual([{ id: 7, family_name: 'Dupont' }])
   })
 
   it('getInvitationPreview fetches by token', async () => {

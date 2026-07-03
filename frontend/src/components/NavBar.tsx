@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query'
 import {
   Baby,
   ChevronUp,
@@ -8,6 +9,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { NavLink } from 'react-router-dom'
+import { getMyInvitations } from '../api/family'
 import { useAuth } from '../auth/AuthContext'
 import { useI18n } from '../i18n/I18nContext'
 import { AppearanceControls } from './AppearanceControls'
@@ -28,6 +30,13 @@ export function NavBar() {
   const { user, logout } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
   const userRef = useRef<HTMLDivElement>(null)
+
+  // Surface invitations addressed to this user as a badge on the Family link.
+  const { data: invitations } = useQuery({
+    queryKey: ['my-invitations'],
+    queryFn: getMyInvitations,
+  })
+  const pendingInvites = invitations?.length ?? 0
 
   const displayName = user?.first_name || user?.email || ''
 
@@ -76,6 +85,15 @@ export function NavBar() {
           <NavLink to="/family" className={linkClass}>
             <UsersRound size={18} aria-hidden="true" />
             {t('nav.family')}
+            {pendingInvites > 0 && (
+              <span
+                role="status"
+                className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground"
+                aria-label={t('nav.familyPending')}
+              >
+                {pendingInvites}
+              </span>
+            )}
           </NavLink>
         </li>
         <li>

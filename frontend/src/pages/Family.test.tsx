@@ -10,12 +10,15 @@ import {
   updateChild,
 } from '../api/children'
 import {
+  acceptInvitation,
   createFamily,
   createInvitation,
+  declineInvitation,
   deleteFamily,
   getFamilies,
   getFamilyMembers,
   getInvitations,
+  getMyInvitations,
   leaveFamily,
   removeFamilyMember,
   revokeInvitation,
@@ -37,6 +40,9 @@ vi.mock('../api/family', () => ({
   getInvitations: vi.fn(),
   createInvitation: vi.fn(),
   revokeInvitation: vi.fn(),
+  getMyInvitations: vi.fn(),
+  acceptInvitation: vi.fn(),
+  declineInvitation: vi.fn(),
 }))
 vi.mock('../api/children', () => ({
   listChildren: vi.fn(),
@@ -60,6 +66,9 @@ const mockListChildren = vi.mocked(listChildren)
 const mockCreateChild = vi.mocked(createChild)
 const mockUpdateChild = vi.mocked(updateChild)
 const mockDeleteChild = vi.mocked(deleteChild)
+const mockGetMyInvitations = vi.mocked(getMyInvitations)
+const mockAcceptInvitation = vi.mocked(acceptInvitation)
+const mockDeclineInvitation = vi.mocked(declineInvitation)
 const mockUseAuth = vi.mocked(useAuth)
 
 const OWNER_FAMILY = {
@@ -150,6 +159,53 @@ beforeEach(() => {
   mockGetMembers.mockResolvedValue([SELF_MEMBER])
   mockGetInvitations.mockResolvedValue([])
   mockListChildren.mockResolvedValue([])
+  mockGetMyInvitations.mockResolvedValue([])
+})
+
+const MY_INVITE = {
+  id: 30,
+  family_name: 'Bernard',
+  role: 'owner' as const,
+  token: 'inbox-tok',
+  expires_at: '2026-01-08T00:00:00Z',
+}
+
+describe('FamilyPage — invitation inbox', () => {
+  it('shows no inbox section when there are no invitations for me', async () => {
+    renderPage()
+    await screen.findByText('Dupont')
+    expect(
+      screen.queryByRole('heading', { name: 'Invitations for you' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('lists invitations addressed to me and accepts one', async () => {
+    mockGetMyInvitations.mockResolvedValue([MY_INVITE])
+    mockAcceptInvitation.mockResolvedValue(OWNER_FAMILY)
+    renderPage()
+
+    await screen.findByRole('heading', { name: 'Invitations for you' })
+    expect(screen.getByText('Bernard')).toBeInTheDocument()
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Accept invitation' }),
+    )
+    await waitFor(() =>
+      expect(mockAcceptInvitation).toHaveBeenCalledWith('inbox-tok'),
+    )
+  })
+
+  it('declines an invitation addressed to me', async () => {
+    mockGetMyInvitations.mockResolvedValue([MY_INVITE])
+    mockDeclineInvitation.mockResolvedValue(undefined)
+    renderPage()
+
+    await screen.findByRole('heading', { name: 'Invitations for you' })
+    await userEvent.click(screen.getByRole('button', { name: 'Decline' }))
+    await waitFor(() =>
+      expect(mockDeclineInvitation).toHaveBeenCalledWith('inbox-tok'),
+    )
+  })
 })
 
 describe('FamilyPage — list', () => {

@@ -46,6 +46,8 @@ urlpatterns = [
         invitation_detail,
         name="family-invitation",
     ),
+    # Invitations addressed to the current user (their inbox).
+    path("invitations/", views.MyInvitationsView.as_view(), name="my-invitations"),
     # Token-addressed invitation flows (preview is public; accept/decline need auth).
     path(
         "invitations/<str:token>/",

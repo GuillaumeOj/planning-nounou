@@ -242,3 +242,18 @@ class InvitationPreviewSerializer(serializers.ModelSerializer):
         model = Invitation
         fields = ("email", "role", "status", "family_name", "expires_at")
         read_only_fields = fields
+
+
+class MyInvitationSerializer(serializers.ModelSerializer):
+    """A pending invitation addressed to the requesting user (their inbox).
+
+    Includes the token so the client can accept/decline via the existing
+    token endpoints; the invitee already holds this capability by email.
+    """
+
+    family_name = serializers.CharField(source="family.name", read_only=True)
+
+    class Meta:
+        model = Invitation
+        fields = ("id", "family_name", "role", "token", "expires_at")
+        read_only_fields = fields
