@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
-from .models import Child, User
+from .models import Child, Family, FamilyMembership, Invitation, User
 
 
 @admin.register(User)
@@ -23,9 +23,42 @@ class UserAdmin(DjangoUserAdmin):
     add_fieldsets = ((None, {"classes": ("wide",), "fields": ("email", "password1", "password2")}),)
 
 
+class FamilyMembershipInline(admin.TabularInline):
+    """Manage a family's members inline from the family page."""
+
+    model = FamilyMembership
+    fk_name = "family"
+    extra = 0
+    autocomplete_fields = ("user", "invited_by")
+
+
+class ChildInline(admin.TabularInline):
+    model = Child
+    extra = 0
+
+
+@admin.register(Family)
+class FamilyAdmin(admin.ModelAdmin):
+    list_display = ("name", "created_by", "is_claimed", "created_at")
+    search_fields = ("name", "created_by__email")
+    inlines = (FamilyMembershipInline, ChildInline)
+
+    @admin.display(boolean=True, description="Claimed")
+    def is_claimed(self, obj: Family) -> bool:
+        return obj.is_claimed
+
+
 @admin.register(Child)
 class ChildAdmin(admin.ModelAdmin):
-    """Admin listing of children and their parent user."""
+    """Admin listing of children and their family."""
 
-    list_display = ("first_name", "parent")
-    search_fields = ("first_name", "parent__email")
+    list_display = ("first_name", "family")
+    search_fields = ("first_name", "family__name")
+
+
+@admin.register(Invitation)
+class InvitationAdmin(admin.ModelAdmin):
+    list_display = ("email", "family", "role", "status", "expires_at")
+    list_filter = ("status", "role")
+    search_fields = ("email", "family__name")
+    readonly_fields = ("token", "created_at", "responded_at")

@@ -1,14 +1,6 @@
 import { useForm } from '@tanstack/react-form'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useState } from 'react'
 import { changeEmail, changePassword, updateProfile } from '../api/auth'
-import {
-  type Child,
-  createChild,
-  deleteChild,
-  listChildren,
-  updateChild,
-} from '../api/children'
 import { extractErrorMessages } from '../api/errors'
 import { useAuth } from '../auth/AuthContext'
 import { FormErrors } from '../components/FormErrors'
@@ -18,7 +10,6 @@ import { TextField } from '../components/TextField'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { useI18n } from '../i18n/I18nContext'
 import type { TranslationKey } from '../i18n/translations'
 
@@ -30,24 +21,11 @@ export default function SettingsPage() {
       <h1 className="text-3xl font-semibold tracking-tight">
         {t('settings.title')}
       </h1>
-      <Tabs defaultValue="informations" className="w-full max-w-xl gap-6">
-        <TabsList>
-          <TabsTrigger value="informations">
-            {t('settings.tabs.informations')}
-          </TabsTrigger>
-          <TabsTrigger value="children">
-            {t('settings.tabs.children')}
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="informations" className="flex flex-col gap-6">
-          <ProfileSection />
-          <EmailSection />
-          <PasswordSection />
-        </TabsContent>
-        <TabsContent value="children">
-          <ChildrenSection />
-        </TabsContent>
-      </Tabs>
+      <div className="flex w-full max-w-xl flex-col gap-6">
+        <ProfileSection />
+        <EmailSection />
+        <PasswordSection />
+      </div>
     </main>
   )
 }
@@ -308,155 +286,5 @@ function PasswordSection() {
         </form.Subscribe>
       </form>
     </SectionCard>
-  )
-}
-
-function ChildrenSection() {
-  const { t } = useI18n()
-  const queryClient = useQueryClient()
-  const [errors, setErrors] = useState<string[]>([])
-
-  const {
-    data: children,
-    isLoading,
-    isError,
-  } = useQuery({ queryKey: ['children'], queryFn: listChildren })
-
-  const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: ['children'] })
-  const onError = (err: unknown) =>
-    setErrors(extractErrorMessages(err, t('settings.children.error')))
-
-  const addMutation = useMutation({
-    mutationFn: (firstName: string) => createChild(firstName),
-    onSuccess: invalidate,
-    onError,
-  })
-  const renameMutation = useMutation({
-    mutationFn: ({ id, firstName }: { id: number; firstName: string }) =>
-      updateChild(id, firstName),
-    onSuccess: invalidate,
-    onError,
-  })
-  const deleteMutation = useMutation({
-    mutationFn: (id: number) => deleteChild(id),
-    onSuccess: invalidate,
-    onError,
-  })
-
-  const addForm = useForm({
-    defaultValues: { first_name: '' },
-    onSubmit: async ({ value }) => {
-      setErrors([])
-      try {
-        await addMutation.mutateAsync(value.first_name)
-        addForm.reset()
-      } catch {
-        // The error is surfaced by the mutation's onError handler.
-      }
-    },
-  })
-
-  return (
-    <SectionCard
-      title={t('settings.children.title')}
-      description={t('settings.children.description')}
-    >
-      {isLoading && (
-        <p className="text-sm text-muted-foreground">
-          {t('settings.children.loading')}
-        </p>
-      )}
-      {isError && (
-        <p className="text-sm text-destructive">
-          {t('settings.children.error')}
-        </p>
-      )}
-      {children && children.length === 0 && (
-        <p className="text-sm text-muted-foreground">
-          {t('settings.children.empty')}
-        </p>
-      )}
-      <ul className="flex flex-col gap-3">
-        {children?.map((child) => (
-          <ChildRow
-            key={child.id}
-            child={child}
-            onRename={(firstName) =>
-              renameMutation.mutate({ id: child.id, firstName })
-            }
-            onDelete={() => deleteMutation.mutate(child.id)}
-          />
-        ))}
-      </ul>
-      <FormErrors messages={errors} />
-      <form
-        className="flex flex-col gap-4 border-t pt-4"
-        onSubmit={(event) => {
-          event.preventDefault()
-          event.stopPropagation()
-          addForm.handleSubmit()
-        }}
-      >
-        <addForm.Field name="first_name">
-          {(field) => (
-            <TextField
-              field={field}
-              id="child-first-name"
-              label={t('settings.children.firstName')}
-              required
-            />
-          )}
-        </addForm.Field>
-        <addForm.Subscribe selector={(state) => state.isSubmitting}>
-          {(isSubmitting) => (
-            <Button
-              type="submit"
-              className="self-start"
-              disabled={isSubmitting}
-            >
-              {isSubmitting
-                ? t('settings.children.adding')
-                : t('settings.children.add')}
-            </Button>
-          )}
-        </addForm.Subscribe>
-      </form>
-    </SectionCard>
-  )
-}
-
-function ChildRow({
-  child,
-  onRename,
-  onDelete,
-}: {
-  child: Child
-  onRename: (firstName: string) => void
-  onDelete: () => void
-}) {
-  const { t } = useI18n()
-  const [name, setName] = useState(child.first_name)
-
-  return (
-    <li className="flex items-center gap-2">
-      <Input
-        className="flex-1"
-        value={name}
-        aria-label={t('settings.children.firstName')}
-        onChange={(event) => setName(event.target.value)}
-      />
-      <Button
-        variant="outline"
-        type="button"
-        onClick={() => onRename(name)}
-        disabled={name.trim() === '' || name === child.first_name}
-      >
-        {t('settings.children.save')}
-      </Button>
-      <Button variant="destructive" type="button" onClick={onDelete}>
-        {t('settings.children.delete')}
-      </Button>
-    </li>
   )
 }

@@ -3,7 +3,9 @@ import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { ProtectedRoute } from './auth/ProtectedRoute'
 import { NavBar } from './components/NavBar'
 import { SettingsBar } from './components/SettingsBar'
+import Family from './pages/Family'
 import Home from './pages/Home'
+import InvitePage from './pages/InvitePage'
 import LoginPage from './pages/LoginPage'
 import Nannies from './pages/Nannies'
 import RegisterPage from './pages/RegisterPage'
@@ -52,9 +54,19 @@ function App() {
           </AuthLayout>
         }
       />
+      {/* Invitation landing: works signed in (accept) or signed out (claim). */}
+      <Route
+        path="/invite/:token"
+        element={
+          <AuthLayout>
+            <InvitePage />
+          </AuthLayout>
+        }
+      />
       <Route element={<AppLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/nannies" element={<Nannies />} />
+        <Route path="/family" element={<Family />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

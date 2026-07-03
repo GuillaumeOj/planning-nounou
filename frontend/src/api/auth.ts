@@ -18,8 +18,15 @@ export async function login(credentials: Credentials): Promise<TokenPair> {
   return data
 }
 
-export async function register(credentials: Credentials): Promise<User> {
-  const { data } = await api.post<User>('/auth/register/', credentials)
+export async function register(
+  credentials: Credentials,
+  invitationToken?: string,
+): Promise<User> {
+  // A token joins the new account to the invited family on creation (claim flow).
+  const payload = invitationToken
+    ? { ...credentials, invitation_token: invitationToken }
+    : credentials
+  const { data } = await api.post<User>('/auth/register/', payload)
   return data
 }
 

@@ -136,10 +136,10 @@ describe('AuthProvider', () => {
         'auth:x@example.com',
       ),
     )
-    expect(mockRegister).toHaveBeenCalledWith({
-      email: 'x@example.com',
-      password: 'pw',
-    })
+    expect(mockRegister).toHaveBeenCalledWith(
+      { email: 'x@example.com', password: 'pw' },
+      undefined,
+    )
   })
 
   it('logout clears the session', async () => {

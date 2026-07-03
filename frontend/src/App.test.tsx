@@ -5,6 +5,9 @@ import { useAuth } from './auth/AuthContext'
 import { makeAuth, renderWithProviders } from './test/utils'
 
 vi.mock('./auth/AuthContext', () => ({ useAuth: vi.fn() }))
+vi.mock('./api/family', () => ({
+  getMyInvitations: vi.fn(() => Promise.resolve([])),
+}))
 vi.mock('./pages/Home', () => ({ default: () => <p>home</p> }))
 vi.mock('./pages/LoginPage', () => ({ default: () => <p>login</p> }))
 vi.mock('./pages/RegisterPage', () => ({ default: () => <p>register</p> }))

@@ -4,12 +4,6 @@ import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { changeEmail, changePassword, updateProfile } from '../api/auth'
-import {
-  createChild,
-  deleteChild,
-  listChildren,
-  updateChild,
-} from '../api/children'
 import { useAuth } from '../auth/AuthContext'
 import { I18nProvider } from '../i18n/I18nContext'
 import { makeAuth } from '../test/utils'
@@ -20,22 +14,12 @@ vi.mock('../api/auth', () => ({
   changeEmail: vi.fn(),
   changePassword: vi.fn(),
 }))
-vi.mock('../api/children', () => ({
-  listChildren: vi.fn(),
-  createChild: vi.fn(),
-  updateChild: vi.fn(),
-  deleteChild: vi.fn(),
-}))
 vi.mock('../auth/AuthContext', () => ({ useAuth: vi.fn() }))
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockUpdateProfile = vi.mocked(updateProfile)
 const mockChangeEmail = vi.mocked(changeEmail)
 const mockChangePassword = vi.mocked(changePassword)
-const mockListChildren = vi.mocked(listChildren)
-const mockCreateChild = vi.mocked(createChild)
-const mockUpdateChild = vi.mocked(updateChild)
-const mockDeleteChild = vi.mocked(deleteChild)
 const refreshUser = vi.fn()
 
 function renderPage() {
@@ -52,11 +36,6 @@ function renderPage() {
   return render(<SettingsPage />, { wrapper })
 }
 
-// Switch to the Children tab and wait for the list to settle.
-async function openChildrenTab() {
-  await userEvent.click(screen.getByRole('tab', { name: 'Children' }))
-}
-
 beforeEach(() => {
   vi.clearAllMocks()
   mockUseAuth.mockReturnValue(
@@ -71,26 +50,17 @@ beforeEach(() => {
       refreshUser,
     }),
   )
-  mockListChildren.mockResolvedValue([{ id: 5, first_name: 'Leo' }])
 })
 
-describe('SettingsPage — tabs', () => {
-  it('shows the Information tab by default and switches to Children', async () => {
+describe('SettingsPage — sections', () => {
+  it('shows the profile, email, and password sections', () => {
     renderPage()
 
     expect(screen.getByRole('heading', { name: 'Profile' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Email' })).toBeInTheDocument()
     expect(
-      screen.queryByRole('heading', { name: 'Children' }),
-    ).not.toBeInTheDocument()
-
-    await openChildrenTab()
-
-    expect(
-      screen.getByRole('heading', { name: 'Children' }),
+      screen.getByRole('heading', { name: 'Password' }),
     ).toBeInTheDocument()
-    expect(
-      screen.queryByRole('heading', { name: 'Profile' }),
-    ).not.toBeInTheDocument()
   })
 })
 
@@ -235,92 +205,5 @@ describe('SettingsPage — password', () => {
       }),
     )
     expect(await screen.findByText('Password updated.')).toBeInTheDocument()
-  })
-})
-
-describe('SettingsPage — children', () => {
-  it('lists existing children', async () => {
-    renderPage()
-    await openChildrenTab()
-
-    const row = await screen.findByRole('listitem')
-    expect(within(row).getByRole('textbox')).toHaveValue('Leo')
-  })
-
-  it('adds a child', async () => {
-    mockCreateChild.mockResolvedValue({ id: 6, first_name: 'Mia' })
-    renderPage()
-    await openChildrenTab()
-    await screen.findByRole('listitem')
-
-    await userEvent.type(
-      screen.getByLabelText('First name', {
-        selector: 'input[name="first_name"]',
-      }),
-      'Mia',
-    )
-    await userEvent.click(screen.getByRole('button', { name: 'Add child' }))
-
-    await waitFor(() => expect(mockCreateChild).toHaveBeenCalledWith('Mia'))
-  })
-
-  it('renames a child', async () => {
-    mockUpdateChild.mockResolvedValue({ id: 5, first_name: 'Leon' })
-    renderPage()
-    await openChildrenTab()
-    const row = await screen.findByRole('listitem')
-
-    await userEvent.type(within(row).getByRole('textbox'), 'n')
-    await userEvent.click(within(row).getByRole('button', { name: 'Save' }))
-
-    await waitFor(() => expect(mockUpdateChild).toHaveBeenCalledWith(5, 'Leon'))
-  })
-
-  it('deletes a child', async () => {
-    mockDeleteChild.mockResolvedValue(undefined)
-    renderPage()
-    await openChildrenTab()
-    const row = await screen.findByRole('listitem')
-
-    await userEvent.click(within(row).getByRole('button', { name: 'Delete' }))
-
-    await waitFor(() => expect(mockDeleteChild).toHaveBeenCalledWith(5))
-  })
-
-  it('shows the empty state when there are no children', async () => {
-    mockListChildren.mockResolvedValue([])
-    renderPage()
-    await openChildrenTab()
-
-    expect(await screen.findByText('No children yet.')).toBeInTheDocument()
-  })
-
-  it('shows an error when adding a child fails', async () => {
-    mockCreateChild.mockRejectedValue(new Error('boom'))
-    renderPage()
-    await openChildrenTab()
-    await screen.findByRole('listitem')
-
-    await userEvent.type(
-      screen.getByLabelText('First name', {
-        selector: 'input[name="first_name"]',
-      }),
-      'Mia',
-    )
-    await userEvent.click(screen.getByRole('button', { name: 'Add child' }))
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Could not save children',
-    )
-  })
-
-  it('reports a loading error from the list query', async () => {
-    mockListChildren.mockRejectedValue(new Error('down'))
-    renderPage()
-    await openChildrenTab()
-
-    await waitFor(() =>
-      expect(screen.getByText('Could not save children')).toBeInTheDocument(),
-    )
   })
 })

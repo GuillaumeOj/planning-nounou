@@ -13,20 +13,10 @@ import {
   type NannyInput,
   updateNanny,
 } from '../api/nannies'
+import { ConfirmButton } from '../components/ConfirmButton'
 import { FormErrors } from '../components/FormErrors'
 import { SectionCard } from '../components/SectionCard'
 import { TextField } from '../components/TextField'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '../components/ui/alert-dialog'
 import { Button } from '../components/ui/button'
 import { Calendar } from '../components/ui/calendar'
 import { Card, CardContent } from '../components/ui/card'
@@ -354,34 +344,12 @@ export default function Nannies() {
                     >
                       {t('nanny.edit')}
                     </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button variant="destructive" size="sm" type="button">
-                          {t('nanny.delete')}
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>
-                            {t('nanny.delete')}
-                          </AlertDialogTitle>
-                          <AlertDialogDescription>
-                            {t('nanny.confirmDelete')}
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>
-                            {t('common.cancel')}
-                          </AlertDialogCancel>
-                          <AlertDialogAction
-                            className="bg-destructive text-white hover:bg-destructive/90"
-                            onClick={() => deleteMutation.mutate(nanny.id)}
-                          >
-                            {t('nanny.delete')}
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                    <ConfirmButton
+                      trigger={t('nanny.delete')}
+                      title={t('nanny.delete')}
+                      description={t('nanny.confirmDelete')}
+                      onConfirm={() => deleteMutation.mutate(nanny.id)}
+                    />
                   </div>
                 </li>
               ))}

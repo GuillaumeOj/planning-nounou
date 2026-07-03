@@ -1,12 +1,15 @@
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getMyInvitations } from '../api/family'
 import { useAuth } from '../auth/AuthContext'
 import { makeAuth, renderWithProviders } from '../test/utils'
 import { NavBar } from './NavBar'
 
 vi.mock('../auth/AuthContext', () => ({ useAuth: vi.fn() }))
+vi.mock('../api/family', () => ({ getMyInvitations: vi.fn() }))
 const mockUseAuth = vi.mocked(useAuth)
+const mockGetMyInvitations = vi.mocked(getMyInvitations)
 const logout = vi.fn()
 
 function setUser(overrides: Partial<Parameters<typeof makeAuth>[0]> = {}) {
@@ -28,6 +31,7 @@ function setUser(overrides: Partial<Parameters<typeof makeAuth>[0]> = {}) {
 beforeEach(() => {
   vi.clearAllMocks()
   setUser()
+  mockGetMyInvitations.mockResolvedValue([])
 })
 
 describe('NavBar', () => {
@@ -42,10 +46,45 @@ describe('NavBar', () => {
       'href',
       '/nannies',
     )
+    expect(screen.getByRole('link', { name: 'Family' })).toHaveAttribute(
+      'href',
+      '/family',
+    )
     expect(screen.getByRole('link', { name: 'Settings' })).toHaveAttribute(
       'href',
       '/settings',
     )
+  })
+
+  it('badges the Family link with the pending invitation count', async () => {
+    mockGetMyInvitations.mockResolvedValue([
+      {
+        id: 1,
+        family_name: 'Dupont',
+        role: 'member',
+        token: 't1',
+        expires_at: '2026-01-08T00:00:00Z',
+      },
+      {
+        id: 2,
+        family_name: 'Martin',
+        role: 'owner',
+        token: 't2',
+        expires_at: '2026-01-08T00:00:00Z',
+      },
+    ])
+    renderWithProviders(<NavBar />)
+
+    expect(
+      await screen.findByLabelText('Pending invitations'),
+    ).toHaveTextContent('2')
+  })
+
+  it('shows no invitation badge when there are none', () => {
+    renderWithProviders(<NavBar />)
+    expect(
+      screen.queryByLabelText('Pending invitations'),
+    ).not.toBeInTheDocument()
   })
 
   it('shows the first name on the account button', () => {
