@@ -36,7 +36,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   mockUseAuth.mockReturnValue(
     makeAuth({
-      user: { id: 1, email: 'me@example.com', first_name: '', last_name: '' },
+      user: { id: '1', email: 'me@example.com', first_name: '', last_name: '' },
       isAuthenticated: true,
     }),
   )

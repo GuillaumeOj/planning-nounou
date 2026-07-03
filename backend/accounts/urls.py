@@ -34,15 +34,15 @@ auth_patterns = [
 urlpatterns = [
     path("auth/", include(auth_patterns)),
     # Family-scoped children.
-    path("families/<int:family_pk>/children/", child_list, name="family-children"),
-    path("families/<int:family_pk>/children/<int:pk>/", child_detail, name="family-child"),
+    path("families/<uuid:family_pk>/children/", child_list, name="family-children"),
+    path("families/<uuid:family_pk>/children/<uuid:pk>/", child_detail, name="family-child"),
     # Family members.
-    path("families/<int:family_pk>/members/", member_list, name="family-members"),
-    path("families/<int:family_pk>/members/<int:pk>/", member_detail, name="family-member"),
+    path("families/<uuid:family_pk>/members/", member_list, name="family-members"),
+    path("families/<uuid:family_pk>/members/<uuid:pk>/", member_detail, name="family-member"),
     # Family invitations.
-    path("families/<int:family_pk>/invitations/", invitation_list, name="family-invitations"),
+    path("families/<uuid:family_pk>/invitations/", invitation_list, name="family-invitations"),
     path(
-        "families/<int:family_pk>/invitations/<int:pk>/",
+        "families/<uuid:family_pk>/invitations/<uuid:pk>/",
         invitation_detail,
         name="family-invitation",
     ),

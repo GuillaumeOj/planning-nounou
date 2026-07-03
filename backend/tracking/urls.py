@@ -26,42 +26,42 @@ urlpatterns = [
     path("health/", views.health, name="health"),
     path("minimum-wage/", views.MinimumWageView.as_view(), name="minimum-wage"),
     # A family's shared contracts.
-    path("families/<int:family_pk>/contracts/", contract_list, name="family-contracts"),
+    path("families/<uuid:family_pk>/contracts/", contract_list, name="family-contracts"),
     path(
-        "families/<int:family_pk>/contracts/<int:pk>/",
+        "families/<uuid:family_pk>/contracts/<uuid:pk>/",
         contract_detail,
         name="family-contract",
     ),
     # Versioned compensation for a contract.
     path(
-        "families/<int:family_pk>/contracts/<int:contract_pk>/terms/",
+        "families/<uuid:family_pk>/contracts/<uuid:contract_pk>/terms/",
         terms_list,
         name="contract-terms",
     ),
     path(
-        "families/<int:family_pk>/contracts/<int:contract_pk>/terms/<int:pk>/",
+        "families/<uuid:family_pk>/contracts/<uuid:contract_pk>/terms/<uuid:pk>/",
         terms_detail,
         name="contract-term",
     ),
     # Versioned weekly schedule for a contract.
     path(
-        "families/<int:family_pk>/contracts/<int:contract_pk>/schedule/",
+        "families/<uuid:family_pk>/contracts/<uuid:contract_pk>/schedule/",
         schedule_list,
         name="contract-schedule",
     ),
     path(
-        "families/<int:family_pk>/contracts/<int:contract_pk>/schedule/<int:pk>/",
+        "families/<uuid:family_pk>/contracts/<uuid:contract_pk>/schedule/<uuid:pk>/",
         schedule_detail,
         name="contract-schedule-detail",
     ),
     # Invitations to share a contract with another family.
     path(
-        "families/<int:family_pk>/contracts/<int:contract_pk>/invitations/",
+        "families/<uuid:family_pk>/contracts/<uuid:contract_pk>/invitations/",
         invitation_list,
         name="contract-invitations",
     ),
     path(
-        "families/<int:family_pk>/contracts/<int:contract_pk>/invitations/<int:pk>/",
+        "families/<uuid:family_pk>/contracts/<uuid:contract_pk>/invitations/<uuid:pk>/",
         invitation_detail,
         name="contract-invitation",
     ),

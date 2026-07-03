@@ -2,7 +2,7 @@ import type { TokenPair } from '../auth/tokenStorage'
 import { AUTH_REFRESH_PATH, api } from './client'
 
 export interface User {
-  id: number
+  id: string
   email: string
   first_name: string
   last_name: string

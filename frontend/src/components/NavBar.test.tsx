@@ -19,7 +19,7 @@ function setUser(overrides: Partial<Parameters<typeof makeAuth>[0]> = {}) {
   mockUseAuth.mockReturnValue(
     makeAuth({
       user: {
-        id: 1,
+        id: '1',
         email: 'me@example.com',
         first_name: 'Ada',
         last_name: 'Lovelace',
@@ -63,14 +63,14 @@ describe('NavBar', () => {
   it('badges the Family link with the pending invitation count', async () => {
     mockGetMyInvitations.mockResolvedValue([
       {
-        id: 1,
+        id: '1',
         family_name: 'Dupont',
         role: 'member',
         token: 't1',
         expires_at: '2026-01-08T00:00:00Z',
       },
       {
-        id: 2,
+        id: '2',
         family_name: 'Martin',
         role: 'owner',
         token: 't2',
@@ -87,7 +87,7 @@ describe('NavBar', () => {
   it('badges the Nannies link with pending contract invitations', async () => {
     mockGetMyContractInvitations.mockResolvedValue([
       {
-        id: 1,
+        id: '1',
         nanny_first_name: 'Marie',
         nanny_last_name: 'Dupont',
         token: 'c1',
@@ -121,7 +121,7 @@ describe('NavBar', () => {
   it('falls back to the email when there is no first name', () => {
     setUser({
       user: {
-        id: 1,
+        id: '1',
         email: 'me@example.com',
         first_name: '',
         last_name: '',

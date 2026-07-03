@@ -568,13 +568,13 @@ function TermsSection({
   familyId,
   contract,
 }: {
-  familyId: number
+  familyId: string
   contract: Contract
 }) {
   const { t, lang } = useI18n()
   const queryClient = useQueryClient()
   const [draft, setDraft] = useState<TermsDraft>(EMPTY_TERMS)
-  const [editingId, setEditingId] = useState<number | 'new' | null>(null)
+  const [editingId, setEditingId] = useState<string | 'new' | null>(null)
   const [errors, setErrors] = useState<string[]>([])
   const [confirming, setConfirming] = useState(false)
 
@@ -612,11 +612,11 @@ function TermsSection({
     },
   })
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => deleteContractTerms(familyId, contract.id, id),
+    mutationFn: (id: string) => deleteContractTerms(familyId, contract.id, id),
     onSuccess: invalidate,
   })
 
-  const open = (mode: number | 'new', initial: TermsDraft) => {
+  const open = (mode: string | 'new', initial: TermsDraft) => {
     setDraft(initial)
     setEditingId(mode)
     setErrors([])
@@ -749,13 +749,13 @@ function ScheduleSection({
   familyId,
   contract,
 }: {
-  familyId: number
+  familyId: string
   contract: Contract
 }) {
   const { t, lang } = useI18n()
   const queryClient = useQueryClient()
   const [draft, setDraft] = useState<ScheduleDraft>(EMPTY_SCHEDULE)
-  const [editingId, setEditingId] = useState<number | 'new' | null>(null)
+  const [editingId, setEditingId] = useState<string | 'new' | null>(null)
   const [errors, setErrors] = useState<string[]>([])
   const [confirming, setConfirming] = useState(false)
 
@@ -793,12 +793,12 @@ function ScheduleSection({
     },
   })
   const deleteMutation = useMutation({
-    mutationFn: (id: number) =>
+    mutationFn: (id: string) =>
       deleteContractSchedule(familyId, contract.id, id),
     onSuccess: invalidate,
   })
 
-  const open = (mode: number | 'new', initial: ScheduleDraft) => {
+  const open = (mode: string | 'new', initial: ScheduleDraft) => {
     setDraft(initial)
     setEditingId(mode)
     setErrors([])
@@ -919,7 +919,7 @@ function SharingSection({
   familyId,
   contract,
 }: {
-  familyId: number
+  familyId: string
   contract: Contract
 }) {
   const { t } = useI18n()
@@ -946,7 +946,7 @@ function SharingSection({
     onError: (err) => setErrors(extractErrorMessages(err, t('nanny.error'))),
   })
   const revokeMutation = useMutation({
-    mutationFn: (id: number) =>
+    mutationFn: (id: string) =>
       revokeContractInvitation(familyId, contract.id, id),
     onSuccess: invalidate,
   })
@@ -1036,7 +1036,7 @@ function ContractWizard({
   onClose,
   onCreated,
 }: {
-  familyId: number
+  familyId: string
   nannies: Nanny[]
   onClose: () => void
   onCreated: () => void
@@ -1045,7 +1045,7 @@ function ContractWizard({
   const [step, setStep] = useState(0)
   const [errors, setErrors] = useState<string[]>([])
   const [useExisting, setUseExisting] = useState(false)
-  const [nannyId, setNannyId] = useState<number | ''>('')
+  const [nannyId, setNannyId] = useState<string>('')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [startingDate, setStartingDate] = useState('')
@@ -1060,7 +1060,7 @@ function ContractWizard({
         starting_date: startingDate,
         paid_leave_days: paidLeave ? Number(paidLeave) : undefined,
         ...(useExisting
-          ? { nanny_id: Number(nannyId) }
+          ? { nanny_id: nannyId }
           : { first_name: firstName, last_name: lastName }),
       }
       const contract = await createContract(familyId, input)
@@ -1134,9 +1134,7 @@ function ContractWizard({
                   id="wizard-nanny"
                   className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
                   value={nannyId}
-                  onChange={(e) =>
-                    setNannyId(e.target.value ? Number(e.target.value) : '')
-                  }
+                  onChange={(e) => setNannyId(e.target.value)}
                 >
                   <option value="">—</option>
                   {nannies.map((n) => (
@@ -1266,7 +1264,7 @@ function PendingContractInvitationsSection({
   const { t } = useI18n()
   const queryClient = useQueryClient()
   // Per-invitation choice of which family joins; defaults to the first one.
-  const [joinAs, setJoinAs] = useState<Record<number, number>>({})
+  const [joinAs, setJoinAs] = useState<Record<string, string>>({})
 
   const { data: invitations } = useQuery({
     queryKey: ['my-contract-invitations'],
@@ -1274,7 +1272,7 @@ function PendingContractInvitationsSection({
   })
 
   const acceptMutation = useMutation({
-    mutationFn: ({ token, familyId }: { token: string; familyId: number }) =>
+    mutationFn: ({ token, familyId }: { token: string; familyId: string }) =>
       acceptContractInvitation(token, familyId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['my-contract-invitations'] })
@@ -1323,7 +1321,7 @@ function PendingContractInvitationsSection({
                       onChange={(e) =>
                         setJoinAs((prev) => ({
                           ...prev,
-                          [invite.id]: Number(e.target.value),
+                          [invite.id]: e.target.value,
                         }))
                       }
                     >
@@ -1366,8 +1364,8 @@ function PendingContractInvitationsSection({
 export default function Nannies() {
   const { t, lang } = useI18n()
   const queryClient = useQueryClient()
-  const [familyId, setFamilyId] = useState<number | null>(null)
-  const [openId, setOpenId] = useState<number | null>(null)
+  const [familyId, setFamilyId] = useState<string | null>(null)
+  const [openId, setOpenId] = useState<string | null>(null)
   const [wizardOpen, setWizardOpen] = useState(false)
 
   const { data: families } = useQuery({
@@ -1386,12 +1384,12 @@ export default function Nannies() {
     isError,
   } = useQuery({
     queryKey: ['contracts', activeFamilyId],
-    queryFn: () => getContracts(activeFamilyId as number),
+    queryFn: () => getContracts(activeFamilyId as string),
     enabled: activeFamilyId !== null,
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => deleteContract(activeFamilyId as number, id),
+    mutationFn: (id: string) => deleteContract(activeFamilyId as string, id),
     onSuccess: () =>
       queryClient.invalidateQueries({
         queryKey: ['contracts', activeFamilyId],
@@ -1400,7 +1398,7 @@ export default function Nannies() {
 
   // Nannies the acting family already works with, for reuse in the wizard.
   const knownNannies = useMemo(() => {
-    const map = new Map<number, Nanny>()
+    const map = new Map<string, Nanny>()
     for (const c of contracts ?? []) map.set(c.nanny.id, c.nanny)
     return [...map.values()]
   }, [contracts])
@@ -1434,7 +1432,7 @@ export default function Nannies() {
           className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
           value={activeFamilyId ?? ''}
           onChange={(e) => {
-            setFamilyId(Number(e.target.value))
+            setFamilyId(e.target.value)
             setOpenId(null)
           }}
         >

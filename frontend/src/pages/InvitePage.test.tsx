@@ -89,7 +89,7 @@ describe('InvitePage', () => {
 
     it('accepts the invitation and links to the families', async () => {
       mockAccept.mockResolvedValue({
-        id: 1,
+        id: '1',
         name: 'Dupont',
         role: 'member',
         is_claimed: true,

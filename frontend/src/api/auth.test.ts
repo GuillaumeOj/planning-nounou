@@ -34,7 +34,7 @@ describe('auth api', () => {
     const post = vi
       .spyOn(api, 'post')
       // biome-ignore lint/suspicious/noExplicitAny: canned axios response
-      .mockResolvedValue({ data: { id: 1, email: 'x@example.com' } } as any)
+      .mockResolvedValue({ data: { id: '1', email: 'x@example.com' } } as any)
 
     const result = await register({ email: 'x@example.com', password: 'pw' })
 
@@ -42,14 +42,14 @@ describe('auth api', () => {
       email: 'x@example.com',
       password: 'pw',
     })
-    expect(result).toMatchObject({ id: 1, email: 'x@example.com' })
+    expect(result).toMatchObject({ id: '1', email: 'x@example.com' })
   })
 
   it('register includes the invitation token when provided', async () => {
     const post = vi
       .spyOn(api, 'post')
       // biome-ignore lint/suspicious/noExplicitAny: canned axios response
-      .mockResolvedValue({ data: { id: 1, email: 'x@example.com' } } as any)
+      .mockResolvedValue({ data: { id: '1', email: 'x@example.com' } } as any)
 
     await register({ email: 'x@example.com', password: 'pw' }, 'tok123')
 
@@ -76,7 +76,7 @@ describe('auth api', () => {
     const get = vi
       .spyOn(api, 'get')
       // biome-ignore lint/suspicious/noExplicitAny: canned axios response
-      .mockResolvedValue({ data: { id: 1, email: 'x@example.com' } } as any)
+      .mockResolvedValue({ data: { id: '1', email: 'x@example.com' } } as any)
 
     const result = await getMe()
 
@@ -88,7 +88,7 @@ describe('auth api', () => {
     const patch = vi
       .spyOn(api, 'patch')
       // biome-ignore lint/suspicious/noExplicitAny: canned axios response
-      .mockResolvedValue({ data: { id: 1, first_name: 'Ada' } } as any)
+      .mockResolvedValue({ data: { id: '1', first_name: 'Ada' } } as any)
 
     const result = await updateProfile({
       first_name: 'Ada',
@@ -106,7 +106,7 @@ describe('auth api', () => {
     const put = vi
       .spyOn(api, 'put')
       // biome-ignore lint/suspicious/noExplicitAny: canned axios response
-      .mockResolvedValue({ data: { id: 1, email: 'new@example.com' } } as any)
+      .mockResolvedValue({ data: { id: '1', email: 'new@example.com' } } as any)
 
     const result = await changeEmail({
       current_password: 'pw',

@@ -1,14 +1,14 @@
 import { api } from './client'
 
 export interface Nanny {
-  id: number
+  id: string
   first_name: string
   last_name: string
 }
 
 // A compensation snapshot. Decimal fields are strings (DRF serializes them so).
 export interface ContractTerms {
-  id: number
+  id: string
   effective_from: string
   effective_to: string | null
   net_hourly_rate: string
@@ -30,14 +30,14 @@ export interface ContractTermsInput {
 }
 
 export interface ScheduleBlock {
-  id?: number
+  id?: string
   weekday: number
   start_time: string
   end_time: string
 }
 
 export interface ContractSchedule {
-  id: number
+  id: string
   effective_from: string
   effective_to: string | null
   weekly_hours: number
@@ -51,13 +51,13 @@ export interface ContractScheduleInput {
 }
 
 export interface ContractFamily {
-  id: number
+  id: string
   name: string
   is_originator: boolean
 }
 
 export interface Contract {
-  id: number
+  id: string
   nanny: Nanny
   starting_date: string
   ending_date: string | null
@@ -70,7 +70,7 @@ export interface Contract {
 
 export interface ContractInput {
   // Either reuse an existing nanny (nanny_id) or create one from names.
-  nanny_id?: number
+  nanny_id?: string
   first_name?: string
   last_name?: string
   starting_date: string
@@ -80,7 +80,7 @@ export interface ContractInput {
 }
 
 export interface ContractInvitation {
-  id: number
+  id: string
   email: string
   status: string
   token: string
@@ -90,7 +90,7 @@ export interface ContractInvitation {
 
 // A pending contract invitation addressed to the logged-in user (their inbox).
 export interface MyContractInvitation {
-  id: number
+  id: string
   nanny_first_name: string
   nanny_last_name: string
   token: string
@@ -109,15 +109,15 @@ export async function getMinimumWage(on?: string): Promise<MinimumWage> {
   return data
 }
 
-const base = (familyId: number) => `/families/${familyId}/contracts/`
+const base = (familyId: string) => `/families/${familyId}/contracts/`
 
-export async function getContracts(familyId: number): Promise<Contract[]> {
+export async function getContracts(familyId: string): Promise<Contract[]> {
   const { data } = await api.get<Contract[]>(base(familyId))
   return data
 }
 
 export async function createContract(
-  familyId: number,
+  familyId: string,
   input: ContractInput,
 ): Promise<Contract> {
   const { data } = await api.post<Contract>(base(familyId), input)
@@ -125,8 +125,8 @@ export async function createContract(
 }
 
 export async function updateContract(
-  familyId: number,
-  id: number,
+  familyId: string,
+  id: string,
   input: Partial<ContractInput>,
 ): Promise<Contract> {
   const { data } = await api.patch<Contract>(`${base(familyId)}${id}/`, input)
@@ -134,15 +134,15 @@ export async function updateContract(
 }
 
 export async function deleteContract(
-  familyId: number,
-  id: number,
+  familyId: string,
+  id: string,
 ): Promise<void> {
   await api.delete(`${base(familyId)}${id}/`)
 }
 
 export async function getContractTerms(
-  familyId: number,
-  contractId: number,
+  familyId: string,
+  contractId: string,
 ): Promise<ContractTerms[]> {
   const { data } = await api.get<ContractTerms[]>(
     `${base(familyId)}${contractId}/terms/`,
@@ -151,8 +151,8 @@ export async function getContractTerms(
 }
 
 export async function createContractTerms(
-  familyId: number,
-  contractId: number,
+  familyId: string,
+  contractId: string,
   input: ContractTermsInput,
 ): Promise<ContractTerms> {
   const { data } = await api.post<ContractTerms>(
@@ -163,9 +163,9 @@ export async function createContractTerms(
 }
 
 export async function updateContractTerms(
-  familyId: number,
-  contractId: number,
-  termsId: number,
+  familyId: string,
+  contractId: string,
+  termsId: string,
   input: ContractTermsInput,
 ): Promise<ContractTerms> {
   const { data } = await api.patch<ContractTerms>(
@@ -176,16 +176,16 @@ export async function updateContractTerms(
 }
 
 export async function deleteContractTerms(
-  familyId: number,
-  contractId: number,
-  termsId: number,
+  familyId: string,
+  contractId: string,
+  termsId: string,
 ): Promise<void> {
   await api.delete(`${base(familyId)}${contractId}/terms/${termsId}/`)
 }
 
 export async function getContractSchedules(
-  familyId: number,
-  contractId: number,
+  familyId: string,
+  contractId: string,
 ): Promise<ContractSchedule[]> {
   const { data } = await api.get<ContractSchedule[]>(
     `${base(familyId)}${contractId}/schedule/`,
@@ -194,8 +194,8 @@ export async function getContractSchedules(
 }
 
 export async function createContractSchedule(
-  familyId: number,
-  contractId: number,
+  familyId: string,
+  contractId: string,
   input: ContractScheduleInput,
 ): Promise<ContractSchedule> {
   const { data } = await api.post<ContractSchedule>(
@@ -206,9 +206,9 @@ export async function createContractSchedule(
 }
 
 export async function updateContractSchedule(
-  familyId: number,
-  contractId: number,
-  scheduleId: number,
+  familyId: string,
+  contractId: string,
+  scheduleId: string,
   input: ContractScheduleInput,
 ): Promise<ContractSchedule> {
   const { data } = await api.patch<ContractSchedule>(
@@ -219,16 +219,16 @@ export async function updateContractSchedule(
 }
 
 export async function deleteContractSchedule(
-  familyId: number,
-  contractId: number,
-  scheduleId: number,
+  familyId: string,
+  contractId: string,
+  scheduleId: string,
 ): Promise<void> {
   await api.delete(`${base(familyId)}${contractId}/schedule/${scheduleId}/`)
 }
 
 export async function getContractInvitations(
-  familyId: number,
-  contractId: number,
+  familyId: string,
+  contractId: string,
 ): Promise<ContractInvitation[]> {
   const { data } = await api.get<ContractInvitation[]>(
     `${base(familyId)}${contractId}/invitations/`,
@@ -237,8 +237,8 @@ export async function getContractInvitations(
 }
 
 export async function createContractInvitation(
-  familyId: number,
-  contractId: number,
+  familyId: string,
+  contractId: string,
   email: string,
 ): Promise<ContractInvitation> {
   const { data } = await api.post<ContractInvitation>(
@@ -249,9 +249,9 @@ export async function createContractInvitation(
 }
 
 export async function revokeContractInvitation(
-  familyId: number,
-  contractId: number,
-  invitationId: number,
+  familyId: string,
+  contractId: string,
+  invitationId: string,
 ): Promise<void> {
   await api.delete(
     `${base(familyId)}${contractId}/invitations/${invitationId}/`,
@@ -271,7 +271,7 @@ export async function getMyContractInvitations(): Promise<
 // Accept a shared contract, attaching one of the user's families to it.
 export async function acceptContractInvitation(
   token: string,
-  familyId: number,
+  familyId: string,
 ): Promise<Contract> {
   const { data } = await api.post<Contract>(
     `/contract-invitations/${token}/accept/`,

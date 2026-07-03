@@ -72,29 +72,29 @@ const mockDeclineInvitation = vi.mocked(declineInvitation)
 const mockUseAuth = vi.mocked(useAuth)
 
 const OWNER_FAMILY = {
-  id: 1,
+  id: '1',
   name: 'Dupont',
   role: 'owner' as const,
   is_claimed: true,
   created_at: '2026-01-01T00:00:00Z',
 }
 const MEMBER_FAMILY = {
-  id: 2,
+  id: '2',
   name: 'Martin',
   role: 'member' as const,
   is_claimed: true,
   created_at: '2026-01-01T00:00:00Z',
 }
 const UNCLAIMED_FAMILY = {
-  id: 3,
+  id: '3',
   name: 'Gift',
   role: null,
   is_claimed: false,
   created_at: '2026-01-01T00:00:00Z',
 }
 const SELF_MEMBER = {
-  id: 10,
-  user: 1,
+  id: '10',
+  user: '1',
   email: 'me@example.com',
   first_name: 'Ada',
   last_name: 'Lovelace',
@@ -102,8 +102,8 @@ const SELF_MEMBER = {
   joined_at: '2026-01-01T00:00:00Z',
 }
 const OTHER_MEMBER = {
-  id: 11,
-  user: 2,
+  id: '11',
+  user: '2',
   email: 'friend@example.com',
   first_name: 'Bob',
   last_name: 'Martin',
@@ -111,7 +111,7 @@ const OTHER_MEMBER = {
   joined_at: '2026-01-01T00:00:00Z',
 }
 const INVITE = {
-  id: 20,
+  id: '20',
   email: 'invitee@example.com',
   role: 'member' as const,
   status: 'pending' as const,
@@ -147,7 +147,7 @@ beforeEach(() => {
   mockUseAuth.mockReturnValue(
     makeAuth({
       user: {
-        id: 1,
+        id: '1',
         email: 'me@example.com',
         first_name: 'Ada',
         last_name: 'Lovelace',
@@ -163,7 +163,7 @@ beforeEach(() => {
 })
 
 const MY_INVITE = {
-  id: 30,
+  id: '30',
   family_name: 'Bernard',
   role: 'owner' as const,
   token: 'inbox-tok',
@@ -242,9 +242,9 @@ describe('FamilyPage — list', () => {
 
 describe('FamilyPage — children', () => {
   it('lists, adds, renames and deletes children', async () => {
-    mockListChildren.mockResolvedValue([{ id: 5, first_name: 'Leo' }])
-    mockCreateChild.mockResolvedValue({ id: 6, first_name: 'Mia' })
-    mockUpdateChild.mockResolvedValue({ id: 5, first_name: 'Leon' })
+    mockListChildren.mockResolvedValue([{ id: '5', first_name: 'Leo' }])
+    mockCreateChild.mockResolvedValue({ id: '6', first_name: 'Mia' })
+    mockUpdateChild.mockResolvedValue({ id: '5', first_name: 'Leon' })
     mockDeleteChild.mockResolvedValue(undefined)
     await openDetail()
 
@@ -257,7 +257,7 @@ describe('FamilyPage — children', () => {
       }),
     )
     await waitFor(() =>
-      expect(mockUpdateChild).toHaveBeenCalledWith(1, 5, 'Leon'),
+      expect(mockUpdateChild).toHaveBeenCalledWith('1', '5', 'Leon'),
     )
 
     // delete
@@ -266,7 +266,7 @@ describe('FamilyPage — children', () => {
         name: 'Delete',
       }),
     )
-    await waitFor(() => expect(mockDeleteChild).toHaveBeenCalledWith(1, 5))
+    await waitFor(() => expect(mockDeleteChild).toHaveBeenCalledWith('1', '5'))
 
     // add (disambiguate the add-form input from the row input by its name)
     await userEvent.type(
@@ -276,7 +276,9 @@ describe('FamilyPage — children', () => {
       'Mia',
     )
     await userEvent.click(screen.getByRole('button', { name: 'Add child' }))
-    await waitFor(() => expect(mockCreateChild).toHaveBeenCalledWith(1, 'Mia'))
+    await waitFor(() =>
+      expect(mockCreateChild).toHaveBeenCalledWith('1', 'Mia'),
+    )
   })
 
   it('shows an error when adding a child fails', async () => {
@@ -305,7 +307,9 @@ describe('FamilyPage — members', () => {
     await userEvent.click(
       within(dialog).getByRole('button', { name: 'Remove' }),
     )
-    await waitFor(() => expect(mockRemoveMember).toHaveBeenCalledWith(1, 11))
+    await waitFor(() =>
+      expect(mockRemoveMember).toHaveBeenCalledWith('1', '11'),
+    )
   })
 
   it('prompts to invite an owner when unclaimed', async () => {
@@ -329,7 +333,7 @@ describe('FamilyPage — invitations', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Revoke' }))
     await waitFor(() =>
-      expect(mockRevokeInvitation).toHaveBeenCalledWith(1, 20),
+      expect(mockRevokeInvitation).toHaveBeenCalledWith('1', '20'),
     )
   })
 
@@ -347,7 +351,7 @@ describe('FamilyPage — invitations', () => {
     )
 
     await waitFor(() =>
-      expect(mockCreateInvitation).toHaveBeenCalledWith(1, {
+      expect(mockCreateInvitation).toHaveBeenCalledWith('1', {
         email: 'new@example.com',
         role: 'owner',
       }),
@@ -371,7 +375,11 @@ describe('FamilyPage — invitations', () => {
 
 describe('FamilyPage — family actions', () => {
   it('creates a family for yourself', async () => {
-    mockCreateFamily.mockResolvedValue({ ...OWNER_FAMILY, id: 9, name: 'Nest' })
+    mockCreateFamily.mockResolvedValue({
+      ...OWNER_FAMILY,
+      id: '9',
+      name: 'Nest',
+    })
     renderPage()
     await screen.findByText('Dupont')
 
@@ -394,7 +402,7 @@ describe('FamilyPage — family actions', () => {
   })
 
   it('creates an unclaimed family for someone else', async () => {
-    mockCreateFamily.mockResolvedValue({ ...UNCLAIMED_FAMILY, id: 9 })
+    mockCreateFamily.mockResolvedValue({ ...UNCLAIMED_FAMILY, id: '9' })
     renderPage()
     await screen.findByText('Dupont')
 
@@ -431,7 +439,7 @@ describe('FamilyPage — family actions', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() =>
-      expect(mockUpdateFamily).toHaveBeenCalledWith(1, { name: 'Renamed' }),
+      expect(mockUpdateFamily).toHaveBeenCalledWith('1', { name: 'Renamed' }),
     )
   })
 
@@ -444,7 +452,7 @@ describe('FamilyPage — family actions', () => {
     await userEvent.click(
       within(dialog).getByRole('button', { name: 'Delete family' }),
     )
-    await waitFor(() => expect(mockDeleteFamily).toHaveBeenCalledWith(1))
+    await waitFor(() => expect(mockDeleteFamily).toHaveBeenCalledWith('1'))
   })
 
   it('leaves a family after confirming', async () => {
@@ -456,7 +464,7 @@ describe('FamilyPage — family actions', () => {
     await userEvent.click(
       within(dialog).getByRole('button', { name: 'Leave family' }),
     )
-    await waitFor(() => expect(mockLeaveFamily).toHaveBeenCalledWith(1))
+    await waitFor(() => expect(mockLeaveFamily).toHaveBeenCalledWith('1'))
   })
 
   it('hides manage actions for a plain member', async () => {

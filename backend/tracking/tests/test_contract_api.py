@@ -176,7 +176,7 @@ def test_reuse_an_existing_nanny_of_the_family(client, owner, family, contract):
         format="json",
     )
     assert resp.status_code == 201
-    assert resp.data["nanny"]["id"] == contract.nanny_id
+    assert resp.data["nanny"]["id"] == str(contract.nanny_id)
     assert Contract.objects.filter(nanny_id=contract.nanny_id).count() == 2
 
 

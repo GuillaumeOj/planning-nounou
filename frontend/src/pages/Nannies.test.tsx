@@ -74,7 +74,7 @@ const m = {
 }
 
 const family = {
-  id: 1,
+  id: '1',
   name: 'Home',
   role: 'owner' as const,
   is_claimed: true,
@@ -83,7 +83,7 @@ const family = {
 
 function makeTerms(o: Partial<ContractTerms> = {}): ContractTerms {
   return {
-    id: 1,
+    id: '1',
     effective_from: '2026-01-05',
     effective_to: null,
     net_hourly_rate: '12.00',
@@ -99,7 +99,7 @@ function makeTerms(o: Partial<ContractTerms> = {}): ContractTerms {
 }
 function makeSchedule(o: Partial<ContractSchedule> = {}): ContractSchedule {
   return {
-    id: 1,
+    id: '1',
     effective_from: '2026-01-05',
     effective_to: null,
     weekly_hours: 8,
@@ -110,13 +110,13 @@ function makeSchedule(o: Partial<ContractSchedule> = {}): ContractSchedule {
 }
 function makeContract(o: Partial<Contract> = {}): Contract {
   return {
-    id: 10,
-    nanny: { id: 5, first_name: 'Marie', last_name: 'Dupont' },
+    id: '10',
+    nanny: { id: '5', first_name: 'Marie', last_name: 'Dupont' },
     starting_date: '2026-01-05',
     ending_date: null,
     paid_leave_days: 25,
     notes: '',
-    families: [{ id: 1, name: 'Home', is_originator: true }],
+    families: [{ id: '1', name: 'Home', is_originator: true }],
     current_terms: null,
     current_schedule: null,
     ...o,
@@ -196,7 +196,7 @@ describe('Nannies page', () => {
     m.families.mockResolvedValue([
       family,
       {
-        id: 2,
+        id: '2',
         name: 'Grandma',
         role: 'owner' as const,
         is_claimed: true,
@@ -206,7 +206,7 @@ describe('Nannies page', () => {
     renderWithProviders(<Nannies />)
     await screen.findByText('No nannies yet. Add your first one below.')
     await user.selectOptions(screen.getByLabelText('Acting as family'), '2')
-    await waitFor(() => expect(m.contracts).toHaveBeenCalledWith(2))
+    await waitFor(() => expect(m.contracts).toHaveBeenCalledWith('2'))
   })
 
   it('deletes a contract after confirmation', async () => {
@@ -218,14 +218,16 @@ describe('Nannies page', () => {
     await user.click(screen.getByRole('button', { name: 'Delete' }))
     const dialog = await screen.findByRole('alertdialog')
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
-    await waitFor(() => expect(m.deleteContract).toHaveBeenCalledWith(1, 10))
+    await waitFor(() =>
+      expect(m.deleteContract).toHaveBeenCalledWith('1', '10'),
+    )
   })
 
   it('accepts a shared-contract invitation with the acting family', async () => {
     const user = userEvent.setup()
     m.myInvitations.mockResolvedValue([
       {
-        id: 7,
+        id: '7',
         nanny_first_name: 'Alice',
         nanny_last_name: 'Martin',
         token: 'inv-tok',
@@ -241,7 +243,7 @@ describe('Nannies page', () => {
     expect(screen.getByText('Alice Martin')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Accept invitation' }))
     await waitFor(() =>
-      expect(m.acceptMyInvitation).toHaveBeenCalledWith('inv-tok', 1),
+      expect(m.acceptMyInvitation).toHaveBeenCalledWith('inv-tok', '1'),
     )
   })
 
@@ -249,7 +251,7 @@ describe('Nannies page', () => {
     const user = userEvent.setup()
     m.myInvitations.mockResolvedValue([
       {
-        id: 7,
+        id: '7',
         nanny_first_name: 'Alice',
         nanny_last_name: 'Martin',
         token: 'inv-tok',
@@ -280,7 +282,7 @@ describe('onboarding wizard', () => {
     m.createTerms.mockResolvedValue(makeTerms())
     m.createSchedule.mockResolvedValue(makeSchedule())
     m.createInvitation.mockResolvedValue({
-      id: 1,
+      id: '1',
       email: 'x@y.z',
       status: 'pending',
       token: 't',
@@ -306,7 +308,7 @@ describe('onboarding wizard', () => {
     await user.click(screen.getByRole('button', { name: 'Create contract' }))
 
     await waitFor(() =>
-      expect(m.createContract).toHaveBeenCalledWith(1, {
+      expect(m.createContract).toHaveBeenCalledWith('1', {
         starting_date: '2026-02-03',
         paid_leave_days: 25,
         first_name: 'Paul',
@@ -315,7 +317,11 @@ describe('onboarding wizard', () => {
     )
     expect(m.createTerms).toHaveBeenCalled()
     expect(m.createSchedule).toHaveBeenCalled()
-    expect(m.createInvitation).toHaveBeenCalledWith(1, 10, 'friend@example.com')
+    expect(m.createInvitation).toHaveBeenCalledWith(
+      '1',
+      '10',
+      'friend@example.com',
+    )
   })
 
   it('validates the first step', async () => {
@@ -343,7 +349,7 @@ describe('onboarding wizard', () => {
   it('reuses an existing nanny', async () => {
     const user = userEvent.setup()
     m.contracts.mockResolvedValue([makeContract()])
-    m.createContract.mockResolvedValue(makeContract({ id: 11 }))
+    m.createContract.mockResolvedValue(makeContract({ id: '11' }))
     renderWithProviders(<Nannies />)
     await screen.findByText('Marie Dupont')
     await user.click(screen.getByRole('button', { name: 'Add a nanny' }))
@@ -357,10 +363,10 @@ describe('onboarding wizard', () => {
     await user.click(screen.getByRole('button', { name: 'Create contract' }))
 
     await waitFor(() =>
-      expect(m.createContract).toHaveBeenCalledWith(1, {
+      expect(m.createContract).toHaveBeenCalledWith('1', {
         starting_date: '2026-02-03',
         paid_leave_days: undefined,
-        nanny_id: 5,
+        nanny_id: '5',
       }),
     )
   })
@@ -410,7 +416,7 @@ describe('manage panels', () => {
     await user.click(screen.getByRole('button', { name: 'Confirm' }))
 
     await waitFor(() =>
-      expect(m.createTerms).toHaveBeenCalledWith(1, 10, {
+      expect(m.createTerms).toHaveBeenCalledWith('1', '10', {
         effective_from: undefined,
         net_hourly_rate: '12.50',
         transport_fee: undefined,
@@ -434,8 +440,10 @@ describe('manage panels', () => {
 
   it('edits a compensation history entry in place', async () => {
     const user = userEvent.setup()
-    m.terms.mockResolvedValue([makeTerms({ id: 3, net_hourly_rate: '11.00' })])
-    m.updateTerms.mockResolvedValue(makeTerms({ id: 3, edited: true }))
+    m.terms.mockResolvedValue([
+      makeTerms({ id: '3', net_hourly_rate: '11.00' }),
+    ])
+    m.updateTerms.mockResolvedValue(makeTerms({ id: '3', edited: true }))
     await openManage(user, makeContract())
 
     const row = (await screen.findByText(/11.00 €\/h/)).closest(
@@ -450,9 +458,9 @@ describe('manage panels', () => {
 
     await waitFor(() =>
       expect(m.updateTerms).toHaveBeenCalledWith(
-        1,
-        10,
-        3,
+        '1',
+        '10',
+        '3',
         expect.objectContaining({
           net_hourly_rate: '13.00',
         }),
@@ -462,7 +470,7 @@ describe('manage panels', () => {
 
   it('deletes a compensation history entry', async () => {
     const user = userEvent.setup()
-    m.terms.mockResolvedValue([makeTerms({ id: 3 })])
+    m.terms.mockResolvedValue([makeTerms({ id: '3' })])
     m.deleteTerms.mockResolvedValue()
     await openManage(user, makeContract())
 
@@ -472,7 +480,9 @@ describe('manage panels', () => {
     await user.click(within(row).getByRole('button', { name: 'Delete' }))
     const dialog = await screen.findByRole('alertdialog')
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
-    await waitFor(() => expect(m.deleteTerms).toHaveBeenCalledWith(1, 10, 3))
+    await waitFor(() =>
+      expect(m.deleteTerms).toHaveBeenCalledWith('1', '10', '3'),
+    )
   })
 
   it('adds a schedule with a time block and copy-day control', async () => {
@@ -565,20 +575,20 @@ describe('manage panels', () => {
     const user = userEvent.setup()
     m.schedules.mockResolvedValue([
       makeSchedule({
-        id: 3,
+        id: '3',
         weekly_hours: 3,
         edited: true,
         blocks: [
-          { id: 1, weekday: 0, start_time: '09:00:00', end_time: '12:00:00' },
+          { id: '1', weekday: 0, start_time: '09:00:00', end_time: '12:00:00' },
         ],
       }),
     ])
-    m.updateSchedule.mockResolvedValue(makeSchedule({ id: 3 }))
+    m.updateSchedule.mockResolvedValue(makeSchedule({ id: '3' }))
     await openManage(
       user,
       makeContract({
         current_schedule: makeSchedule({
-          id: 3,
+          id: '3',
           weekly_hours: 3,
           edited: true,
         }),
@@ -590,9 +600,9 @@ describe('manage panels', () => {
     await user.click(await screen.findByRole('button', { name: 'Confirm' }))
     await waitFor(() =>
       expect(m.updateSchedule).toHaveBeenCalledWith(
-        1,
-        10,
-        3,
+        '1',
+        '10',
+        '3',
         expect.anything(),
       ),
     )
@@ -600,7 +610,7 @@ describe('manage panels', () => {
 
   it('deletes a schedule entry', async () => {
     const user = userEvent.setup()
-    m.schedules.mockResolvedValue([makeSchedule({ id: 3, weekly_hours: 5 })])
+    m.schedules.mockResolvedValue([makeSchedule({ id: '3', weekly_hours: 5 })])
     m.deleteSchedule.mockResolvedValue()
     await openManage(user, makeContract())
 
@@ -610,7 +620,9 @@ describe('manage panels', () => {
     await user.click(within(row).getByRole('button', { name: 'Delete' }))
     const dialog = await screen.findByRole('alertdialog')
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
-    await waitFor(() => expect(m.deleteSchedule).toHaveBeenCalledWith(1, 10, 3))
+    await waitFor(() =>
+      expect(m.deleteSchedule).toHaveBeenCalledWith('1', '10', '3'),
+    )
   })
 
   it('duplicates a day onto another via the copy dialog', async () => {
@@ -631,7 +643,7 @@ describe('manage panels', () => {
     const user = userEvent.setup()
     m.invitations.mockResolvedValue([
       {
-        id: 7,
+        id: '7',
         email: 'friend@example.com',
         status: 'pending',
         token: 't',
@@ -640,7 +652,7 @@ describe('manage panels', () => {
       },
     ])
     m.createInvitation.mockResolvedValue({
-      id: 8,
+      id: '8',
       email: 'new@example.com',
       status: 'pending',
       token: 't',
@@ -653,7 +665,11 @@ describe('manage panels', () => {
     await user.type(screen.getByLabelText('Email to invite'), 'new@example.com')
     await user.click(screen.getByRole('button', { name: 'Send invitation' }))
     await waitFor(() =>
-      expect(m.createInvitation).toHaveBeenCalledWith(1, 10, 'new@example.com'),
+      expect(m.createInvitation).toHaveBeenCalledWith(
+        '1',
+        '10',
+        'new@example.com',
+      ),
     )
   })
 })

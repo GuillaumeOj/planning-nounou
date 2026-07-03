@@ -82,7 +82,7 @@ def test_list_families_scoped_to_user(client, owner, friend):
     resp = client.get(reverse("accounts:family-list"))
 
     assert resp.status_code == 200
-    assert [f["id"] for f in resp.data] == [mine.id]
+    assert [f["id"] for f in resp.data] == [str(mine.id)]
 
 
 # --- Invitations: existing user accepts -------------------------------------

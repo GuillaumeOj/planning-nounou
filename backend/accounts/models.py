@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import secrets
+import uuid
 from datetime import timedelta
 from typing import TYPE_CHECKING, ClassVar
 
@@ -9,13 +10,15 @@ from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from config.models import UUIDModel
+
 from .managers import UserManager
 
 if TYPE_CHECKING:
     from django.db.models.fields.related_descriptors import RelatedManager
 
 
-class User(AbstractUser):
+class User(UUIDModel, AbstractUser):
     """Custom user that logs in with an email address instead of a username."""
 
     username = None  # type: ignore[assignment]
@@ -39,7 +42,7 @@ class FamilyManager(models.Manager["Family"]):
         ).distinct()
 
 
-class Family(models.Model):
+class Family(UUIDModel):
     """A household that groups children and the parents who manage them.
 
     A family is managed through :class:`FamilyMembership` rows. It may be
@@ -67,8 +70,7 @@ class Family(models.Model):
     objects = FamilyManager()
 
     if TYPE_CHECKING:
-        id: int
-        created_by_id: int | None
+        created_by_id: uuid.UUID | None
         memberships: RelatedManager[FamilyMembership]
         children: RelatedManager[Child]
 
@@ -96,7 +98,7 @@ class Family(models.Model):
         ).exists() or self._is_unclaimed_creator(user)
 
 
-class FamilyMembership(models.Model):
+class FamilyMembership(UUIDModel):
     """Links a user to a family with a role. The through model for members."""
 
     class Role(models.TextChoices):
@@ -112,7 +114,7 @@ class FamilyMembership(models.Model):
     joined_at = models.DateTimeField(auto_now_add=True)
 
     if TYPE_CHECKING:
-        user_id: int
+        user_id: uuid.UUID
 
     class Meta:
         constraints: ClassVar[list] = [
@@ -123,7 +125,7 @@ class FamilyMembership(models.Model):
         return f"{self.user} in {self.family} ({self.role})"
 
 
-class Child(models.Model):
+class Child(UUIDModel):
     """A child belonging to a family."""
 
     family = models.ForeignKey(Family, on_delete=models.CASCADE, related_name="children")
@@ -143,7 +145,7 @@ def default_invitation_expiry():
     return timezone.now() + timedelta(days=7)
 
 
-class Invitation(models.Model):
+class Invitation(UUIDModel):
     """An invitation for an email address to join a family.
 
     Targets an email rather than a user, so it works whether or not the

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import uuid
 from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING, ClassVar
@@ -12,12 +13,13 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from accounts.models import default_invitation_expiry, generate_invitation_token
+from config.models import UUIDModel
 
 if TYPE_CHECKING:
     from django.db.models.fields.related_descriptors import RelatedManager
 
 
-class Nanny(models.Model):
+class Nanny(UUIDModel):
     """A childcare person ("garde d'enfants à domicile").
 
     Identity only. The employment relationship and its terms live on
@@ -37,7 +39,6 @@ class Nanny(models.Model):
     )
 
     if TYPE_CHECKING:
-        id: int
         contracts: RelatedManager[Contract]
 
     class Meta:
@@ -73,7 +74,7 @@ class ContractQuerySet(models.QuerySet):
         return self._annotate_current(ContractSchedule, "current_schedule_id", on)
 
 
-class Contract(models.Model):
+class Contract(UUIDModel):
     """One nanny's employment, shared by one or more families ("garde partagée").
 
     The families jointly agree the working hours and pay; how the declared hours
@@ -102,8 +103,7 @@ class Contract(models.Model):
     objects = ContractQuerySet.as_manager()
 
     if TYPE_CHECKING:
-        id: int
-        nanny_id: int
+        nanny_id: uuid.UUID
         shares: RelatedManager[ContractShare]
         terms: RelatedManager[ContractTerms]
         schedules: RelatedManager[ContractSchedule]
@@ -124,7 +124,7 @@ class Contract(models.Model):
         return _current_snapshot(self.schedules, on or timezone.localdate())
 
 
-class ContractShare(models.Model):
+class ContractShare(UUIDModel):
     """Links a family to a shared contract. The through model for `Contract.families`."""
 
     contract = models.ForeignKey(Contract, on_delete=models.CASCADE, related_name="shares")
@@ -136,7 +136,7 @@ class ContractShare(models.Model):
     added_at = models.DateTimeField(auto_now_add=True)
 
     if TYPE_CHECKING:
-        family_id: int
+        family_id: uuid.UUID
 
     class Meta:
         constraints: ClassVar[list] = [
@@ -147,7 +147,7 @@ class ContractShare(models.Model):
         return f"{self.family} shares {self.contract}"
 
 
-class ContractInvitation(models.Model):
+class ContractInvitation(UUIDModel):
     """An invitation for an email address to share a contract with one of their families.
 
     Targets an email rather than a user, so it works whether or not the invitee
@@ -205,7 +205,7 @@ class ContractInvitation(models.Model):
 NON_NEGATIVE = [MinValueValidator(Decimal("0"))]
 
 
-class ContractTerms(models.Model):
+class ContractTerms(UUIDModel):
     """An effective-dated compensation snapshot ("avenant").
 
     Editing terms creates a NEW row with a new ``effective_from`` rather than
@@ -231,7 +231,7 @@ class ContractTerms(models.Model):
     edited = models.BooleanField(default=False)
 
     if TYPE_CHECKING:
-        contract_id: int
+        contract_id: uuid.UUID
 
     class Meta:
         ordering: ClassVar[list[str]] = ["-effective_from", "-id"]
@@ -246,7 +246,7 @@ class ContractTerms(models.Model):
         return f"{self.contract} terms from {self.effective_from}"
 
 
-class ContractSchedule(models.Model):
+class ContractSchedule(UUIDModel):
     """An effective-dated weekly-schedule snapshot.
 
     Editing the schedule creates a NEW row (with its own blocks) rather than
@@ -275,7 +275,7 @@ class ContractSchedule(models.Model):
         return f"{self.contract} schedule from {self.effective_from}"
 
 
-class ScheduleBlock(models.Model):
+class ScheduleBlock(UUIDModel):
     """A single time block of a weekly schedule (recurring template)."""
 
     class Weekday(models.IntegerChoices):
@@ -303,7 +303,7 @@ class ScheduleBlock(models.Model):
             raise ValidationError({"end_time": _("The end time must be after the start time.")})
 
 
-class MinimumWage(models.Model):
+class MinimumWage(UUIDModel):
     """The recommended minimum net hourly rate, effective from a date.
 
     Global (national URSSAF figure), managed in the admin so it can be updated —

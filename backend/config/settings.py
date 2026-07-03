@@ -172,6 +172,9 @@ STORAGES = {
     "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
 }
 
+# Applies only to models that don't set their own PK — Django's built-in apps
+# (auth, admin, sessions, …). Our models get a UUID-4 PK by subclassing
+# config.models.UUIDModel (see there for why); new models should do the same.
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 

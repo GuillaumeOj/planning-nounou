@@ -19,7 +19,7 @@ const mockLogin = vi.mocked(loginRequest)
 const mockRegister = vi.mocked(registerRequest)
 const mockGetMe = vi.mocked(getMe)
 
-const USER = { id: 1, email: 'x@example.com', first_name: '', last_name: '' }
+const USER = { id: '1', email: 'x@example.com', first_name: '', last_name: '' }
 
 function Harness() {
   const { user, isAuthenticated, isLoading, login, register, logout } =

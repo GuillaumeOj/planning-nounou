@@ -48,7 +48,7 @@ function canManage(family: Family): boolean {
 
 export default function FamilyPage() {
   const { t } = useI18n()
-  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
 
   const {
@@ -454,7 +454,7 @@ function RenameFamilyDialog({
   )
 }
 
-function ChildrenPanel({ familyId }: { familyId: number }) {
+function ChildrenPanel({ familyId }: { familyId: string }) {
   const { t } = useI18n()
   const queryClient = useQueryClient()
   const [errors, setErrors] = useState<string[]>([])
@@ -479,13 +479,13 @@ function ChildrenPanel({ familyId }: { familyId: number }) {
     onError,
   })
   const renameMutation = useMutation({
-    mutationFn: ({ id, firstName }: { id: number; firstName: string }) =>
+    mutationFn: ({ id, firstName }: { id: string; firstName: string }) =>
       updateChild(familyId, id, firstName),
     onSuccess: invalidate,
     onError,
   })
   const deleteMutation = useMutation({
-    mutationFn: (id: number) => deleteChild(familyId, id),
+    mutationFn: (id: string) => deleteChild(familyId, id),
     onSuccess: invalidate,
     onError,
   })
@@ -620,7 +620,7 @@ function MembersPanel({ family }: { family: Family }) {
   })
 
   const removeMutation = useMutation({
-    mutationFn: (membershipId: number) =>
+    mutationFn: (membershipId: string) =>
       removeFamilyMember(family.id, membershipId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['family-members', family.id] })
@@ -709,7 +709,7 @@ function InvitationsPanel({ family }: { family: Family }) {
     queryClient.invalidateQueries({ queryKey: ['family-invites', family.id] })
 
   const revokeMutation = useMutation({
-    mutationFn: (invitationId: number) =>
+    mutationFn: (invitationId: string) =>
       revokeInvitation(family.id, invitationId),
     onSuccess: invalidate,
   })

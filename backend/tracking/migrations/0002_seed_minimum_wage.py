@@ -30,7 +30,7 @@ def unseed_minimum_wage(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("tracking", "0002_add_contract_models"),
+        ("tracking", "0001_initial"),
     ]
 
     operations = [

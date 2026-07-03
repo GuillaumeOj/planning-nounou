@@ -41,7 +41,7 @@ beforeEach(() => {
   mockUseAuth.mockReturnValue(
     makeAuth({
       user: {
-        id: 1,
+        id: '1',
         email: 'me@example.com',
         first_name: 'Ada',
         last_name: 'Lovelace',
@@ -67,7 +67,7 @@ describe('SettingsPage — sections', () => {
 describe('SettingsPage — profile', () => {
   it('updates the names and refreshes the user', async () => {
     mockUpdateProfile.mockResolvedValue({
-      id: 1,
+      id: '1',
       email: 'me@example.com',
       first_name: 'Grace',
       last_name: 'Hopper',
@@ -104,7 +104,7 @@ describe('SettingsPage — profile', () => {
 describe('SettingsPage — email', () => {
   it('confirms with the password in a dialog and changes the email', async () => {
     mockChangeEmail.mockResolvedValue({
-      id: 1,
+      id: '1',
       email: 'new@example.com',
       first_name: 'Ada',
       last_name: 'Lovelace',

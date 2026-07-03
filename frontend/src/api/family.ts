@@ -5,7 +5,7 @@ export type FamilyRole = 'owner' | 'member'
 export type InvitationStatus = 'pending' | 'accepted' | 'declined' | 'revoked'
 
 export interface Family {
-  id: number
+  id: string
   name: string
   // The requesting user's role, or null when they are the creator of an
   // unclaimed family (they can manage it until someone claims ownership).
@@ -22,8 +22,8 @@ export interface FamilyInput {
 }
 
 export interface FamilyMember {
-  id: number
-  user: number
+  id: string
+  user: string
   email: string
   first_name: string
   last_name: string
@@ -32,7 +32,7 @@ export interface FamilyMember {
 }
 
 export interface Invitation {
-  id: number
+  id: string
   email: string
   role: FamilyRole
   status: InvitationStatus
@@ -56,7 +56,7 @@ export interface InvitationPreview {
 
 // A pending invitation addressed to the current user, for their inbox.
 export interface MyInvitation {
-  id: number
+  id: string
   family_name: string
   role: FamilyRole
   token: string
@@ -74,23 +74,23 @@ export async function createFamily(input: FamilyInput): Promise<Family> {
 }
 
 export async function updateFamily(
-  id: number,
+  id: string,
   input: { name: string },
 ): Promise<Family> {
   const { data } = await api.patch<Family>(`/families/${id}/`, input)
   return data
 }
 
-export async function deleteFamily(id: number): Promise<void> {
+export async function deleteFamily(id: string): Promise<void> {
   await api.delete(`/families/${id}/`)
 }
 
-export async function leaveFamily(id: number): Promise<void> {
+export async function leaveFamily(id: string): Promise<void> {
   await api.post(`/families/${id}/leave/`)
 }
 
 export async function getFamilyMembers(
-  familyId: number,
+  familyId: string,
 ): Promise<FamilyMember[]> {
   const { data } = await api.get<FamilyMember[]>(
     `/families/${familyId}/members/`,
@@ -99,13 +99,13 @@ export async function getFamilyMembers(
 }
 
 export async function removeFamilyMember(
-  familyId: number,
-  membershipId: number,
+  familyId: string,
+  membershipId: string,
 ): Promise<void> {
   await api.delete(`/families/${familyId}/members/${membershipId}/`)
 }
 
-export async function getInvitations(familyId: number): Promise<Invitation[]> {
+export async function getInvitations(familyId: string): Promise<Invitation[]> {
   const { data } = await api.get<Invitation[]>(
     `/families/${familyId}/invitations/`,
   )
@@ -113,7 +113,7 @@ export async function getInvitations(familyId: number): Promise<Invitation[]> {
 }
 
 export async function createInvitation(
-  familyId: number,
+  familyId: string,
   input: InvitationInput,
 ): Promise<Invitation> {
   const { data } = await api.post<Invitation>(
@@ -124,8 +124,8 @@ export async function createInvitation(
 }
 
 export async function revokeInvitation(
-  familyId: number,
-  invitationId: number,
+  familyId: string,
+  invitationId: string,
 ): Promise<void> {
   await api.delete(`/families/${familyId}/invitations/${invitationId}/`)
 }
