@@ -9,25 +9,21 @@ set -euo pipefail
 echo "Collecting static files"
 python manage.py collectstatic --noinput
 
-# Each environment has its own Neon database via prefixed env vars: NANNY_*
-# (production) and NANNY_PREVIEW_* (preview). Migrate both; skip local builds.
-# NOTE: this prefix map + the ${prefix}DATABASE_URL var name mirror _ENV_PREFIX and
-# the DATABASES config in config/settings.py — keep both in sync.
+# On Vercel, production and preview each hold their own DATABASE_URL (its own Neon
+# database); the same var name resolves to the right one per environment. Migrate on
+# both; skip local builds (no VERCEL_ENV).
 case "${VERCEL_ENV:-}" in
-  production) prefix="NANNY_" ;;
-  preview) prefix="NANNY_PREVIEW_" ;;
+  production | preview) ;;
   *)
     echo "VERCEL_ENV=${VERCEL_ENV:-unset} — skipping migrations"
     exit 0
     ;;
 esac
 
-# settings.py reads ${prefix}DATABASE_URL (pooled). For migrations we override that
-# same name with the direct/unpooled endpoint — Neon's pooled PgBouncer (transaction
-# mode) is unreliable for DDL and migration advisory locks.
-pooled_var="${prefix}DATABASE_URL"
-unpooled_var="${prefix}DATABASE_URL_UNPOOLED"
-unpooled_val="${!unpooled_var:?${unpooled_var} is not set}"
+# settings.py reads DATABASE_URL (pooled). For migrations we override that same name with
+# the direct/unpooled endpoint (DATABASE_URL_UNPOOLED) — Neon's pooled PgBouncer
+# (transaction mode) is unreliable for DDL and migration advisory locks.
+unpooled_val="${DATABASE_URL_UNPOOLED:?DATABASE_URL_UNPOOLED is not set}"
 
 echo "VERCEL_ENV=${VERCEL_ENV} — applying migrations via the direct (unpooled) endpoint"
-env "${pooled_var}=${unpooled_val}" python manage.py migrate --noinput
+env "DATABASE_URL=${unpooled_val}" python manage.py migrate --noinput

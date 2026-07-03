@@ -17,28 +17,15 @@ env = environ.Env()
 # Read a local .env file if present (ignored in production, where Vercel injects env vars).
 environ.Env.read_env(BASE_DIR / ".env")
 
-# Vercel scopes every setting per environment with a prefix so production and preview never
-# share config or data: NANNY_ (production) and NANNY_PREVIEW_ (preview). VERCEL_ENV is
-# injected by Vercel at build and runtime. Locally neither prefix is set and we read the bare
-# names from the environment / a .env file, falling back to the defaults passed below.
-# NOTE: backend/build.sh mirrors this prefix map for deploy migrations — keep both in sync.
-_ENV_PREFIX = {"production": "NANNY_", "preview": "NANNY_PREVIEW_"}.get(
-    env("VERCEL_ENV", default=""), ""
-)
+# Every setting is read by its bare name. On Vercel, production and preview each hold their
+# own value for the same variable name (env vars are scoped per environment there), so the
+# same code reads e.g. DATABASE_URL and gets the right database in each. Locally we read the
+# same names from the environment / a .env file, falling back to the defaults passed below.
+SECRET_KEY = env("SECRET_KEY", default="django-insecure-dev-only-change-me")
 
+DEBUG = env("DEBUG", cast=bool, default=False)
 
-def penv(name, **kwargs):
-    """Read the environment-prefixed variant of ``name`` (e.g. NANNY_SECRET_KEY on a
-    production deploy, NANNY_PREVIEW_SECRET_KEY on preview), falling back to the bare
-    name locally."""
-    return env(f"{_ENV_PREFIX}{name}", **kwargs)
-
-
-SECRET_KEY = penv("SECRET_KEY", default="django-insecure-dev-only-change-me")
-
-DEBUG = penv("DEBUG", cast=bool, default=False)
-
-ALLOWED_HOSTS = penv(
+ALLOWED_HOSTS = env(
     "DJANGO_ALLOWED_HOSTS", cast=list, default=["localhost", "127.0.0.1", ".vercel.app"]
 )
 
@@ -98,16 +85,16 @@ WSGI_APPLICATION = "config.wsgi.application"
 
 
 # Database
-# Each environment has its own Neon database via the prefixed vars (NANNY_* / NANNY_PREVIEW_*),
+# On Vercel, production and preview each hold their own DATABASE_URL (its own Neon database),
 # so previews never touch production data. The app uses Neon's *pooled* connection string;
 # CONN_MAX_AGE stays 0 on serverless so connections aren't held open across invocations.
 DATABASES = {
     "default": env.db(
-        f"{_ENV_PREFIX}DATABASE_URL",
+        "DATABASE_URL",
         default="postgres://nounou:nounou@localhost:5432/nounou",
     ),
 }
-DATABASES["default"]["CONN_MAX_AGE"] = penv("CONN_MAX_AGE", cast=int, default=0)
+DATABASES["default"]["CONN_MAX_AGE"] = env("CONN_MAX_AGE", cast=int, default=0)
 
 
 # Custom user model — email is the login identifier (see accounts/models.py).
@@ -170,8 +157,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
 # CORS — the React SPA calls the API cross-origin in dev; same-origin in prod.
-CORS_ALLOWED_ORIGINS = penv("CORS_ALLOWED_ORIGINS", cast=list, default=["http://localhost:5173"])
+CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS", cast=list, default=["http://localhost:5173"])
 
 # Behind Vercel's proxy, trust the forwarded protocol header.
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-CSRF_TRUSTED_ORIGINS = penv("CSRF_TRUSTED_ORIGINS", cast=list, default=["https://*.vercel.app"])
+CSRF_TRUSTED_ORIGINS = env("CSRF_TRUSTED_ORIGINS", cast=list, default=["https://*.vercel.app"])
