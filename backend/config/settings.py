@@ -85,12 +85,18 @@ WSGI_APPLICATION = "config.wsgi.application"
 
 
 # Database
-# Local dev defaults to the Docker Compose Postgres service; production sets
-# DATABASE_URL to Neon's *pooled* connection string. CONN_MAX_AGE stays 0 on
-# serverless so connections are not held open across invocations.
+# Vercel gives each environment its own Neon database via prefixed env vars —
+# NANNY_* (production) and NANNY_PREVIEW_* (preview) — so previews never touch the
+# production data. Locally neither prefix is set and we read DATABASE_URL / the
+# Docker Compose default. The app uses Neon's *pooled* connection string;
+# CONN_MAX_AGE stays 0 on serverless so connections aren't held open across
+# invocations. VERCEL_ENV is injected by Vercel at build and runtime.
+_DB_ENV_PREFIX = {"production": "NANNY_", "preview": "NANNY_PREVIEW_"}.get(
+    env("VERCEL_ENV", default=""), ""
+)
 DATABASES = {
     "default": env.db(
-        "DATABASE_URL",
+        f"{_DB_ENV_PREFIX}DATABASE_URL",
         default="postgres://nounou:nounou@localhost:5432/nounou",
     ),
 }
