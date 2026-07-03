@@ -27,11 +27,10 @@ dev = [
     "ty==0.0.56",
 ]
 
-[tool.vercel.scripts]
-# Vercel's Python builder runs this after installing deps and before deploying.
-# (A service-level `buildCommand` in vercel.json is NOT honored by the Python
-# builder in the Services model — this pyproject hook is the one that fires.)
-build = "bash build.sh"
+# The Vercel build step (collectstatic + deploy migrations) is wired via the backend
+# service's buildCommand in vercel.json, which requires framework: "django" to engage the
+# Django build pipeline. A vercel.json buildCommand takes precedence over a
+# [tool.vercel.scripts] hook here, so this file intentionally defines no build script.
 
 [tool.ruff]
 line-length = 100

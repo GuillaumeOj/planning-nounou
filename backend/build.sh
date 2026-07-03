@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
-# Vercel build step for the backend service, invoked via [tool.vercel.scripts] build
-# in pyproject.toml (cwd is backend/). Runs after deps install, before deploy.
+# Vercel build step for the backend service, invoked as the service's buildCommand in
+# vercel.json (cwd is backend/). This only fires because the service sets
+# framework: "django", which engages Vercel's Django build pipeline; a plain Python
+# service runs no build command. Runs after deps install, before deploy.
 set -euo pipefail
 
-# Collect static assets so WhiteNoise can serve the Django admin + DRF browsable API
-# at runtime. Vercel's automatic collectstatic does not fire for this Services-model
-# backend, so we run it ourselves. The Python builder bundles by tracing imports and
-# won't pick up this generated dir on its own, so vercel.json's backend function sets
+# Collect static assets so WhiteNoise can serve the Django admin + DRF browsable API at
+# runtime. Defining our own buildCommand overrides Vercel's automatic collectstatic, so we
+# run it ourselves. The builder bundles the function by tracing imports and won't pick up
+# this generated dir on its own, so vercel.json's backend function sets
 # includeFiles: "staticfiles/**" to force staticfiles/ into the function bundle.
 echo "Collecting static files"
 python manage.py collectstatic --noinput
