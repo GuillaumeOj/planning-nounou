@@ -39,6 +39,13 @@ ALLOWED_HOSTS = env(
     "DJANGO_ALLOWED_HOSTS", cast=list, default=["localhost", "127.0.0.1", ".vercel.app"]
 )
 
+# Django admin lives at a secret, per-environment path so bots can't hammer a well-known
+# /admin/. It's mounted under /api/ (config/urls.py) so Vercel's /api -> backend rewrite
+# reaches it — a shared vercel.json can't encode a per-env secret, so Django owns it at
+# runtime. On Vercel, ADMIN_PATH must be set (production and preview each hold their own
+# value; no default → startup fails if it's missing); local dev falls back to "admin".
+ADMIN_PATH = (env("ADMIN_PATH") if _ON_VERCEL else env("ADMIN_PATH", default="admin")).strip("/")
+
 
 # Application definition
 
@@ -153,7 +160,9 @@ USE_TZ = True
 
 
 # Static files
-STATIC_URL = "static/"
+# Served under /api/ so Vercel's /api -> backend rewrite delivers the Django admin (and DRF
+# browsable API) assets to WhiteNoise; a bare /static/ would fall through to the SPA.
+STATIC_URL = "api/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},

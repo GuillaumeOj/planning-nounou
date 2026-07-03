@@ -13,10 +13,13 @@
     },
     "backend": {
       "root": "backend/",
+      "framework": "django",
       "entrypoint": "config.wsgi:application",
+      "buildCommand": "bash build.sh",
       "functions": {
         "config/wsgi.py": {
-          "maxDuration": 60
+          "maxDuration": 60,
+          "includeFiles": "staticfiles/**"
         }
       }
     }
