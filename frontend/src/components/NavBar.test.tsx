@@ -1,6 +1,7 @@
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { getMyContractInvitations } from '../api/contracts'
 import { getMyInvitations } from '../api/family'
 import { useAuth } from '../auth/AuthContext'
 import { makeAuth, renderWithProviders } from '../test/utils'
@@ -8,8 +9,10 @@ import { NavBar } from './NavBar'
 
 vi.mock('../auth/AuthContext', () => ({ useAuth: vi.fn() }))
 vi.mock('../api/family', () => ({ getMyInvitations: vi.fn() }))
+vi.mock('../api/contracts', () => ({ getMyContractInvitations: vi.fn() }))
 const mockUseAuth = vi.mocked(useAuth)
 const mockGetMyInvitations = vi.mocked(getMyInvitations)
+const mockGetMyContractInvitations = vi.mocked(getMyContractInvitations)
 const logout = vi.fn()
 
 function setUser(overrides: Partial<Parameters<typeof makeAuth>[0]> = {}) {
@@ -32,6 +35,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   setUser()
   mockGetMyInvitations.mockResolvedValue([])
+  mockGetMyContractInvitations.mockResolvedValue([])
 })
 
 describe('NavBar', () => {
@@ -80,10 +84,30 @@ describe('NavBar', () => {
     ).toHaveTextContent('2')
   })
 
+  it('badges the Nannies link with pending contract invitations', async () => {
+    mockGetMyContractInvitations.mockResolvedValue([
+      {
+        id: 1,
+        nanny_first_name: 'Marie',
+        nanny_last_name: 'Dupont',
+        token: 'c1',
+        expires_at: '2026-01-08T00:00:00Z',
+      },
+    ])
+    renderWithProviders(<NavBar />)
+
+    expect(
+      await screen.findByLabelText('Pending contract invitations'),
+    ).toHaveTextContent('1')
+  })
+
   it('shows no invitation badge when there are none', () => {
     renderWithProviders(<NavBar />)
     expect(
       screen.queryByLabelText('Pending invitations'),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByLabelText('Pending contract invitations'),
     ).not.toBeInTheDocument()
   })
 

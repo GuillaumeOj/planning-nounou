@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { NavLink } from 'react-router-dom'
+import { getMyContractInvitations } from '../api/contracts'
 import { getMyInvitations } from '../api/family'
 import { useAuth } from '../auth/AuthContext'
 import { useI18n } from '../i18n/I18nContext'
@@ -37,6 +38,13 @@ export function NavBar() {
     queryFn: getMyInvitations,
   })
   const pendingInvites = invitations?.length ?? 0
+
+  // Likewise for shared-contract invitations, badged on the Nannies link.
+  const { data: contractInvitations } = useQuery({
+    queryKey: ['my-contract-invitations'],
+    queryFn: getMyContractInvitations,
+  })
+  const pendingContractInvites = contractInvitations?.length ?? 0
 
   const displayName = user?.first_name || user?.email || ''
 
@@ -79,6 +87,15 @@ export function NavBar() {
           <NavLink to="/nannies" className={linkClass}>
             <Users size={18} aria-hidden="true" />
             {t('nav.nannies')}
+            {pendingContractInvites > 0 && (
+              <span
+                role="status"
+                className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-primary-foreground"
+                aria-label={t('nav.nanniesPending')}
+              >
+                {pendingContractInvites}
+              </span>
+            )}
           </NavLink>
         </li>
         <li>

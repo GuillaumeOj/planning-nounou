@@ -7,10 +7,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog'
 export function Modal({
   title,
   onClose,
+  className,
   children,
 }: {
   title: string
   onClose: () => void
+  className?: string
   children: ReactNode
 }) {
   return (
@@ -20,7 +22,7 @@ export function Modal({
         if (!open) onClose()
       }}
     >
-      <DialogContent>
+      <DialogContent className={className}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
