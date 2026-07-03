@@ -151,7 +151,7 @@ class FamilySerializer(serializers.ModelSerializer):
     """
 
     role = serializers.SerializerMethodField()
-    is_claimed = serializers.BooleanField(read_only=True)
+    is_claimed = serializers.SerializerMethodField()
     claim = serializers.BooleanField(write_only=True, required=False, default=True)
 
     class Meta:
@@ -166,6 +166,10 @@ class FamilySerializer(serializers.ModelSerializer):
             None,
         )
         return membership.role if membership else None
+
+    def get_is_claimed(self, obj: Family) -> bool:
+        # Read the prefetched memberships rather than re-querying per family.
+        return any(m.role == FamilyMembership.Role.OWNER for m in obj.memberships.all())
 
     def create(self, validated_data: dict) -> Family:
         claim = validated_data.pop("claim", True)

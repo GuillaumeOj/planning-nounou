@@ -84,12 +84,11 @@ class FamilyViewSet(viewsets.ModelViewSet):
     """
 
     serializer_class = FamilySerializer
-    permission_classes = [permissions.IsAuthenticated, IsFamilyMember]
 
     def get_queryset(self):
-        return Family.objects.accessible_to(self.request.user).prefetch_related(
-            "memberships", "memberships__user"
-        )
+        # `memberships` feeds the serializer's role/is_claimed; the member User
+        # rows are not serialized here, so there is no need to join them.
+        return Family.objects.accessible_to(self.request.user).prefetch_related("memberships")
 
     def get_permissions(self):
         if self.action in ("update", "partial_update", "destroy"):
@@ -118,13 +117,24 @@ class FamilyScopedMixin:
     kwargs: dict
 
     def get_family(self, *, manage: bool = False) -> Family:
-        family = get_object_or_404(Family, pk=self.kwargs["family_pk"])
-        allowed = (
-            family.can_manage(self.request.user) if manage else family.can_access(self.request.user)
-        )
-        if not allowed:
-            raise PermissionDenied
-        return family
+        # A viewset resolves the family in more than one hook per request
+        # (e.g. get_queryset and get_serializer_context); cache the lookup and
+        # permission check so they run once. Keyed by `manage`, since the two
+        # checks differ.
+        if not hasattr(self, "_family_cache"):
+            self._family_cache: dict[bool, Family] = {}
+        cache = self._family_cache
+        if manage not in cache:
+            family = get_object_or_404(Family, pk=self.kwargs["family_pk"])
+            allowed = (
+                family.can_manage(self.request.user)
+                if manage
+                else family.can_access(self.request.user)
+            )
+            if not allowed:
+                raise PermissionDenied
+            cache[manage] = family
+        return cache[manage]
 
 
 class ChildViewSet(FamilyScopedMixin, viewsets.ModelViewSet):
@@ -196,15 +206,21 @@ class InvitationPreviewView(generics.RetrieveAPIView):
     queryset = Invitation.objects.select_related("family")
 
 
+def _get_actionable_invitation(token: str) -> Invitation:
+    """Fetch a pending, unexpired invitation by token or fail the request."""
+    invitation = get_object_or_404(Invitation, token=token)
+    if not invitation.is_actionable:
+        raise ValidationError("This invitation has expired or was already used.")
+    return invitation
+
+
 class InvitationAcceptView(generics.GenericAPIView):
     """Accept an invitation as the logged-in user, joining the family."""
 
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request: Request, token: str) -> Response:
-        invitation = get_object_or_404(Invitation, token=token)
-        if not invitation.is_actionable:
-            raise ValidationError("This invitation has expired or was already used.")
+        invitation = _get_actionable_invitation(token)
         invitation.accept(cast(User, request.user))
         return Response(FamilySerializer(invitation.family, context={"request": request}).data)
 
@@ -215,8 +231,6 @@ class InvitationDeclineView(generics.GenericAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request: Request, token: str) -> Response:
-        invitation = get_object_or_404(Invitation, token=token)
-        if not invitation.is_actionable:
-            raise ValidationError("This invitation has expired or was already used.")
+        invitation = _get_actionable_invitation(token)
         invitation.decline()
         return Response(status=status.HTTP_204_NO_CONTENT)

@@ -71,7 +71,6 @@ class Family(models.Model):
         created_by_id: int | None
         memberships: RelatedManager[FamilyMembership]
         children: RelatedManager[Child]
-        invitations: RelatedManager[Invitation]
 
     def __str__(self) -> str:
         return self.name
@@ -81,18 +80,20 @@ class Family(models.Model):
         """True once at least one owner has joined; an unclaimed family has none."""
         return self.memberships.filter(role=FamilyMembership.Role.OWNER).exists()
 
+    def _is_unclaimed_creator(self, user) -> bool:
+        """The creator keeps control until the first member (an owner) joins."""
+        return self.created_by_id == user.id and not self.memberships.exists()
+
     def can_access(self, user) -> bool:
         """Any member, or the creator while the family is still unclaimed."""
-        if self.memberships.filter(user=user).exists():
-            return True
-        return self.created_by_id == user.id and not self.memberships.exists()
+        return self.memberships.filter(user=user).exists() or self._is_unclaimed_creator(user)
 
     def can_manage(self, user) -> bool:
         """Owners manage members and invitations; so does the creator of an
         unclaimed family (there is no owner yet to do it)."""
-        if self.memberships.filter(user=user, role=FamilyMembership.Role.OWNER).exists():
-            return True
-        return self.created_by_id == user.id and not self.memberships.exists()
+        return self.memberships.filter(
+            user=user, role=FamilyMembership.Role.OWNER
+        ).exists() or self._is_unclaimed_creator(user)
 
 
 class FamilyMembership(models.Model):
@@ -112,7 +113,6 @@ class FamilyMembership(models.Model):
 
     if TYPE_CHECKING:
         user_id: int
-        family_id: int
 
     class Meta:
         constraints: ClassVar[list] = [

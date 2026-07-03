@@ -6,7 +6,6 @@ import { extractErrorMessages } from '../api/errors'
 import {
   acceptInvitation,
   declineInvitation,
-  type FamilyRole,
   getInvitationPreview,
 } from '../api/family'
 import { useAuth } from '../auth/AuthContext'
@@ -15,13 +14,7 @@ import { TextField } from '../components/TextField'
 import { Button } from '../components/ui/button'
 import { Card, CardContent } from '../components/ui/card'
 import { useI18n } from '../i18n/I18nContext'
-import type { TranslationKey } from '../i18n/translations'
-
-type Translate = (key: TranslationKey) => string
-
-function roleLabel(t: Translate, role: FamilyRole): string {
-  return role === 'owner' ? t('family.roleOwner') : t('family.roleMember')
-}
+import { roleLabel } from '../lib/roleLabel'
 
 export default function InvitePage() {
   const { t } = useI18n()

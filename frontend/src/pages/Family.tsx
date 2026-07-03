@@ -24,41 +24,23 @@ import {
   updateFamily,
 } from '../api/family'
 import { useAuth } from '../auth/AuthContext'
+import { ConfirmButton } from '../components/ConfirmButton'
 import { FormErrors } from '../components/FormErrors'
 import { Modal } from '../components/Modal'
 import { SectionCard } from '../components/SectionCard'
 import { TextField } from '../components/TextField'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '../components/ui/alert-dialog'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card, CardContent } from '../components/ui/card'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { useI18n } from '../i18n/I18nContext'
-import type { TranslationKey } from '../i18n/translations'
-
-type Translate = (key: TranslationKey) => string
+import { roleLabel } from '../lib/roleLabel'
 
 // A user can manage a family when they own it, or when they created it and it is
 // still unclaimed (no owner has joined yet). Mirrors the backend's can_manage.
 function canManage(family: Family): boolean {
   return family.role === 'owner' || (family.role === null && !family.is_claimed)
-}
-
-function roleLabel(t: Translate, role: FamilyRole | null): string {
-  if (role === 'owner') return t('family.roleOwner')
-  if (role === 'member') return t('family.roleMember')
-  return t('family.roleCreator')
 }
 
 export default function FamilyPage() {
@@ -794,45 +776,5 @@ function InviteLink({ token }: { token: string }) {
         </Button>
       </div>
     </div>
-  )
-}
-
-// A destructive action guarded by a confirm dialog, styled like the app's other
-// delete flows.
-function ConfirmButton({
-  trigger,
-  title,
-  description,
-  onConfirm,
-}: {
-  trigger: string
-  title: string
-  description: string
-  onConfirm: () => void
-}) {
-  const { t } = useI18n()
-  return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button variant="destructive" size="sm" type="button">
-          {trigger}
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{title}</AlertDialogTitle>
-          <AlertDialogDescription>{description}</AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
-          <AlertDialogAction
-            className="bg-destructive text-white hover:bg-destructive/90"
-            onClick={onConfirm}
-          >
-            {trigger}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
   )
 }
