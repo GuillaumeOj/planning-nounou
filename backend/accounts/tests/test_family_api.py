@@ -30,6 +30,19 @@ def make_family(owner, *, name="Home"):
     return fam
 
 
+# --- URL mounting -----------------------------------------------------------
+
+
+def test_families_are_mounted_at_api_root(client, owner):
+    """Guards the concrete path the SPA calls: families live at /api/families/,
+    not under /api/auth/. reverse() alone would not catch a wrong mount point."""
+    client.force_authenticate(user=owner)
+
+    assert client.get("/api/families/").status_code == 200
+    # The auth endpoints stay under /api/auth/.
+    assert client.get("/api/auth/me/").status_code == 200
+
+
 # --- Family creation --------------------------------------------------------
 
 

@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
@@ -20,13 +20,19 @@ member_detail = views.FamilyMemberViewSet.as_view({"delete": "destroy"})
 invitation_list = views.InvitationViewSet.as_view({"get": "list", "post": "create"})
 invitation_detail = views.InvitationViewSet.as_view({"delete": "destroy"})
 
-urlpatterns = [
+# Account/session endpoints live under /api/auth/; the family domain lives at the
+# /api/ root alongside the other resources (e.g. /api/nannies/).
+auth_patterns = [
     path("register/", views.RegisterView.as_view(), name="register"),
     path("login/", TokenObtainPairView.as_view(), name="login"),
     path("token/refresh/", TokenRefreshView.as_view(), name="token-refresh"),
     path("me/", views.MeView.as_view(), name="me"),
     path("email/", views.ChangeEmailView.as_view(), name="change-email"),
     path("password/", views.ChangePasswordView.as_view(), name="change-password"),
+]
+
+urlpatterns = [
+    path("auth/", include(auth_patterns)),
     # Family-scoped children.
     path("families/<int:family_pk>/children/", child_list, name="family-children"),
     path("families/<int:family_pk>/children/<int:pk>/", child_detail, name="family-child"),
@@ -42,7 +48,9 @@ urlpatterns = [
     ),
     # Token-addressed invitation flows (preview is public; accept/decline need auth).
     path(
-        "invitations/<str:token>/", views.InvitationPreviewView.as_view(), name="invitation-preview"
+        "invitations/<str:token>/",
+        views.InvitationPreviewView.as_view(),
+        name="invitation-preview",
     ),
     path(
         "invitations/<str:token>/accept/",
