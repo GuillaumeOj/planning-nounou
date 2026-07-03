@@ -20,7 +20,11 @@ export interface AuthContextValue {
   isAuthenticated: boolean
   isLoading: boolean
   login: (credentials: Credentials) => Promise<void>
-  register: (credentials: Credentials) => Promise<void>
+  // An optional invitation token joins the new account to a family on signup.
+  register: (
+    credentials: Credentials,
+    invitationToken?: string,
+  ) => Promise<void>
   logout: () => void
   // Update the cached user after a profile or email change. Pass the updated
   // user when the caller already has it (e.g. an endpoint that returns it) to
@@ -53,10 +57,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const register = useCallback(
-    async (credentials: Credentials): Promise<void> => {
+    async (
+      credentials: Credentials,
+      invitationToken?: string,
+    ): Promise<void> => {
       // Registration returns the user but no tokens, so log in for the tokens and
       // reuse the returned user instead of a second round-trip to getMe().
-      const newUser = await registerRequest(credentials)
+      const newUser = await registerRequest(credentials, invitationToken)
       const tokens = await loginRequest(credentials)
       setTokens(tokens)
       setUser(newUser)

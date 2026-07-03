@@ -192,12 +192,18 @@ class FamilyMembershipSerializer(serializers.ModelSerializer):
 
 
 class InvitationSerializer(serializers.ModelSerializer):
-    """Create and list invitations for a family. Token is never exposed here."""
+    """Create and list invitations for a family.
+
+    Exposes ``token`` read-only so managers can build a shareable invite link
+    (there is no invite email backend yet). Only family managers can reach this
+    endpoint, and they are the ones who send invites, so surfacing it to them is
+    acceptable; the public preview endpoint never exposes it.
+    """
 
     class Meta:
         model = Invitation
-        fields = ("id", "email", "role", "status", "created_at", "expires_at")
-        read_only_fields = ("id", "status", "created_at", "expires_at")
+        fields = ("id", "email", "role", "status", "token", "created_at", "expires_at")
+        read_only_fields = ("id", "status", "token", "created_at", "expires_at")
 
     def validate_email(self, value: str) -> str:
         return value.lower()

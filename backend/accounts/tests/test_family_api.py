@@ -86,6 +86,8 @@ def test_owner_invites_and_existing_user_accepts(client, owner, friend):
     )
     assert invite_resp.status_code == 201
     invitation = Invitation.objects.get(family=fam, email=friend.email)
+    # The token is returned so a manager can build a shareable invite link.
+    assert invite_resp.data["token"] == invitation.token
 
     client.force_authenticate(user=friend)
     accept_resp = client.post(reverse("accounts:invitation-accept", args=[invitation.token]))

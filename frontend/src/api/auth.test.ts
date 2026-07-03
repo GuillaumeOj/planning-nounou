@@ -45,6 +45,21 @@ describe('auth api', () => {
     expect(result).toMatchObject({ id: 1, email: 'x@example.com' })
   })
 
+  it('register includes the invitation token when provided', async () => {
+    const post = vi
+      .spyOn(api, 'post')
+      // biome-ignore lint/suspicious/noExplicitAny: canned axios response
+      .mockResolvedValue({ data: { id: 1, email: 'x@example.com' } } as any)
+
+    await register({ email: 'x@example.com', password: 'pw' }, 'tok123')
+
+    expect(post).toHaveBeenCalledWith('/auth/register/', {
+      email: 'x@example.com',
+      password: 'pw',
+      invitation_token: 'tok123',
+    })
+  })
+
   it('refresh posts the refresh token', async () => {
     const post = vi
       .spyOn(api, 'post')

@@ -1,4 +1,11 @@
-import { Baby, ChevronUp, HomeIcon, Settings, Users } from 'lucide-react'
+import {
+  Baby,
+  ChevronUp,
+  HomeIcon,
+  Settings,
+  Users,
+  UsersRound,
+} from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
@@ -63,6 +70,12 @@ export function NavBar() {
           <NavLink to="/nannies" className={linkClass}>
             <Users size={18} aria-hidden="true" />
             {t('nav.nannies')}
+          </NavLink>
+        </li>
+        <li>
+          <NavLink to="/family" className={linkClass}>
+            <UsersRound size={18} aria-hidden="true" />
+            {t('nav.family')}
           </NavLink>
         </li>
         <li>

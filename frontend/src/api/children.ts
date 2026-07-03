@@ -5,26 +5,33 @@ export interface Child {
   first_name: string
 }
 
-export async function listChildren(): Promise<Child[]> {
-  const { data } = await api.get<Child[]>('/auth/children/')
+export async function listChildren(familyId: number): Promise<Child[]> {
+  const { data } = await api.get<Child[]>(`/families/${familyId}/children/`)
   return data
 }
 
-export async function createChild(first_name: string): Promise<Child> {
-  const { data } = await api.post<Child>('/auth/children/', { first_name })
-  return data
-}
-
-export async function updateChild(
-  id: number,
+export async function createChild(
+  familyId: number,
   first_name: string,
 ): Promise<Child> {
-  const { data } = await api.patch<Child>(`/auth/children/${id}/`, {
+  const { data } = await api.post<Child>(`/families/${familyId}/children/`, {
     first_name,
   })
   return data
 }
 
-export async function deleteChild(id: number): Promise<void> {
-  await api.delete(`/auth/children/${id}/`)
+export async function updateChild(
+  familyId: number,
+  id: number,
+  first_name: string,
+): Promise<Child> {
+  const { data } = await api.patch<Child>(
+    `/families/${familyId}/children/${id}/`,
+    { first_name },
+  )
+  return data
+}
+
+export async function deleteChild(familyId: number, id: number): Promise<void> {
+  await api.delete(`/families/${familyId}/children/${id}/`)
 }
