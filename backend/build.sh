@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
-# Vercel build step for the backend service (cwd is backend/, the service root).
-# collectstatic is NOT run here — Vercel runs it automatically when STATIC_ROOT is set.
+# Vercel build step for the backend service, invoked via [tool.vercel.scripts] build
+# in pyproject.toml (cwd is backend/). Runs after deps install, before deploy.
 set -euo pipefail
+
+# Collect static assets so WhiteNoise can serve the Django admin + DRF browsable API
+# at runtime. Vercel's automatic collectstatic does not fire for this Services-model
+# backend, so we run it ourselves; the output is bundled into the function.
+echo "Collecting static files"
+python manage.py collectstatic --noinput
 
 # Each environment has its own Neon database via prefixed env vars: NANNY_*
 # (production) and NANNY_PREVIEW_* (preview). Migrate both; skip local builds.
