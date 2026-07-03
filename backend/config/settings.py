@@ -160,7 +160,10 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STORAGES = {
     "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+    # Non-manifest WhiteNoise storage: still gzip/brotli-compresses collected assets, but
+    # {% static %} returns plain (unhashed) URLs, so runtime never has to read a
+    # staticfiles.json manifest — which is fragile inside a serverless function bundle.
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
 }
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

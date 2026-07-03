@@ -14,7 +14,6 @@
     "backend": {
       "root": "backend/",
       "entrypoint": "config.wsgi:application",
-      "buildCommand": "bash build.sh",
       "functions": {
         "config/wsgi.py": {
           "maxDuration": 60
