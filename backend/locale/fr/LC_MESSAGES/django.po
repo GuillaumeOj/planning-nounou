@@ -27,3 +27,23 @@ msgstr "Le mot de passe actuel est incorrect."
 #: tracking/serializers.py:22
 msgid "The ending date cannot be before the starting date."
 msgstr "La date de fin ne peut pas être antérieure à la date de début."
+
+#: tracking/serializers.py
+msgid ""
+"The net hourly rate (%(rate)s €) is below the recommended minimum of %(min)s "
+"€."
+msgstr ""
+"Le salaire net horaire (%(rate)s €) est inférieur au minimum recommandé de "
+"%(min)s €."
+
+#: tracking/models.py tracking/serializers.py
+msgid "The end time must be after the start time."
+msgstr "L'heure de fin doit être postérieure à l'heure de début."
+
+#: tracking/serializers.py
+msgid "Time blocks on the same day cannot overlap."
+msgstr "Les créneaux d'une même journée ne peuvent pas se chevaucher."
+
+#: tracking/serializers.py
+msgid "A pending invitation for this email already exists."
+msgstr "Une invitation en attente existe déjà pour cette adresse e-mail."
