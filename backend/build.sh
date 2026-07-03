@@ -5,6 +5,8 @@ set -euo pipefail
 
 # Each environment has its own Neon database via prefixed env vars: NANNY_*
 # (production) and NANNY_PREVIEW_* (preview). Migrate both; skip local builds.
+# NOTE: this prefix map + the ${prefix}DATABASE_URL var name mirror _ENV_PREFIX and
+# the DATABASES config in config/settings.py — keep both in sync.
 case "${VERCEL_ENV:-}" in
   production) prefix="NANNY_" ;;
   preview) prefix="NANNY_PREVIEW_" ;;

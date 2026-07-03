@@ -21,6 +21,7 @@ environ.Env.read_env(BASE_DIR / ".env")
 # share config or data: NANNY_ (production) and NANNY_PREVIEW_ (preview). VERCEL_ENV is
 # injected by Vercel at build and runtime. Locally neither prefix is set and we read the bare
 # names from the environment / a .env file, falling back to the defaults passed below.
+# NOTE: backend/build.sh mirrors this prefix map for deploy migrations — keep both in sync.
 _ENV_PREFIX = {"production": "NANNY_", "preview": "NANNY_PREVIEW_"}.get(
     env("VERCEL_ENV", default=""), ""
 )
