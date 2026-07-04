@@ -1,14 +1,13 @@
 import { format, isValid, parse } from 'date-fns'
-import { enUS, fr } from 'date-fns/locale'
 import { useEffect, useState } from 'react'
 import type { Language } from '../i18n/translations'
+import { localeFor } from '../lib/utils'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
 
 // The value is always stored as 24h "HH:mm"; it is displayed and typed in the
 // app language's convention — English 12h AM/PM, French 24h.
 const displayToken = (lang: Language) => (lang === 'fr' ? 'HH:mm' : 'h:mm a')
-const localeFor = (lang: Language) => (lang === 'fr' ? fr : enUS)
 const placeholderFor = (lang: Language) => (lang === 'fr' ? '14:30' : '2:30 PM')
 
 export function toStoredTime(text: string, lang: Language): string {

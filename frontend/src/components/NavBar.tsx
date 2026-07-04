@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import {
   Baby,
+  CalendarDays,
   ChevronUp,
   HomeIcon,
   Settings,
@@ -81,6 +82,12 @@ export function NavBar() {
           <NavLink to="/" end className={linkClass}>
             <HomeIcon size={18} aria-hidden="true" />
             {t('nav.home')}
+          </NavLink>
+        </li>
+        <li>
+          <NavLink to="/planning" className={linkClass}>
+            <CalendarDays size={18} aria-hidden="true" />
+            {t('nav.planning')}
           </NavLink>
         </li>
         <li>

@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format, isValid, parse, parseISO } from 'date-fns'
-import { enUS, fr } from 'date-fns/locale'
 import { CalendarIcon } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import {
@@ -49,12 +48,9 @@ import {
 } from '../components/ui/popover'
 import { useI18n } from '../i18n/I18nContext'
 import type { Language, TranslationKey } from '../i18n/translations'
+import { localeFor } from '../lib/utils'
 
 // --- Date helpers -----------------------------------------------------------
-
-function localeFor(lang: Language) {
-  return lang === 'fr' ? fr : enUS
-}
 
 function formatDate(iso: string, lang: Language): string {
   return format(parseISO(iso), 'P', { locale: localeFor(lang) })

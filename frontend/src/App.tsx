@@ -8,6 +8,7 @@ import Home from './pages/Home'
 import InvitePage from './pages/InvitePage'
 import LoginPage from './pages/LoginPage'
 import Nannies from './pages/Nannies'
+import Planning from './pages/Planning'
 import RegisterPage from './pages/RegisterPage'
 import SettingsPage from './pages/SettingsPage'
 
@@ -65,6 +66,7 @@ function App() {
       />
       <Route element={<AppLayout />}>
         <Route path="/" element={<Home />} />
+        <Route path="/planning" element={<Planning />} />
         <Route path="/nannies" element={<Nannies />} />
         <Route path="/family" element={<Family />} />
         <Route path="/settings" element={<SettingsPage />} />
