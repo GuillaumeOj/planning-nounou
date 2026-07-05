@@ -351,9 +351,7 @@ class Leave(UUIDModel):
     leave_type = models.CharField(max_length=20, choices=LeaveType.choices)
     start_date = models.DateField()
     end_date = models.DateField()
-    portion = models.CharField(
-        max_length=20, choices=Portion.choices, default=Portion.FULL_DAY
-    )
+    portion = models.CharField(max_length=20, choices=Portion.choices, default=Portion.FULL_DAY)
     # Only meaningful (and only allowed) when portion == HOURLY, on an unpaid leave.
     hours = models.DecimalField(
         max_digits=4, decimal_places=2, null=True, blank=True, validators=NON_NEGATIVE

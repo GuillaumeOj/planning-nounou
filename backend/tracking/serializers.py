@@ -229,9 +229,7 @@ class LeaveSerializer(serializers.ModelSerializer):
                     {"hours": _("Give the number of hours for an hourly leave.")}
                 )
         elif hours is not None:
-            raise serializers.ValidationError(
-                {"hours": _("Hours only apply to an hourly leave.")}
-            )
+            raise serializers.ValidationError({"hours": _("Hours only apply to an hourly leave.")})
         return attrs
 
 

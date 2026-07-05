@@ -79,9 +79,7 @@ def test_delete_leave(client, owner, family, contract):
 def test_hourly_unpaid_leave(client, owner, family, contract):
     client.force_authenticate(user=owner)
 
-    resp = post_leave(
-        client, family, contract, leave_type="unpaid", portion="hourly", hours="3.50"
-    )
+    resp = post_leave(client, family, contract, leave_type="unpaid", portion="hourly", hours="3.50")
 
     assert resp.status_code == 201
     assert resp.data["hours"] == "3.50"
