@@ -93,7 +93,9 @@ describe('LeavesSection', () => {
   it('requires start and end dates before saving', async () => {
     const user = userEvent.setup()
     render()
-    await user.click(await screen.findByRole('button', { name: 'Add days off' }))
+    await user.click(
+      await screen.findByRole('button', { name: 'Add days off' }),
+    )
     await user.click(screen.getByRole('button', { name: 'Save days off' }))
     expect(
       await screen.findByText('Give a start and end date.'),
@@ -104,7 +106,9 @@ describe('LeavesSection', () => {
   it('creates a full-day paid leave', async () => {
     const user = userEvent.setup()
     render()
-    await user.click(await screen.findByRole('button', { name: 'Add days off' }))
+    await user.click(
+      await screen.findByRole('button', { name: 'Add days off' }),
+    )
     await user.type(screen.getByLabelText('From'), '07/06/2026')
     await user.type(screen.getByLabelText('To'), '07/10/2026')
     await user.click(screen.getByRole('button', { name: 'Save days off' }))
@@ -126,7 +130,9 @@ describe('LeavesSection', () => {
   it('offers hourly only for unpaid leave and creates it with hours', async () => {
     const user = userEvent.setup()
     render()
-    await user.click(await screen.findByRole('button', { name: 'Add days off' }))
+    await user.click(
+      await screen.findByRole('button', { name: 'Add days off' }),
+    )
 
     const portion = screen.getByLabelText('Duration')
     // Paid leave: no hourly option.
@@ -158,7 +164,9 @@ describe('LeavesSection', () => {
   it('requires hours for an hourly leave', async () => {
     const user = userEvent.setup()
     render()
-    await user.click(await screen.findByRole('button', { name: 'Add days off' }))
+    await user.click(
+      await screen.findByRole('button', { name: 'Add days off' }),
+    )
     await user.selectOptions(screen.getByLabelText('Type'), 'Unpaid leave')
     await user.selectOptions(screen.getByLabelText('Duration'), 'By the hour')
     await user.type(screen.getByLabelText('From'), '07/06/2026')
@@ -173,7 +181,9 @@ describe('LeavesSection', () => {
   it('resets hourly to whole day when switching away from unpaid', async () => {
     const user = userEvent.setup()
     render()
-    await user.click(await screen.findByRole('button', { name: 'Add days off' }))
+    await user.click(
+      await screen.findByRole('button', { name: 'Add days off' }),
+    )
     await user.selectOptions(screen.getByLabelText('Type'), 'Unpaid leave')
     await user.selectOptions(screen.getByLabelText('Duration'), 'By the hour')
     expect(screen.getByLabelText('Number of hours')).toBeInTheDocument()
@@ -212,16 +222,16 @@ describe('LeavesSection', () => {
     await user.click(await screen.findByRole('button', { name: 'Delete' }))
     const dialog = await screen.findByRole('alertdialog')
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
-    await waitFor(() =>
-      expect(m.del).toHaveBeenCalledWith('1', '10', 'L1'),
-    )
+    await waitFor(() => expect(m.del).toHaveBeenCalledWith('1', '10', 'L1'))
   })
 
   it('surfaces a server error on save', async () => {
     m.create.mockRejectedValue(new Error('boom'))
     const user = userEvent.setup()
     render()
-    await user.click(await screen.findByRole('button', { name: 'Add days off' }))
+    await user.click(
+      await screen.findByRole('button', { name: 'Add days off' }),
+    )
     await user.type(screen.getByLabelText('From'), '07/06/2026')
     await user.type(screen.getByLabelText('To'), '07/10/2026')
     await user.click(screen.getByRole('button', { name: 'Save days off' }))
@@ -233,7 +243,9 @@ describe('LeavesSection', () => {
   it('cancels the form', async () => {
     const user = userEvent.setup()
     render()
-    await user.click(await screen.findByRole('button', { name: 'Add days off' }))
+    await user.click(
+      await screen.findByRole('button', { name: 'Add days off' }),
+    )
     await user.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(
       screen.getByRole('button', { name: 'Add days off' }),

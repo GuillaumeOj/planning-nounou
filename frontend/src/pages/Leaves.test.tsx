@@ -72,9 +72,7 @@ describe('Leaves page', () => {
     m.contracts.mockResolvedValue([makeContract()])
     renderWithProviders(<Leaves />)
     expect(await screen.findByText('Marie Dupont')).toBeInTheDocument()
-    expect(
-      screen.getByText('No days off recorded yet.'),
-    ).toBeInTheDocument()
+    expect(screen.getByText('No days off recorded yet.')).toBeInTheDocument()
   })
 
   it('shows a loading state while contracts load', async () => {
