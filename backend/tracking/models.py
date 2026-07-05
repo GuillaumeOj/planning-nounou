@@ -388,3 +388,22 @@ class Leave(UUIDModel):
                 raise ValidationError({"hours": _("Give the number of hours for an hourly leave.")})
         elif self.hours is not None:
             raise ValidationError({"hours": _("Hours only apply to an hourly leave.")})
+
+
+class BankHoliday(UUIDModel):
+    """A national work-free day (jour férié). Global, admin-managed.
+
+    Non-workable by default: the planning hides the nannies' working blocks on a
+    non-workable holiday and shows the holiday name instead. ``is_workable=True``
+    marks a holiday that is still worked (e.g. the journée de solidarité).
+    """
+
+    name = models.CharField(max_length=100)
+    date = models.DateField(unique=True)
+    is_workable = models.BooleanField(default=False)
+
+    class Meta:
+        ordering: ClassVar[list[str]] = ["date"]
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.date})"

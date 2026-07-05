@@ -95,13 +95,17 @@ export function scheduleInForce(
 }
 
 // Every nanny time block worked on `date`: for each contract active that day,
-// the schedule version in force places blocks on matching weekdays.
+// the schedule version in force places blocks on matching weekdays. A date in
+// `nonWorkableHolidays` (a set of "yyyy-MM-dd") is a jour férié that is not
+// worked, so it yields no entries — the working day is removed.
 export function workedEntriesForDay(
   date: Date,
   contracts: Contract[],
   schedulesByContract: Record<string, ContractSchedule[]>,
+  nonWorkableHolidays: Set<string> = new Set(),
 ): WorkedEntry[] {
   const iso = toISODate(date)
+  if (nonWorkableHolidays.has(iso)) return []
   const weekday = pyWeekday(date)
   const entries: WorkedEntry[] = []
   for (const contract of contracts) {

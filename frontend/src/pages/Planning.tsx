@@ -15,11 +15,16 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { getContractSchedules, getContracts } from '../api/contracts'
 import { getFamilies } from '../api/family'
+import { type BankHoliday, getBankHolidays } from '../api/holidays'
 import { Button } from '../components/ui/button'
 import { Label } from '../components/ui/label'
 import { useI18n } from '../i18n/I18nContext'
 import { cn, localeFor } from '../lib/utils'
-import { nannyColorMap, workedEntriesForDay } from './planningSchedule'
+import {
+  nannyColorMap,
+  toISODate,
+  workedEntriesForDay,
+} from './planningSchedule'
 
 // Per-nanny color palette. Class strings are literals so Tailwind's scanner
 // keeps them; each pairs a tinted background with a readable foreground in both
@@ -96,9 +101,35 @@ export default function Planning() {
   // Mon–Sun weekday header.
   const weekdayHeaders = days.slice(0, 7)
 
+  // The grid can straddle two calendar years, so fetch holidays for every year
+  // it shows (usually one, at most two). Holidays are global — no family needed.
+  const shownYears = [...new Set(days.map((day) => day.getFullYear()))]
+  const holidayQueries = useQueries({
+    queries: shownYears.map((year) => ({
+      queryKey: ['bank-holidays', year],
+      queryFn: () => getBankHolidays(year),
+    })),
+  })
+
+  // Lookup by ISO date for rendering the name, plus the set of non-workable
+  // dates the schedule uses to drop working blocks.
+  const holidaysByIso = new Map<string, BankHoliday>()
+  const nonWorkableHolidays = new Set<string>()
+  for (const query of holidayQueries) {
+    for (const holiday of query.data ?? []) {
+      holidaysByIso.set(holiday.date, holiday)
+      if (!holiday.is_workable) nonWorkableHolidays.add(holiday.date)
+    }
+  }
+
   // Cheap (≈42 days × few contracts), so recompute inline each render.
   const entriesByDay = days.map((day) =>
-    workedEntriesForDay(day, contractList, schedulesByContract),
+    workedEntriesForDay(
+      day,
+      contractList,
+      schedulesByContract,
+      nonWorkableHolidays,
+    ),
   )
   const hasEntries = entriesByDay.some((entries) => entries.length > 0)
 
@@ -190,12 +221,17 @@ export default function Planning() {
               const entries = entriesByDay[index]
               const outside = !isSameMonth(day, visibleMonth)
               const today = isToday(day)
+              const holiday = holidaysByIso.get(toISODate(day))
               return (
                 <div
                   key={day.toISOString()}
                   className={cn(
                     'flex min-h-24 flex-col gap-1 p-1.5',
-                    outside ? 'bg-muted/40' : 'bg-background',
+                    holiday
+                      ? 'bg-red-500/10'
+                      : outside
+                        ? 'bg-muted/40'
+                        : 'bg-background',
                   )}
                 >
                   <span
@@ -210,6 +246,11 @@ export default function Planning() {
                   >
                     {format(day, 'd')}
                   </span>
+                  {holiday && (
+                    <div className="truncate rounded bg-red-500/15 px-1.5 py-1 text-[11px] font-medium leading-tight text-red-700 dark:text-red-300">
+                      {holiday.name}
+                    </div>
+                  )}
                   {entries.map((entry) => (
                     <div
                       key={`${entry.contractId}-${entry.start}-${entry.end}`}
