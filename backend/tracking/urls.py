@@ -19,6 +19,10 @@ schedule_list = views.ContractScheduleViewSet.as_view({"get": "list", "post": "c
 schedule_detail = views.ContractScheduleViewSet.as_view(
     {"get": "retrieve", "put": "update", "patch": "partial_update", "delete": "destroy"}
 )
+leave_list = views.LeaveViewSet.as_view({"get": "list", "post": "create"})
+leave_detail = views.LeaveViewSet.as_view(
+    {"get": "retrieve", "put": "update", "patch": "partial_update", "delete": "destroy"}
+)
 invitation_list = views.ContractInvitationViewSet.as_view({"get": "list", "post": "create"})
 invitation_detail = views.ContractInvitationViewSet.as_view({"delete": "destroy"})
 
@@ -53,6 +57,17 @@ urlpatterns = [
         "families/<uuid:family_pk>/contracts/<uuid:contract_pk>/schedule/<uuid:pk>/",
         schedule_detail,
         name="contract-schedule-detail",
+    ),
+    # A contract's days off (leaves).
+    path(
+        "families/<uuid:family_pk>/contracts/<uuid:contract_pk>/leaves/",
+        leave_list,
+        name="contract-leaves",
+    ),
+    path(
+        "families/<uuid:family_pk>/contracts/<uuid:contract_pk>/leaves/<uuid:pk>/",
+        leave_detail,
+        name="contract-leave",
     ),
     # Invitations to share a contract with another family.
     path(

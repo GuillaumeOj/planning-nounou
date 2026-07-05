@@ -6,6 +6,7 @@ import { SettingsBar } from './components/SettingsBar'
 import Family from './pages/Family'
 import Home from './pages/Home'
 import InvitePage from './pages/InvitePage'
+import Leaves from './pages/Leaves'
 import LoginPage from './pages/LoginPage'
 import Nannies from './pages/Nannies'
 import Planning from './pages/Planning'
@@ -68,6 +69,7 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/planning" element={<Planning />} />
         <Route path="/nannies" element={<Nannies />} />
+        <Route path="/leaves" element={<Leaves />} />
         <Route path="/family" element={<Family />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>

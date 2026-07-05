@@ -6,6 +6,7 @@ from .models import (
     ContractSchedule,
     ContractShare,
     ContractTerms,
+    Leave,
     MinimumWage,
     Nanny,
     ScheduleBlock,
@@ -59,6 +60,12 @@ class ContractInvitationAdmin(admin.ModelAdmin):
     list_display = ("email", "contract", "status", "created_at", "expires_at")
     list_filter = ("status",)
     search_fields = ("email",)
+
+
+@admin.register(Leave)
+class LeaveAdmin(admin.ModelAdmin):
+    list_display = ("contract", "leave_type", "start_date", "end_date", "portion")
+    list_filter = ("leave_type", "portion")
 
 
 @admin.register(MinimumWage)
