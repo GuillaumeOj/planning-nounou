@@ -8,6 +8,7 @@ import {
   getContracts,
 } from '../api/contracts'
 import { getFamilies } from '../api/family'
+import { getBankHolidays } from '../api/holidays'
 import { renderWithProviders } from '../test/utils'
 import Planning from './Planning'
 
@@ -16,11 +17,13 @@ vi.mock('../api/contracts', () => ({
   getContracts: vi.fn(),
   getContractSchedules: vi.fn(),
 }))
+vi.mock('../api/holidays', () => ({ getBankHolidays: vi.fn() }))
 
 const m = {
   families: vi.mocked(getFamilies),
   contracts: vi.mocked(getContracts),
   schedules: vi.mocked(getContractSchedules),
+  holidays: vi.mocked(getBankHolidays),
 }
 
 const family = {
@@ -68,6 +71,7 @@ beforeEach(() => {
   m.families.mockResolvedValue([family])
   m.contracts.mockResolvedValue([])
   m.schedules.mockResolvedValue([makeSchedule()])
+  m.holidays.mockResolvedValue([])
 })
 afterEach(() => {
   vi.useRealTimers()
@@ -99,6 +103,45 @@ describe('Planning page', () => {
       0,
     )
     expect(screen.getAllByText(/08:00.*17:00/).length).toBeGreaterThan(0)
+  })
+
+  it('shows the holiday name on the planning', async () => {
+    m.holidays.mockResolvedValue([
+      {
+        id: 'h1',
+        name: 'Fête Nationale',
+        date: '2026-07-14',
+        is_workable: false,
+      },
+    ])
+    renderWithProviders(<Planning />)
+    expect(await screen.findByText('Fête Nationale')).toBeInTheDocument()
+  })
+
+  it('removes the worked block on a non-workable holiday', async () => {
+    m.contracts.mockResolvedValue([makeContract()])
+    // 2026-07-08 is one of July's five worked Wednesdays.
+    m.holidays.mockResolvedValue([
+      { id: 'h1', name: 'Jour férié', date: '2026-07-08', is_workable: false },
+    ])
+    renderWithProviders(<Planning />)
+    await screen.findByText('Jour férié')
+    // Five Wednesdays minus the neutralized one leaves four worked days.
+    await waitFor(() =>
+      expect(screen.getAllByText('Marie Dupont')).toHaveLength(4),
+    )
+  })
+
+  it('keeps the worked block on a workable holiday', async () => {
+    m.contracts.mockResolvedValue([makeContract()])
+    m.holidays.mockResolvedValue([
+      { id: 'h1', name: 'Solidarité', date: '2026-07-08', is_workable: true },
+    ])
+    renderWithProviders(<Planning />)
+    await screen.findByText('Solidarité')
+    await waitFor(() =>
+      expect(screen.getAllByText('Marie Dupont')).toHaveLength(5),
+    )
   })
 
   it('navigates months and returns to today', async () => {

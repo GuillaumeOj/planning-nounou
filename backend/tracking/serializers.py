@@ -8,6 +8,7 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from .models import (
+    BankHoliday,
     Contract,
     ContractInvitation,
     ContractSchedule,
@@ -231,6 +232,15 @@ class LeaveSerializer(serializers.ModelSerializer):
         elif hours is not None:
             raise serializers.ValidationError({"hours": _("Hours only apply to an hourly leave.")})
         return attrs
+
+
+class BankHolidaySerializer(serializers.ModelSerializer):
+    """A national work-free day. Read-only over the API (admin-managed)."""
+
+    class Meta:
+        model = BankHoliday
+        fields = ("id", "name", "date", "is_workable")
+        read_only_fields = ("id",)
 
 
 class ContractSerializer(serializers.ModelSerializer):

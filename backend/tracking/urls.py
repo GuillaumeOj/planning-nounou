@@ -29,6 +29,8 @@ invitation_detail = views.ContractInvitationViewSet.as_view({"delete": "destroy"
 urlpatterns = [
     path("health/", views.health, name="health"),
     path("minimum-wage/", views.MinimumWageView.as_view(), name="minimum-wage"),
+    # National work-free days (jours fériés), global and admin-managed.
+    path("holidays/", views.BankHolidayListView.as_view(), name="bank-holidays"),
     # A family's shared contracts.
     path("families/<uuid:family_pk>/contracts/", contract_list, name="family-contracts"),
     path(

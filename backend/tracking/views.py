@@ -14,8 +14,9 @@ from rest_framework.serializers import BaseSerializer
 from accounts.models import Family, User
 from accounts.views import FamilyScopedMixin
 
-from .models import Contract, ContractInvitation, ContractShare, MinimumWage
+from .models import BankHoliday, Contract, ContractInvitation, ContractShare, MinimumWage
 from .serializers import (
+    BankHolidaySerializer,
     ContractInvitationPreviewSerializer,
     ContractInvitationSerializer,
     ContractScheduleSerializer,
@@ -45,6 +46,24 @@ class MinimumWageView(generics.GenericAPIView):
         on = (parse_date(raw) if raw else None) or timezone.localdate()
         rate = MinimumWage.applicable_on(on)
         return Response({"net_hourly_rate": f"{rate:.2f}" if rate is not None else None})
+
+
+class BankHolidayListView(generics.ListAPIView):
+    """The national work-free days (jours fériés), optionally filtered by ``?year=``.
+
+    Global and admin-managed: read-only over the API. The planning uses these to
+    label days and drop the nannies' working blocks on non-workable holidays.
+    """
+
+    serializer_class = BankHolidaySerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = BankHoliday.objects.all()
+        year = self.request.query_params.get("year")
+        if year and year.isdigit():
+            queryset = queryset.filter(date__year=int(year))
+        return queryset
 
 
 _WRITE_ACTIONS = ("create", "update", "partial_update", "destroy")

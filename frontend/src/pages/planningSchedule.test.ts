@@ -129,6 +129,20 @@ describe('workedEntriesForDay', () => {
     expect(earlier).toMatchObject({ start: '08:00', end: '12:00' })
   })
 
+  it('removes the working day on a non-workable holiday', () => {
+    const holidays = new Set(['2026-07-08']) // the Wednesday
+    expect(
+      workedEntriesForDay(WEDNESDAY, [contract()], schedules, holidays),
+    ).toEqual([])
+  })
+
+  it('keeps the working day on a workable holiday (not in the set)', () => {
+    const holidays = new Set(['2026-07-14']) // some other holiday
+    expect(
+      workedEntriesForDay(WEDNESDAY, [contract()], schedules, holidays),
+    ).toHaveLength(1)
+  })
+
   it('lists an entry per nanny working the same day', () => {
     const c2 = contract({
       id: 'c2',
