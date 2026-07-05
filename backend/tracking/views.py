@@ -21,6 +21,7 @@ from .serializers import (
     ContractScheduleSerializer,
     ContractSerializer,
     ContractTermsSerializer,
+    LeaveSerializer,
     MyContractInvitationSerializer,
 )
 
@@ -156,6 +157,28 @@ class ContractScheduleViewSet(
 
     def perform_update(self, serializer: BaseSerializer) -> None:
         serializer.save(edited=True)
+
+
+class LeaveViewSet(
+    ContractScopedMixin,
+    mixins.ListModelMixin,
+    mixins.CreateModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
+    """Flat CRUD for a contract's days off. Reads need access, writes need manage."""
+
+    serializer_class = LeaveSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return self.get_contract(manage=self.action in _WRITE_ACTIONS).leaves.all()
+
+    def perform_create(self, serializer: BaseSerializer) -> None:
+        contract = self.get_contract(manage=True)
+        serializer.save(contract=contract, created_by=self.request.user)
 
 
 class ContractInvitationViewSet(

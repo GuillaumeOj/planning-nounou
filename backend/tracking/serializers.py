@@ -12,6 +12,7 @@ from .models import (
     ContractInvitation,
     ContractSchedule,
     ContractTerms,
+    Leave,
     MinimumWage,
     Nanny,
     ScheduleBlock,
@@ -191,6 +192,47 @@ class ContractScheduleSerializer(serializers.ModelSerializer):
                 ScheduleBlock(schedule=instance, **block) for block in blocks
             )
         return instance
+
+
+class LeaveSerializer(serializers.ModelSerializer):
+    """A nanny's day(s) off. Flat CRUD — no versioning."""
+
+    class Meta:
+        model = Leave
+        fields = ("id", "leave_type", "start_date", "end_date", "portion", "hours", "notes")
+        read_only_fields = ("id",)
+
+    def validate(self, attrs: dict) -> dict:
+        # Merge against the instance so PATCH validates the resulting state.
+        def resolved(field):
+            if field in attrs:
+                return attrs[field]
+            return getattr(self.instance, field, None)
+
+        start = resolved("start_date")
+        end = resolved("end_date")
+        leave_type = resolved("leave_type")
+        portion = resolved("portion")
+        hours = resolved("hours")
+
+        if start and end and end < start:
+            raise serializers.ValidationError(
+                {"end_date": _("The ending date cannot be before the starting date.")}
+            )
+        if portion == Leave.Portion.HOURLY:
+            if leave_type != Leave.LeaveType.UNPAID:
+                raise serializers.ValidationError(
+                    {"portion": _("Only unpaid leaves can be counted by the hour.")}
+                )
+            if hours is None:
+                raise serializers.ValidationError(
+                    {"hours": _("Give the number of hours for an hourly leave.")}
+                )
+        elif hours is not None:
+            raise serializers.ValidationError(
+                {"hours": _("Hours only apply to an hourly leave.")}
+            )
+        return attrs
 
 
 class ContractSerializer(serializers.ModelSerializer):

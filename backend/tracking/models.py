@@ -108,6 +108,7 @@ class Contract(UUIDModel):
         terms: RelatedManager[ContractTerms]
         schedules: RelatedManager[ContractSchedule]
         invitations: RelatedManager[ContractInvitation]
+        leaves: RelatedManager[Leave]
 
     class Meta:
         ordering: ClassVar[list[str]] = ["-starting_date"]
@@ -325,3 +326,67 @@ class MinimumWage(UUIDModel):
         on = on or timezone.localdate()
         row = cls.objects.filter(effective_from__lte=on).order_by("-effective_from").first()
         return row.net_hourly_rate if row else None
+
+
+class Leave(UUIDModel):
+    """A nanny's day(s) off under a contract.
+
+    A flat record (unlike the effective-dated terms/schedule): a leave spans
+    ``start_date``..``end_date`` with a single :class:`Portion`. Hourly leaves
+    carry an ``hours`` count and are only allowed on an *unpaid* leave. For now
+    leaves are purely informational — they don't affect pay or schedule.
+    """
+
+    class LeaveType(models.TextChoices):
+        PAID = "paid", _("Paid leave")
+        UNPAID = "unpaid", _("Unpaid leave")
+        SICKNESS = "sickness", _("Sickness leave")
+
+    class Portion(models.TextChoices):
+        FULL_DAY = "full_day", _("Whole day")
+        HALF_DAY = "half_day", _("Half day")
+        HOURLY = "hourly", _("Hourly")
+
+    contract = models.ForeignKey(Contract, on_delete=models.CASCADE, related_name="leaves")
+    leave_type = models.CharField(max_length=20, choices=LeaveType.choices)
+    start_date = models.DateField()
+    end_date = models.DateField()
+    portion = models.CharField(
+        max_length=20, choices=Portion.choices, default=Portion.FULL_DAY
+    )
+    # Only meaningful (and only allowed) when portion == HOURLY, on an unpaid leave.
+    hours = models.DecimalField(
+        max_digits=4, decimal_places=2, null=True, blank=True, validators=NON_NEGATIVE
+    )
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="leaves_created",
+    )
+
+    if TYPE_CHECKING:
+        contract_id: uuid.UUID
+
+    class Meta:
+        ordering: ClassVar[list[str]] = ["-start_date"]
+
+    def __str__(self) -> str:
+        return f"{self.get_leave_type_display()} {self.start_date}–{self.end_date}"  # ty: ignore[unresolved-attribute]
+
+    def clean(self) -> None:
+        if self.start_date and self.end_date and self.end_date < self.start_date:
+            raise ValidationError(
+                {"end_date": _("The ending date cannot be before the starting date.")}
+            )
+        if self.portion == self.Portion.HOURLY:
+            if self.leave_type != self.LeaveType.UNPAID:
+                raise ValidationError(
+                    {"portion": _("Only unpaid leaves can be counted by the hour.")}
+                )
+            if self.hours is None:
+                raise ValidationError({"hours": _("Give the number of hours for an hourly leave.")})
+        elif self.hours is not None:
+            raise ValidationError({"hours": _("Hours only apply to an hourly leave.")})

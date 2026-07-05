@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { format, isValid, parse, parseISO } from 'date-fns'
-import { CalendarIcon } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { format } from 'date-fns'
+import { useMemo, useState } from 'react'
 import {
   acceptContractInvitation,
   type Contract,
@@ -32,110 +31,17 @@ import {
 import { extractErrorMessages } from '../api/errors'
 import { type Family, getFamilies } from '../api/family'
 import { ConfirmButton } from '../components/ConfirmButton'
+import { DateField, formatDate } from '../components/DateField'
 import { FormErrors } from '../components/FormErrors'
 import { Modal } from '../components/Modal'
 import { SectionCard } from '../components/SectionCard'
 import { TimeField } from '../components/TimeField'
 import { Button } from '../components/ui/button'
-import { Calendar } from '../components/ui/calendar'
 import { Card, CardContent } from '../components/ui/card'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '../components/ui/popover'
 import { useI18n } from '../i18n/I18nContext'
 import type { Language, TranslationKey } from '../i18n/translations'
-import { localeFor } from '../lib/utils'
-
-// --- Date helpers -----------------------------------------------------------
-
-function formatDate(iso: string, lang: Language): string {
-  return format(parseISO(iso), 'P', { locale: localeFor(lang) })
-}
-
-function parseLocalizedDate(input: string, lang: Language): string {
-  const parsed = parse(input.trim(), 'P', new Date(), {
-    locale: localeFor(lang),
-  })
-  return isValid(parsed) ? format(parsed, 'yyyy-MM-dd') : ''
-}
-
-function DateField({
-  id,
-  label,
-  value,
-  onChange,
-  lang,
-  required,
-}: {
-  id: string
-  label: string
-  value: string
-  onChange: (iso: string) => void
-  lang: Language
-  required?: boolean
-}) {
-  const { t } = useI18n()
-  const [open, setOpen] = useState(false)
-  const [text, setText] = useState(() => (value ? formatDate(value, lang) : ''))
-  const toIso = (raw: string) =>
-    raw.trim() ? parseLocalizedDate(raw, lang) : ''
-  const shownIso = toIso(text)
-  useEffect(() => {
-    if (value !== shownIso) setText(value ? formatDate(value, lang) : '')
-  }, [value, shownIso, lang])
-
-  const handleSelect = (date?: Date) => {
-    if (date) onChange(format(date, 'yyyy-MM-dd'))
-    setOpen(false)
-  }
-  const selected = value ? parseISO(value) : undefined
-
-  return (
-    <div className="flex flex-col gap-2">
-      <Label htmlFor={id}>{label}</Label>
-      <div className="flex gap-2">
-        <Input
-          id={id}
-          name={id}
-          inputMode="numeric"
-          placeholder={t('nanny.dateFormat')}
-          value={text}
-          required={required}
-          onChange={(event) => {
-            setText(event.target.value)
-            onChange(toIso(event.target.value))
-          }}
-        />
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              aria-label={t('nanny.pickDate')}
-            >
-              <CalendarIcon />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
-              mode="single"
-              locale={localeFor(lang)}
-              selected={selected}
-              defaultMonth={selected}
-              onSelect={handleSelect}
-              autoFocus
-            />
-          </PopoverContent>
-        </Popover>
-      </div>
-    </div>
-  )
-}
 
 // --- Static reference content -----------------------------------------------
 
