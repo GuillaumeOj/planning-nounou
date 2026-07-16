@@ -22,14 +22,16 @@ environ.Env.read_env(BASE_DIR / ".env")
 # same code reads e.g. DATABASE_URL and gets the right database in each. Locally we read the
 # same names from the environment / a .env file, falling back to the defaults passed below.
 
-# VERCEL_ENV is "production"/"preview" on Vercel deploys, unset locally.
-_ON_VERCEL = env("VERCEL_ENV", default="") in {"production", "preview"}
+# VERCEL_ENV is "production"/"preview" on Vercel deploys, unset locally. Public, so code
+# that must behave differently on a deployment (e.g. the populate_dev command, which
+# refuses to run on one) asks this rather than re-reading the environment for itself.
+ON_VERCEL = env("VERCEL_ENV", default="") in {"production", "preview"}
 
 # On Vercel a real SECRET_KEY must be provided (no default → startup fails loudly if it's
 # missing); only local/dev falls back to the insecure placeholder.
 SECRET_KEY = (
     env("SECRET_KEY")
-    if _ON_VERCEL
+    if ON_VERCEL
     else env("SECRET_KEY", default="django-insecure-dev-only-change-me")
 )
 
@@ -44,7 +46,7 @@ ALLOWED_HOSTS = env(
 # reaches it — a shared vercel.json can't encode a per-env secret, so Django owns it at
 # runtime. On Vercel, ADMIN_PATH must be set (production and preview each hold their own
 # value; no default → startup fails if it's missing); local dev falls back to "admin".
-ADMIN_PATH = (env("ADMIN_PATH") if _ON_VERCEL else env("ADMIN_PATH", default="admin")).strip("/")
+ADMIN_PATH = (env("ADMIN_PATH") if ON_VERCEL else env("ADMIN_PATH", default="admin")).strip("/")
 
 
 # Application definition
