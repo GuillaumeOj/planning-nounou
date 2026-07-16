@@ -22,16 +22,15 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
-    setupFiles: ['./src/test/setup.ts'],
+    include: ['tests/**/*.test.{ts,tsx}'],
+    setupFiles: ['./tests/setup.ts'],
     coverage: {
       provider: 'v8',
       include: ['src/**/*.{ts,tsx}'],
-      // Bootstrap/entry, vendored shadcn primitives, and pure type or test files
-      // carry no first-party testable logic.
+      // Bootstrap/entry, vendored shadcn primitives, and pure type files carry no
+      // first-party testable logic.
       exclude: [
         'src/main.tsx',
-        'src/**/*.test.{ts,tsx}',
-        'src/test/**',
         'src/vite-env.d.ts',
         'src/components/ui/**',
         'src/lib/**',
