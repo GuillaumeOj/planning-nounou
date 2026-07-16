@@ -73,6 +73,26 @@ Create an admin user:
 docker compose exec web python manage.py createsuperuser
 ```
 
+### Demo data
+
+```bash
+cd backend
+uv run tox -e populate                          # accounts, families, children, nannies, contracts
+uv run tox -e populate -- --families 5 --seed 3
+```
+
+Fills the dev database so the planning has something to show. It runs on the host against the
+stack's Postgres — no `docker compose exec` needed — and brings the stack up first if it isn't
+already.
+
+Every account it creates logs in with the password `password`, including a superuser for the
+admin, and it prints them all when it finishes. Re-running resets the demo data rather than
+piling more on top; that reset is scoped to the `@demo.example.com` accounts it owns, so
+anything you made by hand is left alone. Same `--seed`, same dataset.
+
+Dev only: it refuses to run with `DEBUG` off, or on a Vercel deployment — every account it
+creates shares one weak password.
+
 ### The two Docker stacks
 
 Both Compose projects are pinned by `name` in their compose file, so they are the same
