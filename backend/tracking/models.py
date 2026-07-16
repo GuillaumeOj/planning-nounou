@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, ClassVar
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.core.validators import MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models, transaction
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
@@ -77,15 +77,31 @@ class ContractQuerySet(models.QuerySet):
 class Contract(UUIDModel):
     """One nanny's employment, shared by one or more families ("garde partagée").
 
-    The families jointly agree the working hours and pay; how the declared hours
-    are later split between them (pajemploi) is out of scope. Compensation and
-    schedule are versioned as effective-dated snapshots (:class:`ContractTerms`,
-    :class:`ContractSchedule`).
+    The families jointly agree the working hours and pay. pajemploi cannot split
+    an hourly *rate* between employers, so families split the *hours* instead:
+    each declares the share attributable to it, all at the same rate, and the
+    shares must sum to the hours actually worked. That split is derived from
+    which children are present at each moment (:class:`ContractChild`,
+    :class:`ContractChildWindow`) weighted by :attr:`split_method` — see
+    ``docs/shared-care-pay.md``.
+
+    Compensation and schedule are versioned as effective-dated snapshots
+    (:class:`ContractTerms`, :class:`ContractSchedule`).
     """
+
+    class SplitMethod(models.TextChoices):
+        EQUAL = "equal", _("Equally between the families present")
+        BY_CHILDREN = "by_children", _("In proportion to the children present")
 
     nanny = models.ForeignKey(Nanny, on_delete=models.CASCADE, related_name="contracts")
     families = models.ManyToManyField(
         "accounts.Family", through="ContractShare", related_name="contracts"
+    )
+    # The children this contract covers. Not every child of a participating
+    # family need be on it, and a child's hours may be narrower than the nanny's
+    # (see ContractChildWindow).
+    children = models.ManyToManyField(
+        "accounts.Child", through="ContractChild", related_name="contracts"
     )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -96,6 +112,12 @@ class Contract(UUIDModel):
     )
     starting_date = models.DateField()
     ending_date = models.DateField(null=True, blank=True)
+    # How a moment's hours divide between the families whose children are there.
+    # Agreed once, when the contract is signed: two families with 2 and 1
+    # children may still settle on halves, so this cannot be derived.
+    split_method = models.CharField(
+        max_length=20, choices=SplitMethod.choices, default=SplitMethod.EQUAL
+    )
     # Annual paid-leave days (congés payés) agreed in the contract.
     paid_leave_days = models.PositiveSmallIntegerField(default=0)
     notes = models.TextField(blank=True)
@@ -105,10 +127,14 @@ class Contract(UUIDModel):
     if TYPE_CHECKING:
         nanny_id: uuid.UUID
         shares: RelatedManager[ContractShare]
+        contract_children: RelatedManager[ContractChild]
         terms: RelatedManager[ContractTerms]
         schedules: RelatedManager[ContractSchedule]
         invitations: RelatedManager[ContractInvitation]
         leaves: RelatedManager[Leave]
+        exceptional_hours: RelatedManager[ExceptionalHours]
+        exceptional_presences: RelatedManager[ExceptionalPresence]
+        declarations: RelatedManager[MonthlyDeclaration]
 
     class Meta:
         ordering: ClassVar[list[str]] = ["-starting_date"]
@@ -218,6 +244,13 @@ class ContractTerms(UUIDModel):
     effective_from = models.DateField(default=timezone.localdate)
 
     net_hourly_rate = models.DecimalField(max_digits=6, decimal_places=2, validators=NON_NEGATIVE)
+    # Hourly rate for "présence de nuit" (20:00–06:30), which URSSAF pays as a
+    # flat indemnity rather than as worked hours. The parties agree the amount;
+    # URSSAF only sets a floor of a quarter of net_hourly_rate, which the API
+    # surfaces as a soft warning (like MinimumWage) rather than enforcing.
+    night_presence_rate = models.DecimalField(
+        max_digits=6, decimal_places=2, default=Decimal("0"), validators=NON_NEGATIVE
+    )
     transport_fee = models.DecimalField(
         max_digits=8, decimal_places=2, default=Decimal("0"), validators=NON_NEGATIVE
     )
@@ -256,6 +289,14 @@ class ContractSchedule(UUIDModel):
 
     contract = models.ForeignKey(Contract, on_delete=models.CASCADE, related_name="schedules")
     effective_from = models.DateField(default=timezone.localdate)
+    # Weeks of this shape per year, the second operand of the mensualisation
+    # (weekly hours × weeks_per_year ÷ 12). 52 is a full year — 47 worked plus 5
+    # of paid leave; an "année incomplète" agrees its own count. It lives on the
+    # schedule rather than the terms so both operands of that product resolve
+    # from one snapshot, cut on one effective_from.
+    weeks_per_year = models.PositiveSmallIntegerField(
+        default=52, validators=[MinValueValidator(1), MaxValueValidator(53)]
+    )
     # Set when corrected in place (see ContractTerms.edited).
     edited = models.BooleanField(default=False)
 
@@ -304,6 +345,82 @@ class ScheduleBlock(UUIDModel):
             raise ValidationError({"end_time": _("The end time must be after the start time.")})
 
 
+class ContractChild(UUIDModel):
+    """A child covered by a contract. The through model for `Contract.children`.
+
+    Flat, not effective-dated: versioning presence would need a third snapshot
+    level (set → child → window) inheriting the delete-and-recreate churn of
+    ContractSchedule, for a shape whose UI is not settled yet. Safe only because
+    a filed MonthlyDeclaration freezes its own numbers — see that model. Adding
+    an ``effective_from`` later is a one-column migration backfilled to
+    ``contract.starting_date``; the reverse would not be.
+    """
+
+    contract = models.ForeignKey(
+        Contract, on_delete=models.CASCADE, related_name="contract_children"
+    )
+    child = models.ForeignKey(
+        "accounts.Child", on_delete=models.CASCADE, related_name="contract_children"
+    )
+
+    if TYPE_CHECKING:
+        contract_id: uuid.UUID
+        child_id: uuid.UUID
+        windows: RelatedManager[ContractChildWindow]
+
+    class Meta:
+        constraints: ClassVar[list] = [
+            models.UniqueConstraint(fields=["contract", "child"], name="uniq_contract_child"),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.child} on {self.contract}"
+
+    def clean(self) -> None:
+        # Nothing else stops attaching a child of a family that has no share in
+        # the contract, and the damage is double: their hours would be routed to
+        # a family that never employed the nanny, and the child's name would
+        # surface in that family's declaration.
+        if self.contract_id and self.child_id:
+            family_id = self.child.family_id
+            if not self.contract.shares.filter(family_id=family_id).exists():
+                raise ValidationError(
+                    {"child": _("This child's family does not share this contract.")}
+                )
+
+
+class ContractChildWindow(UUIDModel):
+    """The hours of one weekday a :class:`ContractChild` is actually present.
+
+    Optional, and the absence of any window is meaningful: a child with **no
+    windows at all** is present whenever the nanny works, which is the common
+    case. A child with *any* window is present only within the union of them —
+    a test evaluated across every weekday, never within one. A child windowed
+    Mon/Tue/Thu/Fri has no Wednesday window and is therefore absent on
+    Wednesday; reading "no window *for this weekday*" as "present all day" would
+    say the exact opposite.
+    """
+
+    contract_child = models.ForeignKey(
+        ContractChild, on_delete=models.CASCADE, related_name="windows"
+    )
+    weekday = models.IntegerField(choices=ScheduleBlock.Weekday.choices)
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+
+    class Meta:
+        ordering: ClassVar[list[str]] = ["weekday", "start_time"]
+
+    def __str__(self) -> str:
+        return f"{self.get_weekday_display()} {self.start_time}–{self.end_time}"  # ty: ignore[unresolved-attribute]
+
+    def clean(self) -> None:
+        # Overlapping windows for one child are deliberately allowed: their union
+        # is what counts, and the segmentation cuts on every boundary anyway.
+        if self.start_time and self.end_time and self.end_time <= self.start_time:
+            raise ValidationError({"end_time": _("The end time must be after the start time.")})
+
+
 class MinimumWage(UUIDModel):
     """The recommended minimum net hourly rate, effective from a date.
 
@@ -329,12 +446,19 @@ class MinimumWage(UUIDModel):
 
 
 class Leave(UUIDModel):
-    """A nanny's day(s) off under a contract.
+    """The nanny's own absence under a contract — she does not work.
+
+    Contract-wide, not per family: when the nanny is off, every family that would
+    have had her that day loses their share of it. A family being away instead is
+    not this — that is expressed by the children's presence windows.
 
     A flat record (unlike the effective-dated terms/schedule): a leave spans
     ``start_date``..``end_date`` with a single :class:`Portion`. Hourly leaves
-    carry an ``hours`` count and are only allowed on an *unpaid* leave. For now
-    leaves are purely informational — they don't affect pay or schedule.
+    carry an ``hours`` count and are only allowed on an *unpaid* leave.
+
+    Only an **unpaid** leave deducts. Paid leave is already inside the
+    mensualised salary (52 weeks = 47 worked + 5 of paid leave), so deducting it
+    would take it off the nanny twice — see ``docs/shared-care-pay.md``.
     """
 
     class LeaveType(models.TextChoices):
@@ -356,6 +480,12 @@ class Leave(UUIDModel):
     hours = models.DecimalField(
         max_digits=4, decimal_places=2, null=True, blank=True, validators=NON_NEGATIVE
     )
+    # Which hours of the day an hourly leave covers. Optional, and only on an
+    # hourly leave. Without them `hours` is a bare count with no time of day, so
+    # the deduction cannot be told which children would have been there and can
+    # only fall back on the day's aggregate shares.
+    start_time = models.TimeField(null=True, blank=True)
+    end_time = models.TimeField(null=True, blank=True)
     notes = models.TextField(blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -388,6 +518,12 @@ class Leave(UUIDModel):
                 raise ValidationError({"hours": _("Give the number of hours for an hourly leave.")})
         elif self.hours is not None:
             raise ValidationError({"hours": _("Hours only apply to an hourly leave.")})
+        if self.portion != self.Portion.HOURLY and (self.start_time or self.end_time):
+            raise ValidationError({"start_time": _("Times only apply to an hourly leave.")})
+        if bool(self.start_time) != bool(self.end_time):
+            raise ValidationError({"end_time": _("Give both a start and an end time, or neither.")})
+        if self.start_time and self.end_time and self.end_time <= self.start_time:
+            raise ValidationError({"end_time": _("The end time must be after the start time.")})
 
 
 class BankHoliday(UUIDModel):
@@ -396,6 +532,10 @@ class BankHoliday(UUIDModel):
     Non-workable by default: the planning hides the nannies' working blocks on a
     non-workable holiday and shows the holiday name instead. ``is_workable=True``
     marks a holiday that is still worked (e.g. the journée de solidarité).
+
+    Note this is a *planning* fact, not a pay one. A bank holiday must not touch
+    the mensualised salary: a fixed × 52 ÷ 12 exists precisely so that the shape
+    of a given calendar month does not matter. See ``docs/shared-care-pay.md``.
     """
 
     name = models.CharField(max_length=100)
@@ -407,3 +547,258 @@ class BankHoliday(UUIDModel):
 
     def __str__(self) -> str:
         return f"{self.name} ({self.date})"
+
+
+class ExceptionalHours(UUIDModel):
+    """Hours the nanny worked **beyond** the schedule, on one family's account.
+
+    The nanny's day gets longer: a late night, an earlier start. Contrast
+    :class:`ExceptionalPresence`, where she works exactly the same hours and only
+    the split moves.
+
+    Filed by one family, and read by all of them — family A's declared hours
+    depend on whether B filed an overlapping entry, so both must see both. Where
+    two families' entries overlap in time, that overlap divides by the contract's
+    usual weight rule; the rest is wholly the filer's.
+
+    Presence here is **who filed**, never the children's windows: those describe
+    the regular week, and an exceptional entry is by definition irregular. A
+    child windowed to 16:30–18:00 is "absent" at 19:00, so reading the windows
+    would bill their family's own late night to the other family.
+
+    Times are naive local `date` + `time`, deliberately: the project runs
+    TIME_ZONE="UTC" with USE_TZ=True, so an aware 20:00 Paris would persist as
+    18:00Z in summer and break the night-presence test twice a year.
+    """
+
+    class Kind(models.TextChoices):
+        EFFECTIVE = "effective", _("Effective work")
+        PRESENCE_RESPONSABLE = "presence_responsable", _("Responsible presence")
+        NIGHT_PRESENCE = "night_presence", _("Night presence")
+
+    contract = models.ForeignKey(
+        Contract, on_delete=models.CASCADE, related_name="exceptional_hours"
+    )
+    # The family that needed these hours and will declare them.
+    family = models.ForeignKey(
+        "accounts.Family", on_delete=models.CASCADE, related_name="exceptional_hours"
+    )
+    kind = models.CharField(max_length=30, choices=Kind.choices, default=Kind.EFFECTIVE)
+    start_date = models.DateField()
+    start_time = models.TimeField()
+    # end_date carries the night that runs past midnight; it is not always
+    # start_date.
+    end_date = models.DateField()
+    end_time = models.TimeField()
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="exceptional_hours_created",
+    )
+
+    if TYPE_CHECKING:
+        contract_id: uuid.UUID
+        family_id: uuid.UUID
+
+    class Meta:
+        ordering: ClassVar[list[str]] = ["-start_date", "-start_time"]
+        verbose_name_plural = "exceptional hours"
+        constraints: ClassVar[list] = [
+            models.CheckConstraint(
+                condition=models.Q(end_date__gt=models.F("start_date"))
+                | (
+                    models.Q(end_date=models.F("start_date"))
+                    & models.Q(end_time__gt=models.F("start_time"))
+                ),
+                name="exceptional_hours_end_after_start",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.get_kind_display()} {self.start_date} {self.start_time}–{self.end_time}"  # ty: ignore[unresolved-attribute]
+
+    def clean(self) -> None:
+        if self.contract_id and self.family_id:
+            if not self.contract.shares.filter(family_id=self.family_id).exists():
+                raise ValidationError({"family": _("This family does not share this contract.")})
+        if self.start_date and self.end_date and self.end_date < self.start_date:
+            raise ValidationError(
+                {"end_date": _("The ending date cannot be before the starting date.")}
+            )
+
+
+class ExceptionalPresence(UUIDModel):
+    """A child present on one date outside their usual window.
+
+    The nanny works no longer than planned — she is already there for the others
+    — so nothing is added to the hours. What moves is the *split*: a family with
+    two children present where the schedule expected one now carries a larger
+    share of that time. Contrast :class:`ExceptionalHours`.
+
+    Overrides the child's :class:`ContractChildWindow` for this date only, and
+    only within the nanny's scheduled hours; time outside them would mean she
+    worked longer, which is an ExceptionalHours entry instead.
+    """
+
+    contract = models.ForeignKey(
+        Contract, on_delete=models.CASCADE, related_name="exceptional_presences"
+    )
+    child = models.ForeignKey(
+        "accounts.Child", on_delete=models.CASCADE, related_name="exceptional_presences"
+    )
+    date = models.DateField()
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    notes = models.TextField(blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="exceptional_presences_created",
+    )
+
+    if TYPE_CHECKING:
+        contract_id: uuid.UUID
+        child_id: uuid.UUID
+
+    class Meta:
+        ordering: ClassVar[list[str]] = ["-date", "start_time"]
+        constraints: ClassVar[list] = [
+            models.CheckConstraint(
+                condition=models.Q(end_time__gt=models.F("start_time")),
+                name="exceptional_presence_end_after_start",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.child} on {self.date} {self.start_time}–{self.end_time}"
+
+    def clean(self) -> None:
+        if self.start_time and self.end_time and self.end_time <= self.start_time:
+            raise ValidationError({"end_time": _("The end time must be after the start time.")})
+        if self.contract_id and self.child_id:
+            if not self.contract.contract_children.filter(child_id=self.child_id).exists():
+                raise ValidationError({"child": _("This child is not covered by this contract.")})
+
+
+class MonthlyDeclaration(UUIDModel):
+    """What one family declares to pajemploi for one month.
+
+    One row per (contract, family, month) — each family files its own, because
+    pajemploi knows nothing of the other employer.
+
+    A DRAFT is recomputed from live data whenever it is read. Filing freezes it:
+    a FILED row is the record of what was actually declared and must never move
+    again, whatever happens to the terms, the schedule or the children's windows
+    afterwards. That freeze is what lets the presence models stay flat rather
+    than effective-dated.
+
+    ``rate_periods`` carries the per-period detail behind the totals. Almost
+    every month has exactly one, and then the flat rate fields say everything;
+    but a mid-month avenant makes total ≠ hours × rate, and without the detail
+    nobody can reproduce the figure they are being asked to type.
+    """
+
+    class Status(models.TextChoices):
+        DRAFT = "draft", _("Draft")
+        FILED = "filed", _("Filed")
+
+    contract = models.ForeignKey(Contract, on_delete=models.CASCADE, related_name="declarations")
+    family = models.ForeignKey(
+        "accounts.Family", on_delete=models.CASCADE, related_name="declarations"
+    )
+    # Always the first of the month; the month is the unit, not the day.
+    month = models.DateField()
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
+
+    # --- the numbers pajemploi asks for -----------------------------------
+    normal_hours = models.DecimalField(
+        max_digits=6, decimal_places=2, default=Decimal("0"), validators=NON_NEGATIVE
+    )
+    hours_25 = models.DecimalField(
+        max_digits=6, decimal_places=2, default=Decimal("0"), validators=NON_NEGATIVE
+    )
+    hours_50 = models.DecimalField(
+        max_digits=6, decimal_places=2, default=Decimal("0"), validators=NON_NEGATIVE
+    )
+    total_amount = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal("0"), validators=NON_NEGATIVE
+    )
+
+    # --- advantages -------------------------------------------------------
+    # The contract's monthly lumps are for one nanny, so they are split by this
+    # family's share of the month's hours rather than declared whole by each.
+    transport_amount = models.DecimalField(
+        max_digits=8, decimal_places=2, default=Decimal("0"), validators=NON_NEGATIVE
+    )
+    benefits_in_kind_amount = models.DecimalField(
+        max_digits=8, decimal_places=2, default=Decimal("0"), validators=NON_NEGATIVE
+    )
+    # mileage_rate's missing operand: entered per family, per month.
+    kilometers = models.DecimalField(
+        max_digits=7, decimal_places=2, default=Decimal("0"), validators=NON_NEGATIVE
+    )
+    mileage_amount = models.DecimalField(
+        max_digits=8, decimal_places=2, default=Decimal("0"), validators=NON_NEGATIVE
+    )
+
+    # --- présence de nuit: an indemnity, not hours ------------------------
+    night_count = models.PositiveSmallIntegerField(default=0)
+    night_indemnity = models.DecimalField(
+        max_digits=8, decimal_places=2, default=Decimal("0"), validators=NON_NEGATIVE
+    )
+
+    # --- snapshot of the terms these numbers were priced with -------------
+    # The rates in force on the month's LAST day: what the UI shows, and correct
+    # whenever the month has a single terms snapshot (nearly always).
+    net_hourly_rate = models.DecimalField(
+        max_digits=6, decimal_places=2, default=Decimal("0"), validators=NON_NEGATIVE
+    )
+    night_presence_rate = models.DecimalField(
+        max_digits=6, decimal_places=2, default=Decimal("0"), validators=NON_NEGATIVE
+    )
+    mileage_rate = models.DecimalField(
+        max_digits=5, decimal_places=3, default=Decimal("0"), validators=NON_NEGATIVE
+    )
+    rate_periods = models.JSONField(default=list, blank=True)
+    warnings = models.JSONField(default=list, blank=True)
+
+    computed_at = models.DateTimeField(auto_now=True)
+    filed_at = models.DateTimeField(null=True, blank=True)
+    filed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+
+    if TYPE_CHECKING:
+        contract_id: uuid.UUID
+        family_id: uuid.UUID
+
+    class Meta:
+        ordering: ClassVar[list[str]] = ["-month"]
+        constraints: ClassVar[list] = [
+            models.UniqueConstraint(
+                fields=["contract", "family", "month"], name="uniq_declaration_per_family_month"
+            ),
+            models.CheckConstraint(
+                condition=models.Q(month__day=1), name="declaration_month_is_first_of_month"
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.family} — {self.month:%B %Y} ({self.status})"
+
+    @property
+    def is_frozen(self) -> bool:
+        """A filed declaration is a record; recomputing must leave it alone."""
+        return self.status == self.Status.FILED
+
+    def clean(self) -> None:
+        if self.month and self.month.day != 1:
+            raise ValidationError({"month": _("A declaration covers a whole month.")})
+        if self.contract_id and self.family_id:
+            if not self.contract.shares.filter(family_id=self.family_id).exists():
+                raise ValidationError({"family": _("This family does not share this contract.")})
