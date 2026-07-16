@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { api } from '@/api/client'
-import { createLeave, deleteLeave, getLeaves, updateLeave } from '@/api/leaves'
+import { api } from '@/src/api/client'
+import {
+  createLeave,
+  deleteLeave,
+  getLeaves,
+  updateLeave,
+} from '@/src/api/leaves'
 
 afterEach(() => {
   vi.restoreAllMocks()

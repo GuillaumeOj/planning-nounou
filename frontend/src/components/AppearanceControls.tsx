@@ -1,9 +1,9 @@
 import { Languages, Palette } from 'lucide-react'
-import type { LanguagePreference } from '../i18n/I18nContext'
-import { useI18n } from '../i18n/I18nContext'
-import { LANGUAGE_NAMES, LANGUAGES } from '../i18n/translations'
-import type { ThemePreference } from '../theme/ThemeContext'
-import { useTheme } from '../theme/ThemeContext'
+import type { LanguagePreference } from '@/src/i18n/I18nContext'
+import { useI18n } from '@/src/i18n/I18nContext'
+import { LANGUAGE_NAMES, LANGUAGES } from '@/src/i18n/translations'
+import type { ThemePreference } from '@/src/theme/ThemeContext'
+import { useTheme } from '@/src/theme/ThemeContext'
 
 // Native selects keep this control simple and fully keyboard/AT accessible; they
 // are styled to match the shadcn input surface.

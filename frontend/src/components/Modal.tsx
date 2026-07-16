@@ -1,5 +1,10 @@
 import type { ReactNode } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/src/components/ui/dialog'
 
 // Controlled modal dialog built on the shadcn Dialog. Always open while mounted;
 // closing (Escape, overlay, or the close button) calls onClose so the caller can

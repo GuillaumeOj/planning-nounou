@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
-import { FormErrors } from '@/components/FormErrors'
+import { FormErrors } from '@/src/components/FormErrors'
 
 describe('FormErrors', () => {
   it('renders nothing when there are no messages', () => {

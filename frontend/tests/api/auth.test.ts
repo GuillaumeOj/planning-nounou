@@ -7,8 +7,8 @@ import {
   refresh,
   register,
   updateProfile,
-} from '@/api/auth'
-import { api } from '@/api/client'
+} from '@/src/api/auth'
+import { api } from '@/src/api/client'
 
 afterEach(() => {
   vi.restoreAllMocks()

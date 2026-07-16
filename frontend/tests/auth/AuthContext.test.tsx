@@ -5,11 +5,11 @@ import {
   getMe,
   login as loginRequest,
   register as registerRequest,
-} from '@/api/auth'
-import { AuthProvider, useAuth } from '@/auth/AuthContext'
-import { clearTokens, getAccessToken, setTokens } from '@/auth/tokenStorage'
+} from '@/src/api/auth'
+import { AuthProvider, useAuth } from '@/src/auth/AuthContext'
+import { clearTokens, getAccessToken, setTokens } from '@/src/auth/tokenStorage'
 
-vi.mock('@/api/auth', () => ({
+vi.mock('@/src/api/auth', () => ({
   login: vi.fn(),
   register: vi.fn(),
   getMe: vi.fn(),

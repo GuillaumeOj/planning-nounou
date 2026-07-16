@@ -27,21 +27,21 @@ import {
   revokeContractInvitation,
   updateContractSchedule,
   updateContractTerms,
-} from '../api/contracts'
-import { extractErrorMessages } from '../api/errors'
-import { type Family, getFamilies } from '../api/family'
-import { ConfirmButton } from '../components/ConfirmButton'
-import { DateField, formatDate } from '../components/DateField'
-import { FormErrors } from '../components/FormErrors'
-import { Modal } from '../components/Modal'
-import { SectionCard } from '../components/SectionCard'
-import { TimeField } from '../components/TimeField'
-import { Button } from '../components/ui/button'
-import { Card, CardContent } from '../components/ui/card'
-import { Input } from '../components/ui/input'
-import { Label } from '../components/ui/label'
-import { useI18n } from '../i18n/I18nContext'
-import type { Language, TranslationKey } from '../i18n/translations'
+} from '@/src/api/contracts'
+import { extractErrorMessages } from '@/src/api/errors'
+import { type Family, getFamilies } from '@/src/api/family'
+import { ConfirmButton } from '@/src/components/ConfirmButton'
+import { DateField, formatDate } from '@/src/components/DateField'
+import { FormErrors } from '@/src/components/FormErrors'
+import { Modal } from '@/src/components/Modal'
+import { SectionCard } from '@/src/components/SectionCard'
+import { TimeField } from '@/src/components/TimeField'
+import { Button } from '@/src/components/ui/button'
+import { Card, CardContent } from '@/src/components/ui/card'
+import { Input } from '@/src/components/ui/input'
+import { Label } from '@/src/components/ui/label'
+import { useI18n } from '@/src/i18n/I18nContext'
+import type { Language, TranslationKey } from '@/src/i18n/translations'
 
 // --- Static reference content -----------------------------------------------
 

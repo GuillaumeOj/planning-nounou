@@ -1,4 +1,4 @@
-import type { Contract, ContractSchedule } from '../api/contracts'
+import type { Contract, ContractSchedule } from '@/src/api/contracts'
 
 // One nanny working a single time block on a given day.
 export interface WorkedEntry {

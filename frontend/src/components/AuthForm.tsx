@@ -2,13 +2,11 @@ import { useForm } from '@tanstack/react-form'
 import { Baby } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import type { Credentials } from '../api/auth'
-import { extractErrorMessages } from '../api/errors'
-import { useI18n } from '../i18n/I18nContext'
-import type { TranslationKey } from '../i18n/translations'
-import { FormErrors } from './FormErrors'
-import { TextField } from './TextField'
-import { Button } from './ui/button'
+import type { Credentials } from '@/src/api/auth'
+import { extractErrorMessages } from '@/src/api/errors'
+import { FormErrors } from '@/src/components/FormErrors'
+import { TextField } from '@/src/components/TextField'
+import { Button } from '@/src/components/ui/button'
 import {
   Card,
   CardContent,
@@ -16,7 +14,9 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from './ui/card'
+} from '@/src/components/ui/card'
+import { useI18n } from '@/src/i18n/I18nContext'
+import type { TranslationKey } from '@/src/i18n/translations'
 
 interface AuthFormProps {
   variant: 'login' | 'register'

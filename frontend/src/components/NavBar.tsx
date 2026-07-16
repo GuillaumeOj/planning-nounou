@@ -11,12 +11,12 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { NavLink } from 'react-router-dom'
-import { getMyContractInvitations } from '../api/contracts'
-import { getMyInvitations } from '../api/family'
-import { useAuth } from '../auth/AuthContext'
-import { useI18n } from '../i18n/I18nContext'
-import { AppearanceControls } from './AppearanceControls'
-import { Button } from './ui/button'
+import { getMyContractInvitations } from '@/src/api/contracts'
+import { getMyInvitations } from '@/src/api/family'
+import { useAuth } from '@/src/auth/AuthContext'
+import { AppearanceControls } from '@/src/components/AppearanceControls'
+import { Button } from '@/src/components/ui/button'
+import { useI18n } from '@/src/i18n/I18nContext'
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   [

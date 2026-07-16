@@ -7,8 +7,8 @@ import {
   deleteChild,
   listChildren,
   updateChild,
-} from '../api/children'
-import { extractErrorMessages } from '../api/errors'
+} from '@/src/api/children'
+import { extractErrorMessages } from '@/src/api/errors'
 import {
   acceptInvitation,
   createFamily,
@@ -25,20 +25,20 @@ import {
   removeFamilyMember,
   revokeInvitation,
   updateFamily,
-} from '../api/family'
-import { useAuth } from '../auth/AuthContext'
-import { ConfirmButton } from '../components/ConfirmButton'
-import { FormErrors } from '../components/FormErrors'
-import { Modal } from '../components/Modal'
-import { SectionCard } from '../components/SectionCard'
-import { TextField } from '../components/TextField'
-import { Badge } from '../components/ui/badge'
-import { Button } from '../components/ui/button'
-import { Card, CardContent } from '../components/ui/card'
-import { Input } from '../components/ui/input'
-import { Label } from '../components/ui/label'
-import { useI18n } from '../i18n/I18nContext'
-import { roleLabel } from '../lib/roleLabel'
+} from '@/src/api/family'
+import { useAuth } from '@/src/auth/AuthContext'
+import { ConfirmButton } from '@/src/components/ConfirmButton'
+import { FormErrors } from '@/src/components/FormErrors'
+import { Modal } from '@/src/components/Modal'
+import { SectionCard } from '@/src/components/SectionCard'
+import { TextField } from '@/src/components/TextField'
+import { Badge } from '@/src/components/ui/badge'
+import { Button } from '@/src/components/ui/button'
+import { Card, CardContent } from '@/src/components/ui/card'
+import { Input } from '@/src/components/ui/input'
+import { Label } from '@/src/components/ui/label'
+import { useI18n } from '@/src/i18n/I18nContext'
+import { roleLabel } from '@/src/lib/roleLabel'
 
 // A user can manage a family when they own it, or when they created it and it is
 // still unclaimed (no owner has joined yet). Mirrors the backend's can_manage.

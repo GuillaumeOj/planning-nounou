@@ -1,8 +1,8 @@
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { api } from '@/api/client'
-import { detectLanguage, I18nProvider, useI18n } from '@/i18n/I18nContext'
+import { api } from '@/src/api/client'
+import { detectLanguage, I18nProvider, useI18n } from '@/src/i18n/I18nContext'
 
 function setLanguages(languages: string[]) {
   Object.defineProperty(navigator, 'languages', {

@@ -1,7 +1,7 @@
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ThemeProvider, useTheme } from '@/theme/ThemeContext'
+import { ThemeProvider, useTheme } from '@/src/theme/ThemeContext'
 
 // Installs a controllable matchMedia mock and returns a setter to flip the
 // system preference and notify listeners.

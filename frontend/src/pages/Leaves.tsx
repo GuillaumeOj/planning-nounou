@@ -1,10 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
-import { getContracts } from '../api/contracts'
-import { getFamilies } from '../api/family'
-import { LeavesSection } from '../components/LeavesSection'
-import { Label } from '../components/ui/label'
-import { useI18n } from '../i18n/I18nContext'
+import { getContracts } from '@/src/api/contracts'
+import { getFamilies } from '@/src/api/family'
+import { LeavesSection } from '@/src/components/LeavesSection'
+import { Label } from '@/src/components/ui/label'
+import { useI18n } from '@/src/i18n/I18nContext'
 
 // Dedicated Days-off screen (navbar-accessible): pick an acting family, then
 // manage each nanny's leaves in a card. Mirrors the family-selector pattern of

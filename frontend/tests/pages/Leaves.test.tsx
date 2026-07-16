@@ -1,15 +1,15 @@
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { type Contract, getContracts } from '@/api/contracts'
-import { getFamilies } from '@/api/family'
-import { getLeaves } from '@/api/leaves'
-import Leaves from '@/pages/Leaves'
-import { renderWithProviders } from '../utils'
+import { type Contract, getContracts } from '@/src/api/contracts'
+import { getFamilies } from '@/src/api/family'
+import { getLeaves } from '@/src/api/leaves'
+import Leaves from '@/src/pages/Leaves'
+import { renderWithProviders } from '@/tests/utils'
 
-vi.mock('@/api/family', () => ({ getFamilies: vi.fn() }))
-vi.mock('@/api/contracts', () => ({ getContracts: vi.fn() }))
-vi.mock('@/api/leaves', () => ({
+vi.mock('@/src/api/family', () => ({ getFamilies: vi.fn() }))
+vi.mock('@/src/api/contracts', () => ({ getContracts: vi.fn() }))
+vi.mock('@/src/api/leaves', () => ({
   getLeaves: vi.fn(),
   createLeave: vi.fn(),
   updateLeave: vi.fn(),

@@ -4,8 +4,8 @@ import {
   deleteChild,
   listChildren,
   updateChild,
-} from '@/api/children'
-import { api } from '@/api/client'
+} from '@/src/api/children'
+import { api } from '@/src/api/client'
 
 afterEach(() => {
   vi.restoreAllMocks()

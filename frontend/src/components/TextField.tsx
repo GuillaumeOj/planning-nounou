@@ -1,7 +1,7 @@
 import type { AnyFieldApi } from '@tanstack/react-form'
 import type { ComponentProps } from 'react'
-import { Input } from './ui/input'
-import { Label } from './ui/label'
+import { Input } from '@/src/components/ui/input'
+import { Label } from '@/src/components/ui/label'
 
 // A labelled text input bound to a TanStack Form field. Wraps the repeated
 // label + input + value/onBlur/onChange wiring shared across the app's forms.

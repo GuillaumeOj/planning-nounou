@@ -7,13 +7,13 @@ import {
   useMemo,
   useState,
 } from 'react'
-import type { Credentials, User } from '../api/auth'
+import type { Credentials, User } from '@/src/api/auth'
 import {
   getMe,
   login as loginRequest,
   register as registerRequest,
-} from '../api/auth'
-import { clearTokens, getAccessToken, setTokens } from './tokenStorage'
+} from '@/src/api/auth'
+import { clearTokens, getAccessToken, setTokens } from '@/src/auth/tokenStorage'
 
 export interface AuthContextValue {
   user: User | null

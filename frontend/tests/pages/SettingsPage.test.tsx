@@ -3,18 +3,18 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { changeEmail, changePassword, updateProfile } from '@/api/auth'
-import { useAuth } from '@/auth/AuthContext'
-import { I18nProvider } from '@/i18n/I18nContext'
-import SettingsPage from '@/pages/SettingsPage'
-import { makeAuth } from '../utils'
+import { changeEmail, changePassword, updateProfile } from '@/src/api/auth'
+import { useAuth } from '@/src/auth/AuthContext'
+import { I18nProvider } from '@/src/i18n/I18nContext'
+import SettingsPage from '@/src/pages/SettingsPage'
+import { makeAuth } from '@/tests/utils'
 
-vi.mock('@/api/auth', () => ({
+vi.mock('@/src/api/auth', () => ({
   updateProfile: vi.fn(),
   changeEmail: vi.fn(),
   changePassword: vi.fn(),
 }))
-vi.mock('@/auth/AuthContext', () => ({ useAuth: vi.fn() }))
+vi.mock('@/src/auth/AuthContext', () => ({ useAuth: vi.fn() }))
 
 const mockUseAuth = vi.mocked(useAuth)
 const mockUpdateProfile = vi.mocked(updateProfile)

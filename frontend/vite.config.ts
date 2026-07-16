@@ -9,7 +9,9 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      // Anchored at the frontend root so both src/ and tests/ are reachable
+      // from a single alias.
+      '@': path.resolve(__dirname, './'),
     },
   },
   server: {

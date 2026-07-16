@@ -1,7 +1,7 @@
 import { type ClassValue, clsx } from 'clsx'
 import { enUS, fr } from 'date-fns/locale'
 import { twMerge } from 'tailwind-merge'
-import type { Language } from '../i18n/translations'
+import type { Language } from '@/src/i18n/translations'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))

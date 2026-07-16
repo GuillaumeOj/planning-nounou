@@ -4,7 +4,7 @@ import {
   getAccessToken,
   getRefreshToken,
   setAccessToken,
-} from '../auth/tokenStorage'
+} from '@/src/auth/tokenStorage'
 
 // In dev, Vite proxies /api -> localhost:8000. In production the SPA and API
 // share an origin on Vercel, so a relative baseURL works in both cases.

@@ -13,18 +13,18 @@ import {
 } from 'date-fns'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { getContractSchedules, getContracts } from '../api/contracts'
-import { getFamilies } from '../api/family'
-import { type BankHoliday, getBankHolidays } from '../api/holidays'
-import { Button } from '../components/ui/button'
-import { Label } from '../components/ui/label'
-import { useI18n } from '../i18n/I18nContext'
-import { cn, localeFor } from '../lib/utils'
+import { getContractSchedules, getContracts } from '@/src/api/contracts'
+import { getFamilies } from '@/src/api/family'
+import { type BankHoliday, getBankHolidays } from '@/src/api/holidays'
+import { Button } from '@/src/components/ui/button'
+import { Label } from '@/src/components/ui/label'
+import { useI18n } from '@/src/i18n/I18nContext'
+import { cn, localeFor } from '@/src/lib/utils'
 import {
   nannyColorMap,
   toISODate,
   workedEntriesForDay,
-} from './planningSchedule'
+} from '@/src/pages/planningSchedule'
 
 // Per-nanny color palette. Class strings are literals so Tailwind's scanner
 // keeps them; each pairs a tinted background with a readable foreground in both

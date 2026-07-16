@@ -1,4 +1,4 @@
-import { Alert, AlertDescription } from './ui/alert'
+import { Alert, AlertDescription } from '@/src/components/ui/alert'
 
 // Renders form/submit errors: a single message inline, or several as a bulleted
 // list. Uses the shadcn Alert (role="alert") so assistive tech announces it.
