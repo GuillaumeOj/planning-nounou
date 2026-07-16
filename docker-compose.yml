@@ -1,23 +1,41 @@
 # Local development stack. Production runs on Vercel (function + Neon), not here.
+#
+# `name` pins the Compose project, so the containers, image, and volume are identical no
+# matter which git worktree this is launched from — without it, Compose derives the project
+# from the checkout directory and every worktree grows its own stack.
+name: nanny-development
+
 services:
   db:
     image: postgres:16
+    container_name: nanny_db
     environment:
       POSTGRES_USER: nounou
       POSTGRES_PASSWORD: nounou
       POSTGRES_DB: nounou
     ports:
-      - "5432:5432"
+      - "${NANNY_DB_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U nounou"]
-      interval: 5s
+      # Postgres is ready in ~0.1s; the probe interval is the real floor on `up --wait`.
+      interval: 1s
       timeout: 5s
       retries: 5
 
   web:
     build: ./backend
+    # Pinned for the same reason as `name` above: an unnamed build is tagged after the
+    # project, which used to make the image name worktree-dependent.
+    image: nanny-development-web
+    container_name: nanny_web
+    # https://nanny-api.local reaches Django directly, bypassing the SPA's proxy. The single
+    # origin that mirrors production (https://nanny-dev.local) belongs to the frontend below.
+    # http-port is set explicitly because OrbStack otherwise guesses it on first connection.
+    labels:
+      - dev.orbstack.domains=nanny-api.local
+      - dev.orbstack.http-port=8000
     command: >
       sh -c "python manage.py migrate &&
              python manage.py runserver 0.0.0.0:8000"
@@ -25,16 +43,64 @@ services:
       DEBUG: "1"
       SECRET_KEY: "dev-only-secret-change-me"
       DATABASE_URL: "postgres://nounou:nounou@db:5432/nounou"
-      DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0"
-      CORS_ALLOWED_ORIGINS: "http://localhost:5173"
+      # nanny-dev.local is here because Vite proxies /api without rewriting the Host header,
+      # so Django sees the frontend's domain on proxied requests.
+      DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0,nanny-dev.local,nanny-api.local,.orb.local"
+      CORS_ALLOWED_ORIGINS: "http://localhost:5173,https://nanny-dev.local"
+      CSRF_TRUSTED_ORIGINS: "https://nanny-dev.local,https://nanny-api.local,https://*.orb.local"
     volumes:
       - ./backend:/app
       # Preserve the container's Linux virtualenv (don't let the host .venv shadow it).
       - /app/.venv
     ports:
-      - "8000:8000"
+      - "${NANNY_WEB_PORT:-8000}:8000"
+    # Without this, `up --wait` calls the stack ready as soon as the process starts — which
+    # is before migrate has finished and Django has bound the port.
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen("http://localhost:8000/api/health/")
+      interval: 3s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
     depends_on:
       db:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    image: nanny-development-frontend
+    container_name: nanny_frontend
+    # The single origin. OrbStack serves the SPA here over HTTPS with a certificate it
+    # generates itself, and Vite proxies /api on to Django — the same split vercel.json
+    # applies in production, so local routing matches prod and stays same-origin.
+    labels:
+      - dev.orbstack.domains=nanny-dev.local
+      - dev.orbstack.http-port=5173
+    environment:
+      # Django is a compose service here, not localhost (which is Vite's own container).
+      VITE_API_PROXY_TARGET: "http://web:8000"
+      # The page arrives through OrbStack's TLS proxy on 443, so the HMR socket has to be
+      # wss on 443; Vite would otherwise point it at ws on the dev-server port and the
+      # browser would block it as mixed content.
+      VITE_HMR_CLIENT_PORT: "443"
+    volumes:
+      - ./frontend:/app
+      # Preserve the container's Linux node_modules (don't let the host's shadow it).
+      - /app/node_modules
+    ports:
+      - "${NANNY_FRONTEND_PORT:-5173}:5173"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:5173/"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+    depends_on:
+      web:
         condition: service_healthy
 
 volumes:

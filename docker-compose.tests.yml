@@ -1,0 +1,27 @@
+# Postgres for the test suite, kept in its own Compose project so running tests never
+# touches the dev database. Started automatically by `tox` / `tox -e py313`.
+#
+# The host port differs from the dev stack's so both can run at once.
+name: nanny-tests
+
+services:
+  db-test:
+    image: postgres:16
+    container_name: nanny_db_test
+    environment:
+      POSTGRES_USER: nounou
+      POSTGRES_PASSWORD: nounou
+      POSTGRES_DB: nounou
+    ports:
+      - "${NANNY_DB_PORT_TEST:-5435}:5432"
+    volumes:
+      - postgres_data_test:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nounou"]
+      # Postgres is ready in ~0.1s; the probe interval is the real floor on `up --wait`.
+      interval: 1s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data_test:

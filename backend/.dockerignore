@@ -1,4 +1,11 @@
 .venv/
+# tox builds its environments here — ~900MB that `tox -e dev` would otherwise ship to the
+# daemon as build context on every start, for layers that always come back CACHED.
+.tox/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 __pycache__/
 *.py[cod]
 staticfiles/
