@@ -7,14 +7,14 @@ import {
   useMemo,
   useState,
 } from 'react'
-import { api } from '../api/client'
+import { api } from '@/src/api/client'
 import {
   DEFAULT_LANGUAGE,
   LANGUAGES,
   type Language,
   type TranslationKey,
   translations,
-} from './translations'
+} from '@/src/i18n/translations'
 
 // 'system' follows the browser; a concrete language overrides it.
 export type LanguagePreference = 'system' | Language

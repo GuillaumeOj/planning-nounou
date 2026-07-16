@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
-import { getHealth } from '../api/client'
-import { useAuth } from '../auth/AuthContext'
-import { Badge } from '../components/ui/badge'
-import { Card, CardContent } from '../components/ui/card'
-import { useI18n } from '../i18n/I18nContext'
+import { getHealth } from '@/src/api/client'
+import { useAuth } from '@/src/auth/AuthContext'
+import { Badge } from '@/src/components/ui/badge'
+import { Card, CardContent } from '@/src/components/ui/card'
+import { useI18n } from '@/src/i18n/I18nContext'
 
 export default function Home() {
   const { user } = useAuth()

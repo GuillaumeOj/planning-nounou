@@ -1,15 +1,15 @@
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { getMyContractInvitations } from '@/api/contracts'
-import { getMyInvitations } from '@/api/family'
-import { useAuth } from '@/auth/AuthContext'
-import { NavBar } from '@/components/NavBar'
-import { makeAuth, renderWithProviders } from '../utils'
+import { getMyContractInvitations } from '@/src/api/contracts'
+import { getMyInvitations } from '@/src/api/family'
+import { useAuth } from '@/src/auth/AuthContext'
+import { NavBar } from '@/src/components/NavBar'
+import { makeAuth, renderWithProviders } from '@/tests/utils'
 
-vi.mock('@/auth/AuthContext', () => ({ useAuth: vi.fn() }))
-vi.mock('@/api/family', () => ({ getMyInvitations: vi.fn() }))
-vi.mock('@/api/contracts', () => ({ getMyContractInvitations: vi.fn() }))
+vi.mock('@/src/auth/AuthContext', () => ({ useAuth: vi.fn() }))
+vi.mock('@/src/api/family', () => ({ getMyInvitations: vi.fn() }))
+vi.mock('@/src/api/contracts', () => ({ getMyContractInvitations: vi.fn() }))
 const mockUseAuth = vi.mocked(useAuth)
 const mockGetMyInvitations = vi.mocked(getMyInvitations)
 const mockGetMyContractInvitations = vi.mocked(getMyContractInvitations)

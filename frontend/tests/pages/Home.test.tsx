@@ -3,18 +3,18 @@ import { render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { getHealth } from '@/api/client'
-import { useAuth } from '@/auth/AuthContext'
-import { I18nProvider } from '@/i18n/I18nContext'
-import Home from '@/pages/Home'
-import { makeAuth } from '../utils'
+import { getHealth } from '@/src/api/client'
+import { useAuth } from '@/src/auth/AuthContext'
+import { I18nProvider } from '@/src/i18n/I18nContext'
+import Home from '@/src/pages/Home'
+import { makeAuth } from '@/tests/utils'
 
-vi.mock('@/api/client', () => ({
+vi.mock('@/src/api/client', () => ({
   getHealth: vi.fn(),
   // I18nProvider reads api.defaults to set the Accept-Language header.
   api: { defaults: { headers: { common: {} } } },
 }))
-vi.mock('@/auth/AuthContext', () => ({ useAuth: vi.fn() }))
+vi.mock('@/src/auth/AuthContext', () => ({ useAuth: vi.fn() }))
 
 const mockGetHealth = vi.mocked(getHealth)
 const mockUseAuth = vi.mocked(useAuth)

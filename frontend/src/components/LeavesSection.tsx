@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import type { Contract } from '../api/contracts'
-import { extractErrorMessages } from '../api/errors'
+import type { Contract } from '@/src/api/contracts'
+import { extractErrorMessages } from '@/src/api/errors'
 import {
   createLeave,
   deleteLeave,
@@ -11,16 +11,16 @@ import {
   type LeavePortion,
   type LeaveType,
   updateLeave,
-} from '../api/leaves'
-import { useI18n } from '../i18n/I18nContext'
-import type { Language, TranslationKey } from '../i18n/translations'
-import { ConfirmButton } from './ConfirmButton'
-import { DateField, formatDate } from './DateField'
-import { FormErrors } from './FormErrors'
-import { SectionCard } from './SectionCard'
-import { Button } from './ui/button'
-import { Input } from './ui/input'
-import { Label } from './ui/label'
+} from '@/src/api/leaves'
+import { ConfirmButton } from '@/src/components/ConfirmButton'
+import { DateField, formatDate } from '@/src/components/DateField'
+import { FormErrors } from '@/src/components/FormErrors'
+import { SectionCard } from '@/src/components/SectionCard'
+import { Button } from '@/src/components/ui/button'
+import { Input } from '@/src/components/ui/input'
+import { Label } from '@/src/components/ui/label'
+import { useI18n } from '@/src/i18n/I18nContext'
+import type { Language, TranslationKey } from '@/src/i18n/translations'
 
 interface LeaveDraft {
   leave_type: LeaveType

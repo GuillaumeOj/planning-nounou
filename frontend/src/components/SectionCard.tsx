@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Card, CardContent } from './ui/card'
+import { Card, CardContent } from '@/src/components/ui/card'
 
 // A titled card section: a heading (+ optional description) above its content.
 // Shared by the settings blocks and the nanny add/edit form.

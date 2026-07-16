@@ -6,18 +6,18 @@ import {
   type ContractSchedule,
   getContractSchedules,
   getContracts,
-} from '@/api/contracts'
-import { getFamilies } from '@/api/family'
-import { getBankHolidays } from '@/api/holidays'
-import Planning from '@/pages/Planning'
-import { renderWithProviders } from '../utils'
+} from '@/src/api/contracts'
+import { getFamilies } from '@/src/api/family'
+import { getBankHolidays } from '@/src/api/holidays'
+import Planning from '@/src/pages/Planning'
+import { renderWithProviders } from '@/tests/utils'
 
-vi.mock('@/api/family', () => ({ getFamilies: vi.fn() }))
-vi.mock('@/api/contracts', () => ({
+vi.mock('@/src/api/family', () => ({ getFamilies: vi.fn() }))
+vi.mock('@/src/api/contracts', () => ({
   getContracts: vi.fn(),
   getContractSchedules: vi.fn(),
 }))
-vi.mock('@/api/holidays', () => ({ getBankHolidays: vi.fn() }))
+vi.mock('@/src/api/holidays', () => ({ getBankHolidays: vi.fn() }))
 
 const m = {
   families: vi.mocked(getFamilies),

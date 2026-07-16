@@ -1,5 +1,5 @@
-import type { TokenPair } from '../auth/tokenStorage'
-import { AUTH_REFRESH_PATH, api } from './client'
+import { AUTH_REFRESH_PATH, api } from '@/src/api/client'
+import type { TokenPair } from '@/src/auth/tokenStorage'
 
 export interface User {
   id: string

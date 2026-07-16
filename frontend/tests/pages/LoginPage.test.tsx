@@ -1,9 +1,9 @@
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useAuth } from '@/auth/AuthContext'
-import LoginPage from '@/pages/LoginPage'
-import { makeAuth, renderWithProviders } from '../utils'
+import { useAuth } from '@/src/auth/AuthContext'
+import LoginPage from '@/src/pages/LoginPage'
+import { makeAuth, renderWithProviders } from '@/tests/utils'
 
 const mockNavigate = vi.fn()
 vi.mock('react-router-dom', async (importOriginal) => {
@@ -11,7 +11,7 @@ vi.mock('react-router-dom', async (importOriginal) => {
   return { ...actual, useNavigate: () => mockNavigate }
 })
 
-vi.mock('@/auth/AuthContext', () => ({ useAuth: vi.fn() }))
+vi.mock('@/src/auth/AuthContext', () => ({ useAuth: vi.fn() }))
 const mockUseAuth = vi.mocked(useAuth)
 const login = vi.fn()
 

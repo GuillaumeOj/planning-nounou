@@ -2,19 +2,19 @@ import { useForm } from '@tanstack/react-form'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { extractErrorMessages } from '../api/errors'
+import { extractErrorMessages } from '@/src/api/errors'
 import {
   acceptInvitation,
   declineInvitation,
   getInvitationPreview,
-} from '../api/family'
-import { useAuth } from '../auth/AuthContext'
-import { FormErrors } from '../components/FormErrors'
-import { TextField } from '../components/TextField'
-import { Button } from '../components/ui/button'
-import { Card, CardContent } from '../components/ui/card'
-import { useI18n } from '../i18n/I18nContext'
-import { roleLabel } from '../lib/roleLabel'
+} from '@/src/api/family'
+import { useAuth } from '@/src/auth/AuthContext'
+import { FormErrors } from '@/src/components/FormErrors'
+import { TextField } from '@/src/components/TextField'
+import { Button } from '@/src/components/ui/button'
+import { Card, CardContent } from '@/src/components/ui/card'
+import { useI18n } from '@/src/i18n/I18nContext'
+import { roleLabel } from '@/src/lib/roleLabel'
 
 export default function InvitePage() {
   const { t } = useI18n()

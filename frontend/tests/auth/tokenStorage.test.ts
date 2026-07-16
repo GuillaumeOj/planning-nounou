@@ -5,7 +5,7 @@ import {
   getRefreshToken,
   setAccessToken,
   setTokens,
-} from '@/auth/tokenStorage'
+} from '@/src/auth/tokenStorage'
 
 describe('tokenStorage', () => {
   afterEach(() => {

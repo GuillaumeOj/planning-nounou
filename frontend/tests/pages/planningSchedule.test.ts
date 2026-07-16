@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest'
-import type { Contract, ContractSchedule, ScheduleBlock } from '@/api/contracts'
+import type {
+  Contract,
+  ContractSchedule,
+  ScheduleBlock,
+} from '@/src/api/contracts'
 import {
   nannyColorMap,
   pyWeekday,
   scheduleInForce,
   toISODate,
   workedEntriesForDay,
-} from '@/pages/planningSchedule'
+} from '@/src/pages/planningSchedule'
 
 // In July 2026: the 6th is a Monday, the 8th a Wednesday, the 5th a Sunday.
 const MONDAY = new Date(2026, 6, 6)

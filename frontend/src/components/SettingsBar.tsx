@@ -1,4 +1,4 @@
-import { AppearanceControls } from './AppearanceControls'
+import { AppearanceControls } from '@/src/components/AppearanceControls'
 
 // Language + theme controls shown on the auth pages (login / register), which
 // have no navbar. Authenticated views expose the same controls in the navbar

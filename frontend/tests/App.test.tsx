@@ -1,16 +1,16 @@
 import { screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import App from '@/App'
-import { useAuth } from '@/auth/AuthContext'
-import { makeAuth, renderWithProviders } from './utils'
+import App from '@/src/App'
+import { useAuth } from '@/src/auth/AuthContext'
+import { makeAuth, renderWithProviders } from '@/tests/utils'
 
-vi.mock('@/auth/AuthContext', () => ({ useAuth: vi.fn() }))
-vi.mock('@/api/family', () => ({
+vi.mock('@/src/auth/AuthContext', () => ({ useAuth: vi.fn() }))
+vi.mock('@/src/api/family', () => ({
   getMyInvitations: vi.fn(() => Promise.resolve([])),
 }))
-vi.mock('@/pages/Home', () => ({ default: () => <p>home</p> }))
-vi.mock('@/pages/LoginPage', () => ({ default: () => <p>login</p> }))
-vi.mock('@/pages/RegisterPage', () => ({ default: () => <p>register</p> }))
+vi.mock('@/src/pages/Home', () => ({ default: () => <p>home</p> }))
+vi.mock('@/src/pages/LoginPage', () => ({ default: () => <p>login</p> }))
+vi.mock('@/src/pages/RegisterPage', () => ({ default: () => <p>register</p> }))
 
 const mockUseAuth = vi.mocked(useAuth)
 

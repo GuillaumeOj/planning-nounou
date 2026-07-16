@@ -7,18 +7,18 @@ import {
   acceptInvitation,
   declineInvitation,
   getInvitationPreview,
-} from '@/api/family'
-import { useAuth } from '@/auth/AuthContext'
-import { I18nProvider } from '@/i18n/I18nContext'
-import InvitePage from '@/pages/InvitePage'
-import { makeAuth } from '../utils'
+} from '@/src/api/family'
+import { useAuth } from '@/src/auth/AuthContext'
+import { I18nProvider } from '@/src/i18n/I18nContext'
+import InvitePage from '@/src/pages/InvitePage'
+import { makeAuth } from '@/tests/utils'
 
-vi.mock('@/api/family', () => ({
+vi.mock('@/src/api/family', () => ({
   getInvitationPreview: vi.fn(),
   acceptInvitation: vi.fn(),
   declineInvitation: vi.fn(),
 }))
-vi.mock('@/auth/AuthContext', () => ({ useAuth: vi.fn() }))
+vi.mock('@/src/auth/AuthContext', () => ({ useAuth: vi.fn() }))
 
 const mockPreview = vi.mocked(getInvitationPreview)
 const mockAccept = vi.mocked(acceptInvitation)

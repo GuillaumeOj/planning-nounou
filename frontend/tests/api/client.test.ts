@@ -1,7 +1,7 @@
 import axios from 'axios'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { api } from '@/api/client'
-import { clearTokens, getAccessToken, setTokens } from '@/auth/tokenStorage'
+import { api } from '@/src/api/client'
+import { clearTokens, getAccessToken, setTokens } from '@/src/auth/tokenStorage'
 
 // biome-ignore lint/suspicious/noExplicitAny: test helpers build partial axios shapes
 type Any = any

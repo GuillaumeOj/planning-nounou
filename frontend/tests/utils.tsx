@@ -3,9 +3,9 @@ import { render } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { vi } from 'vitest'
-import type { AuthContextValue } from '@/auth/AuthContext'
-import { I18nProvider } from '@/i18n/I18nContext'
-import { ThemeProvider } from '@/theme/ThemeContext'
+import type { AuthContextValue } from '@/src/auth/AuthContext'
+import { I18nProvider } from '@/src/i18n/I18nContext'
+import { ThemeProvider } from '@/src/theme/ThemeContext'
 
 // Build an AuthContextValue for `useAuth` mocks; override only what a test needs.
 export function makeAuth(

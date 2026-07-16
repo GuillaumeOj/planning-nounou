@@ -2,8 +2,12 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
-import { TimeField, toDisplayTime, toStoredTime } from '@/components/TimeField'
-import type { Language } from '@/i18n/translations'
+import {
+  TimeField,
+  toDisplayTime,
+  toStoredTime,
+} from '@/src/components/TimeField'
+import type { Language } from '@/src/i18n/translations'
 
 // A controlled harness: real usage feeds the emitted value back as `value`.
 function Harness({

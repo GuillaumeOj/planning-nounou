@@ -23,7 +23,22 @@
   },
   "linter": {
     "enabled": true,
-    "rules": { "preset": "recommended" }
+    "rules": {
+      "preset": "recommended",
+      "style": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "patterns": [
+              {
+                "group": ["./**", "../**"],
+                "message": "Import from the '@/' alias instead of a relative path."
+              }
+            ]
+          }
+        }
+      }
+    }
   },
   "javascript": {
     "formatter": {

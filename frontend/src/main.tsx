@@ -2,11 +2,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
-import App from './App.tsx'
-import { AuthProvider } from './auth/AuthContext'
-import { I18nProvider } from './i18n/I18nContext'
-import { ThemeProvider } from './theme/ThemeContext'
-import './index.css'
+import App from '@/src/App.tsx'
+import { AuthProvider } from '@/src/auth/AuthContext'
+import { I18nProvider } from '@/src/i18n/I18nContext'
+import { ThemeProvider } from '@/src/theme/ThemeContext'
+import '@/src/index.css'
 
 const queryClient = new QueryClient()
 

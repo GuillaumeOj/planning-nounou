@@ -1,4 +1,4 @@
-import { api } from './client'
+import { api } from '@/src/api/client'
 
 // A national work-free day (jour férié). Global and admin-managed; read-only
 // over the API. `is_workable` marks a holiday that is still worked (e.g. the

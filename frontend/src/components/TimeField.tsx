@@ -1,9 +1,9 @@
 import { format, isValid, parse } from 'date-fns'
 import { useEffect, useState } from 'react'
-import type { Language } from '../i18n/translations'
-import { localeFor } from '../lib/utils'
-import { Input } from './ui/input'
-import { Label } from './ui/label'
+import { Input } from '@/src/components/ui/input'
+import { Label } from '@/src/components/ui/label'
+import type { Language } from '@/src/i18n/translations'
+import { localeFor } from '@/src/lib/utils'
 
 // The value is always stored as 24h "HH:mm"; it is displayed and typed in the
 // app language's convention — English 12h AM/PM, French 24h.

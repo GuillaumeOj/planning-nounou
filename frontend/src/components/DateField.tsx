@@ -1,14 +1,18 @@
 import { format, isValid, parse, parseISO } from 'date-fns'
 import { CalendarIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useI18n } from '../i18n/I18nContext'
-import type { Language } from '../i18n/translations'
-import { localeFor } from '../lib/utils'
-import { Button } from './ui/button'
-import { Calendar } from './ui/calendar'
-import { Input } from './ui/input'
-import { Label } from './ui/label'
-import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
+import { Button } from '@/src/components/ui/button'
+import { Calendar } from '@/src/components/ui/calendar'
+import { Input } from '@/src/components/ui/input'
+import { Label } from '@/src/components/ui/label'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/src/components/ui/popover'
+import { useI18n } from '@/src/i18n/I18nContext'
+import type { Language } from '@/src/i18n/translations'
+import { localeFor } from '@/src/lib/utils'
 
 // An ISO date (yyyy-MM-dd) rendered in the app locale's short format.
 export function formatDate(iso: string, lang: Language): string {

@@ -1,18 +1,18 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Contract } from '@/api/contracts'
+import type { Contract } from '@/src/api/contracts'
 import {
   createLeave,
   deleteLeave,
   getLeaves,
   type Leave,
   updateLeave,
-} from '@/api/leaves'
-import { LeavesSection } from '@/components/LeavesSection'
-import { renderWithProviders } from '../utils'
+} from '@/src/api/leaves'
+import { LeavesSection } from '@/src/components/LeavesSection'
+import { renderWithProviders } from '@/tests/utils'
 
-vi.mock('@/api/leaves', () => ({
+vi.mock('@/src/api/leaves', () => ({
   getLeaves: vi.fn(),
   createLeave: vi.fn(),
   updateLeave: vi.fn(),

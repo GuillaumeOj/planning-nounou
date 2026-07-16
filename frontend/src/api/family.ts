@@ -1,4 +1,4 @@
-import { api } from './client'
+import { api } from '@/src/api/client'
 
 export type FamilyRole = 'owner' | 'member'
 

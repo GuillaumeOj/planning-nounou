@@ -1,12 +1,12 @@
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
-import type { AuthContextValue } from '@/auth/AuthContext'
-import { useAuth } from '@/auth/AuthContext'
-import { ProtectedRoute } from '@/auth/ProtectedRoute'
-import { makeAuth } from '../utils'
+import type { AuthContextValue } from '@/src/auth/AuthContext'
+import { useAuth } from '@/src/auth/AuthContext'
+import { ProtectedRoute } from '@/src/auth/ProtectedRoute'
+import { makeAuth } from '@/tests/utils'
 
-vi.mock('@/auth/AuthContext', () => ({ useAuth: vi.fn() }))
+vi.mock('@/src/auth/AuthContext', () => ({ useAuth: vi.fn() }))
 const mockUseAuth = vi.mocked(useAuth)
 
 function setAuth(partial: Partial<AuthContextValue>) {

@@ -1,8 +1,8 @@
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
-import { Modal } from '@/components/Modal'
-import { renderWithProviders } from '../utils'
+import { Modal } from '@/src/components/Modal'
+import { renderWithProviders } from '@/tests/utils'
 
 describe('Modal', () => {
   it('renders a labelled dialog with its content', () => {

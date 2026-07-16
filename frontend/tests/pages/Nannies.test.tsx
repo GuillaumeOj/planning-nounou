@@ -23,13 +23,13 @@ import {
   revokeContractInvitation,
   updateContractSchedule,
   updateContractTerms,
-} from '@/api/contracts'
-import { getFamilies } from '@/api/family'
-import Nannies, { duplicateDayBlocks } from '@/pages/Nannies'
-import { renderWithProviders } from '../utils'
+} from '@/src/api/contracts'
+import { getFamilies } from '@/src/api/family'
+import Nannies, { duplicateDayBlocks } from '@/src/pages/Nannies'
+import { renderWithProviders } from '@/tests/utils'
 
-vi.mock('@/api/family', () => ({ getFamilies: vi.fn() }))
-vi.mock('@/api/contracts', () => ({
+vi.mock('@/src/api/family', () => ({ getFamilies: vi.fn() }))
+vi.mock('@/src/api/contracts', () => ({
   getContracts: vi.fn(),
   createContract: vi.fn(),
   updateContract: vi.fn(),

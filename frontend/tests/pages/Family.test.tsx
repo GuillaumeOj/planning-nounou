@@ -8,7 +8,7 @@ import {
   deleteChild,
   listChildren,
   updateChild,
-} from '@/api/children'
+} from '@/src/api/children'
 import {
   acceptInvitation,
   createFamily,
@@ -23,13 +23,13 @@ import {
   removeFamilyMember,
   revokeInvitation,
   updateFamily,
-} from '@/api/family'
-import { useAuth } from '@/auth/AuthContext'
-import { I18nProvider } from '@/i18n/I18nContext'
-import FamilyPage from '@/pages/Family'
-import { makeAuth } from '../utils'
+} from '@/src/api/family'
+import { useAuth } from '@/src/auth/AuthContext'
+import { I18nProvider } from '@/src/i18n/I18nContext'
+import FamilyPage from '@/src/pages/Family'
+import { makeAuth } from '@/tests/utils'
 
-vi.mock('@/api/family', () => ({
+vi.mock('@/src/api/family', () => ({
   getFamilies: vi.fn(),
   createFamily: vi.fn(),
   updateFamily: vi.fn(),
@@ -44,13 +44,13 @@ vi.mock('@/api/family', () => ({
   acceptInvitation: vi.fn(),
   declineInvitation: vi.fn(),
 }))
-vi.mock('@/api/children', () => ({
+vi.mock('@/src/api/children', () => ({
   listChildren: vi.fn(),
   createChild: vi.fn(),
   updateChild: vi.fn(),
   deleteChild: vi.fn(),
 }))
-vi.mock('@/auth/AuthContext', () => ({ useAuth: vi.fn() }))
+vi.mock('@/src/auth/AuthContext', () => ({ useAuth: vi.fn() }))
 
 const mockGetFamilies = vi.mocked(getFamilies)
 const mockCreateFamily = vi.mocked(createFamily)

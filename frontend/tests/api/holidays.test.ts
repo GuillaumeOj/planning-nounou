@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { api } from '@/api/client'
-import { getBankHolidays } from '@/api/holidays'
+import { api } from '@/src/api/client'
+import { getBankHolidays } from '@/src/api/holidays'
 
 afterEach(() => {
   vi.restoreAllMocks()

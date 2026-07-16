@@ -1,4 +1,3 @@
-import { useI18n } from '../i18n/I18nContext'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -9,8 +8,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from './ui/alert-dialog'
-import { Button } from './ui/button'
+} from '@/src/components/ui/alert-dialog'
+import { Button } from '@/src/components/ui/button'
+import { useI18n } from '@/src/i18n/I18nContext'
 
 // A destructive action guarded by a confirm dialog. Shared by the app's delete
 // flows so the AlertDialog markup and styling live in one place.

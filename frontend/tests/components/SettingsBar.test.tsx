@@ -1,8 +1,8 @@
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
-import { SettingsBar } from '@/components/SettingsBar'
-import { renderWithProviders } from '../utils'
+import { SettingsBar } from '@/src/components/SettingsBar'
+import { renderWithProviders } from '@/tests/utils'
 
 function renderBar() {
   return renderWithProviders(<SettingsBar />)
