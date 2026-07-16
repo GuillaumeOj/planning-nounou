@@ -2,13 +2,9 @@ import { Languages, Palette } from 'lucide-react'
 import type { LanguagePreference } from '@/src/i18n/I18nContext'
 import { useI18n } from '@/src/i18n/I18nContext'
 import { LANGUAGE_NAMES, LANGUAGES } from '@/src/i18n/translations'
+import { selectClass } from '@/src/lib/utils'
 import type { ThemePreference } from '@/src/theme/ThemeContext'
 import { useTheme } from '@/src/theme/ThemeContext'
-
-// Native selects keep this control simple and fully keyboard/AT accessible; they
-// are styled to match the shadcn input surface.
-const selectClass =
-  'h-8 rounded-md border border-input bg-background px-2 text-sm text-foreground shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50'
 
 // Language + theme dropdowns. Both follow the browser by default ("System") and
 // let the user override it explicitly. Shared by the auth-page top bar and the

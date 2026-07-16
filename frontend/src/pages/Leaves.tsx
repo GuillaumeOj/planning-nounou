@@ -5,6 +5,7 @@ import { getFamilies } from '@/src/api/family'
 import { LeavesSection } from '@/src/components/LeavesSection'
 import { Label } from '@/src/components/ui/label'
 import { useI18n } from '@/src/i18n/I18nContext'
+import { selectClass } from '@/src/lib/utils'
 
 // Dedicated Days-off screen (navbar-accessible): pick an acting family, then
 // manage each nanny's leaves in a card. Mirrors the family-selector pattern of
@@ -35,8 +36,8 @@ export default function Leaves() {
 
   if (!families || families.length === 0) {
     return (
-      <main className="flex flex-1 flex-col gap-6 p-6 sm:p-10">
-        <h1 className="text-3xl font-semibold tracking-tight">
+      <main className="flex flex-1 flex-col gap-6 p-4 sm:p-10">
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
           {t('leaves.title')}
         </h1>
         <p className="text-sm text-muted-foreground">
@@ -47,9 +48,9 @@ export default function Leaves() {
   }
 
   return (
-    <main className="flex flex-1 flex-col gap-6 p-6 sm:p-10">
+    <main className="flex flex-1 flex-col gap-6 p-4 sm:p-10">
       <div className="flex flex-col gap-1">
-        <h1 className="text-3xl font-semibold tracking-tight">
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
           {t('leaves.title')}
         </h1>
         <p className="text-sm text-muted-foreground">
@@ -57,11 +58,11 @@ export default function Leaves() {
         </p>
       </div>
 
-      <div className="flex max-w-xs flex-col gap-2">
+      <div className="flex w-full max-w-xs flex-col gap-2">
         <Label htmlFor="acting-family">{t('contract.selectFamily')}</Label>
         <select
           id="acting-family"
-          className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+          className={selectClass}
           value={activeFamilyId ?? ''}
           onChange={(e) => setFamilyId(e.target.value)}
         >

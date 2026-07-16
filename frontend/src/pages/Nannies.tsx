@@ -42,6 +42,7 @@ import { Input } from '@/src/components/ui/input'
 import { Label } from '@/src/components/ui/label'
 import { useI18n } from '@/src/i18n/I18nContext'
 import type { Language, TranslationKey } from '@/src/i18n/translations'
+import { selectClass } from '@/src/lib/utils'
 
 // --- Static reference content -----------------------------------------------
 
@@ -314,13 +315,20 @@ function ScheduleFields({
         lang={lang}
       />
       {draft.blocks.map((block, index) => (
-        // biome-ignore lint/suspicious/noArrayIndexKey: draft rows have no id
-        <div key={index} className="flex flex-wrap items-end gap-2">
-          <div className="flex flex-col gap-1">
+        // Five controls never fit one phone row: wrapping alone would squeeze
+        // the time inputs to their min-content width, so stack them in a grid
+        // (day, then from/to side by side, then the actions) and only fall back
+        // to the single wrapping row once there is room for it.
+        <div
+          // biome-ignore lint/suspicious/noArrayIndexKey: draft rows have no id
+          key={index}
+          className="grid grid-cols-2 items-end gap-2 sm:flex sm:flex-wrap"
+        >
+          <div className="col-span-2 flex flex-col gap-1">
             <Label htmlFor={`block-day-${index}`}>{t('schedule.day')}</Label>
             <select
               id={`block-day-${index}`}
-              className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+              className={selectClass}
               value={block.weekday}
               onChange={(e) =>
                 updateBlock(index, { weekday: Number(e.target.value) })
@@ -347,22 +355,24 @@ function ScheduleFields({
             onChange={(v) => updateBlock(index, { end_time: v })}
             lang={lang}
           />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => openCopy(block.weekday)}
-          >
-            {t('schedule.copyDay')}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => removeBlock(index)}
-          >
-            {t('schedule.removeBlock')}
-          </Button>
+          <div className="col-span-2 flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => openCopy(block.weekday)}
+            >
+              {t('schedule.copyDay')}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => removeBlock(index)}
+            >
+              {t('schedule.removeBlock')}
+            </Button>
+          </div>
         </div>
       ))}
       <Button
@@ -385,9 +395,10 @@ function ScheduleFields({
           <div className="flex flex-wrap gap-3 text-sm">
             {WEEKDAY_KEYS.map((key, day) =>
               day === copyFrom ? null : (
-                <label key={key} className="flex items-center gap-1">
+                <label key={key} className="flex items-center gap-1.5 py-1">
                   <input
                     type="checkbox"
+                    className="size-4"
                     checked={copyTo.includes(day)}
                     onChange={() => toggleCopyTo(day)}
                   />
@@ -604,14 +615,14 @@ function TermsSection({
             {history.map((terms) => (
               <li
                 key={terms.id}
-                className="flex items-center justify-between gap-3 py-2"
+                className="flex flex-col items-start gap-1 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
               >
                 <span className="text-muted-foreground">
                   {effectiveRange(terms, lang, t('nanny.ongoing'))} ·{' '}
                   {terms.net_hourly_rate} €/h
                   {terms.edited && ` · ${t('common.edited')}`}
                 </span>
-                <span className="flex gap-1">
+                <span className="flex shrink-0 gap-1">
                   <Button
                     type="button"
                     variant="ghost"
@@ -770,14 +781,14 @@ function ScheduleSection({
             {history.map((schedule) => (
               <li
                 key={schedule.id}
-                className="flex items-center justify-between gap-3 py-2"
+                className="flex flex-col items-start gap-1 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
               >
                 <span className="text-muted-foreground">
                   {effectiveRange(schedule, lang, t('nanny.ongoing'))} ·{' '}
                   {schedule.weekly_hours} {t('schedule.perWeek')}
                   {schedule.edited && ` · ${t('common.edited')}`}
                 </span>
-                <span className="flex gap-1">
+                <span className="flex shrink-0 gap-1">
                   <Button
                     type="button"
                     variant="ghost"
@@ -902,9 +913,9 @@ function SharingSection({
             {pending.map((invitation) => (
               <li
                 key={invitation.id}
-                className="flex items-center justify-between gap-3 py-2"
+                className="flex flex-col items-start gap-1 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
               >
-                <span className="text-muted-foreground">
+                <span className="min-w-0 break-all text-muted-foreground">
                   {invitation.email}
                 </span>
                 <ConfirmButton
@@ -1004,9 +1015,11 @@ function ContractWizard({
     <Modal
       title={t('wizard.title')}
       onClose={onClose}
-      // A large centred square (≥80% width where it fits, capped to stay on
-      // screen and square) with a substantial margin around it.
-      className="flex aspect-square h-[min(80vw,88vh)] w-[min(80vw,88vh)] max-w-none flex-col gap-4 sm:max-w-none"
+      // On a phone the wizard takes the whole screen bar a margin: the square
+      // below would leave the step body barely a couple of fields tall. From sm
+      // up it is a large centred square (≥80% width where it fits, capped to
+      // stay on screen) with a substantial margin around it.
+      className="flex h-[calc(100dvh-2rem)] w-full flex-col gap-4 sm:h-[min(80vw,88vh)] sm:w-[min(80vw,88vh)] sm:max-w-none"
     >
       <div className="flex items-center justify-between border-b pb-2">
         <p className="text-sm font-medium">{t(WIZARD_STEPS[step])}</p>
@@ -1020,9 +1033,10 @@ function ContractWizard({
         {step === 0 && (
           <div className="flex flex-col gap-4">
             {nannies.length > 0 && (
-              <label className="flex items-center gap-2 text-sm">
+              <label className="flex items-center gap-2 py-1 text-sm">
                 <input
                   type="checkbox"
+                  className="size-4"
                   checked={useExisting}
                   onChange={(e) => setUseExisting(e.target.checked)}
                 />
@@ -1034,7 +1048,7 @@ function ContractWizard({
                 <Label htmlFor="wizard-nanny">{t('wizard.pickNanny')}</Label>
                 <select
                   id="wizard-nanny"
-                  className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+                  className={selectClass}
                   value={nannyId}
                   onChange={(e) => setNannyId(e.target.value)}
                 >
@@ -1201,8 +1215,8 @@ function PendingContractInvitationsSection({
               key={invite.id}
               className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
             >
-              <div className="flex flex-col gap-0.5">
-                <span className="font-medium text-foreground">
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <span className="font-medium break-words text-foreground">
                   {invite.nanny_first_name} {invite.nanny_last_name}
                 </span>
                 <span className="text-sm text-muted-foreground">
@@ -1214,11 +1228,11 @@ function PendingContractInvitationsSection({
                   {t('contract.inbox.noFamily')}
                 </span>
               ) : (
-                <div className="flex items-center gap-2">
+                <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                   {manageable.length > 1 && (
                     <select
                       aria-label={t('contract.inbox.joinAs')}
-                      className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+                      className={selectClass}
                       value={familyId}
                       onChange={(e) =>
                         setJoinAs((prev) => ({
@@ -1307,8 +1321,8 @@ export default function Nannies() {
 
   if (!families || families.length === 0) {
     return (
-      <main className="flex flex-1 flex-col gap-6 p-6 sm:p-10">
-        <h1 className="text-3xl font-semibold tracking-tight">
+      <main className="flex flex-1 flex-col gap-6 p-4 sm:p-10">
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
           {t('nanny.title')}
         </h1>
         <PendingContractInvitationsSection families={families ?? []} />
@@ -1320,18 +1334,18 @@ export default function Nannies() {
   }
 
   return (
-    <main className="flex flex-1 flex-col gap-6 p-6 sm:p-10">
-      <h1 className="text-3xl font-semibold tracking-tight">
+    <main className="flex flex-1 flex-col gap-6 p-4 sm:p-10">
+      <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
         {t('nanny.title')}
       </h1>
 
       <PendingContractInvitationsSection families={families} />
 
-      <div className="flex flex-col gap-2 max-w-xs">
+      <div className="flex w-full max-w-xs flex-col gap-2">
         <Label htmlFor="acting-family">{t('contract.selectFamily')}</Label>
         <select
           id="acting-family"
-          className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+          className={selectClass}
           value={activeFamilyId ?? ''}
           onChange={(e) => {
             setFamilyId(e.target.value)
@@ -1371,9 +1385,9 @@ export default function Nannies() {
                   key={contract.id}
                   className="flex flex-col gap-3 py-3 first:pt-0 last:pb-0"
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="font-medium">
+                  <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                    <div className="flex min-w-0 flex-col gap-0.5">
+                      <span className="font-medium break-words">
                         {contract.nanny.first_name} {contract.nanny.last_name}
                       </span>
                       <span className="text-sm text-muted-foreground">
@@ -1385,7 +1399,7 @@ export default function Nannies() {
                         {contract.paid_leave_days} {t('contract.daysOff')}
                       </span>
                     </div>
-                    <div className="flex gap-1">
+                    <div className="flex shrink-0 gap-1">
                       <Button
                         variant="ghost"
                         size="sm"

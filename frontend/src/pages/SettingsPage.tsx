@@ -17,8 +17,8 @@ export default function SettingsPage() {
   const { t } = useI18n()
 
   return (
-    <main className="flex flex-1 flex-col gap-6 p-6 sm:p-10">
-      <h1 className="text-3xl font-semibold tracking-tight">
+    <main className="flex flex-1 flex-col gap-6 p-4 sm:p-10">
+      <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
         {t('settings.title')}
       </h1>
       <div className="flex w-full max-w-xl flex-col gap-6">

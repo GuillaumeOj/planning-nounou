@@ -23,11 +23,12 @@ function AuthLayout({ children }: { children: ReactNode }) {
   )
 }
 
-// Authenticated shell: left navbar beside the routed page content.
+// Authenticated shell. From md up the navbar is a sidebar beside the routed
+// page; below that it collapses to a top bar and the page takes the full width.
 function AppLayout() {
   return (
     <ProtectedRoute>
-      <div className="flex min-h-0 flex-1 items-stretch">
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <NavBar />
         <div className="flex min-w-0 flex-1 flex-col">
           <Outlet />

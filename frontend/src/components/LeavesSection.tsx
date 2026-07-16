@@ -21,6 +21,7 @@ import { Input } from '@/src/components/ui/input'
 import { Label } from '@/src/components/ui/label'
 import { useI18n } from '@/src/i18n/I18nContext'
 import type { Language, TranslationKey } from '@/src/i18n/translations'
+import { selectClass } from '@/src/lib/utils'
 
 interface LeaveDraft {
   leave_type: LeaveType
@@ -106,7 +107,7 @@ function LeaveFields({
         <Label htmlFor="leave-type">{t('leaves.type')}</Label>
         <select
           id="leave-type"
-          className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+          className={selectClass}
           value={draft.leave_type}
           onChange={(e) => changeType(e.target.value as LeaveType)}
         >
@@ -137,7 +138,7 @@ function LeaveFields({
         <Label htmlFor="leave-portion">{t('leaves.portion')}</Label>
         <select
           id="leave-portion"
-          className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+          className={selectClass}
           value={draft.portion}
           onChange={(e) =>
             onChange({ portion: e.target.value as LeavePortion })
@@ -290,12 +291,16 @@ export function LeavesSection({
       {leaves && leaves.length > 0 ? (
         <ul className="flex flex-col divide-y text-sm">
           {leaves.map((leave) => (
+            // describe() is a long sentence (dates, type, portion); beside two
+            // non-shrinking buttons it would collapse to a few words per line.
             <li
               key={leave.id}
-              className="flex items-center justify-between gap-3 py-2"
+              className="flex flex-col items-start gap-1 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
             >
-              <span className="text-muted-foreground">{describe(leave)}</span>
-              <span className="flex gap-1">
+              <span className="min-w-0 text-muted-foreground">
+                {describe(leave)}
+              </span>
+              <span className="flex shrink-0 gap-1">
                 <Button
                   type="button"
                   variant="ghost"

@@ -9,6 +9,7 @@ import {
 } from '@/src/api/contracts'
 import { getFamilies } from '@/src/api/family'
 import { getBankHolidays } from '@/src/api/holidays'
+import { MOBILE_QUERY } from '@/src/hooks/useMediaQuery'
 import Planning from '@/src/pages/Planning'
 import { renderWithProviders } from '@/tests/utils'
 
@@ -64,6 +65,24 @@ function makeContract(o: Partial<Contract> = {}): Contract {
 const setupUser = () =>
   userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
 
+const realMatchMedia = window.matchMedia
+
+// Report a phone-sized viewport to useMediaQuery. Everything else — notably the
+// theme's prefers-color-scheme probe — keeps answering "no".
+function useMobileViewport() {
+  window.matchMedia = ((query: string) =>
+    ({
+      matches: query === MOBILE_QUERY,
+      media: query,
+      onchange: null,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      dispatchEvent: () => false,
+    }) as unknown as MediaQueryList) as typeof window.matchMedia
+}
+
 beforeEach(() => {
   // Pin "today" to a Wednesday in July 2026 so the calendar is deterministic.
   vi.useFakeTimers({ shouldAdvanceTime: true })
@@ -76,6 +95,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers()
   vi.clearAllMocks()
+  window.matchMedia = realMatchMedia
 })
 
 describe('Planning page', () => {
@@ -183,5 +203,79 @@ describe('Planning page', () => {
     expect(
       await screen.findByText('Could not load the planning.'),
     ).toBeInTheDocument()
+  })
+})
+
+describe('Planning page on a phone', () => {
+  beforeEach(() => {
+    useMobileViewport()
+  })
+
+  it('describes the selected day instead of filling the cells', async () => {
+    m.contracts.mockResolvedValue([makeContract()])
+    renderWithProviders(<Planning />)
+
+    // Today (Wed 15 July) is worked and selected by default. The name appears
+    // once — in the day panel — rather than in each of the five worked cells.
+    await waitFor(() =>
+      expect(screen.getAllByText('Marie Dupont')).toHaveLength(1),
+    )
+    expect(screen.getByText(/08:00.*17:00/)).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: /July 15th/, pressed: true }),
+    ).toBeInTheDocument()
+  })
+
+  it('switches the panel to the day that was tapped', async () => {
+    const user = setupUser()
+    m.contracts.mockResolvedValue([makeContract()])
+    renderWithProviders(<Planning />)
+    await screen.findByText('Marie Dupont')
+
+    // 14 July 2026 is a Tuesday, so nothing is scheduled on it.
+    await user.click(screen.getByRole('button', { name: /July 14th/ }))
+    expect(
+      await screen.findByText('Nothing scheduled on this day.'),
+    ).toBeInTheDocument()
+    expect(screen.queryByText('Marie Dupont')).not.toBeInTheDocument()
+  })
+
+  it('names the holiday of the selected day', async () => {
+    const user = setupUser()
+    m.holidays.mockResolvedValue([
+      {
+        id: 'h1',
+        name: 'Fête Nationale',
+        date: '2026-07-14',
+        is_workable: false,
+      },
+    ])
+    renderWithProviders(<Planning />)
+    await screen.findByText('July 2026')
+
+    // The name is only in the panel now, so it takes a tap to reach it.
+    expect(screen.queryByText('Fête Nationale')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /July 14th/ }))
+    expect(await screen.findByText('Fête Nationale')).toBeInTheDocument()
+  })
+
+  it('falls back to the 1st when the month changes under the selection', async () => {
+    const user = setupUser()
+    // 1 August 2026 is a Saturday: schedule the nanny then, so the day the
+    // selection falls back to is a worked one and the panel has to say so.
+    m.contracts.mockResolvedValue([makeContract()])
+    m.schedules.mockResolvedValue([
+      makeSchedule({
+        blocks: [{ weekday: 5, start_time: '08:00:00', end_time: '17:00:00' }],
+      }),
+    ])
+    renderWithProviders(<Planning />)
+    await screen.findByText('July 2026')
+
+    await user.click(screen.getByRole('button', { name: 'Next month' }))
+    expect(
+      await screen.findByRole('button', { name: /August 1st/, pressed: true }),
+    ).toBeInTheDocument()
+    expect(await screen.findByText('Marie Dupont')).toBeInTheDocument()
   })
 })

@@ -39,6 +39,7 @@ import { Input } from '@/src/components/ui/input'
 import { Label } from '@/src/components/ui/label'
 import { useI18n } from '@/src/i18n/I18nContext'
 import { roleLabel } from '@/src/lib/roleLabel'
+import { selectClass } from '@/src/lib/utils'
 
 // A user can manage a family when they own it, or when they created it and it is
 // still unclaimed (no owner has joined yet). Mirrors the backend's can_manage.
@@ -60,9 +61,9 @@ export default function FamilyPage() {
   const selected = families?.find((f) => f.id === selectedId) ?? null
 
   return (
-    <main className="flex flex-1 flex-col gap-6 p-6 sm:p-10">
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="text-3xl font-semibold tracking-tight">
+    <main className="flex flex-1 flex-col gap-6 p-4 sm:p-10">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
           {t('family.title')}
         </h1>
         <Button type="button" onClick={() => setCreating(true)}>
@@ -153,10 +154,10 @@ function PendingInvitationsSection() {
         {invitations.map((invite) => (
           <li
             key={invite.id}
-            className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+            className="flex flex-col items-start gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
           >
-            <div className="flex flex-col gap-1">
-              <span className="font-medium text-foreground">
+            <div className="flex min-w-0 flex-col gap-1">
+              <span className="font-medium break-words text-foreground">
                 {invite.family_name}
               </span>
               <Badge variant="secondary" className="w-fit">
@@ -200,10 +201,12 @@ function FamilyRow({
 }) {
   const { t } = useI18n()
   return (
-    <li className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
-      <div className="flex flex-col gap-1">
-        <span className="font-medium text-foreground">{family.name}</span>
-        <div className="flex items-center gap-2">
+    <li className="flex flex-col items-start gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+      <div className="flex min-w-0 flex-col gap-1">
+        <span className="font-medium break-words text-foreground">
+          {family.name}
+        </span>
+        <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary">{roleLabel(t, family.role)}</Badge>
           <Badge variant={family.is_claimed ? 'outline' : 'destructive'}>
             {family.is_claimed ? t('family.claimed') : t('family.unclaimed')}
@@ -582,25 +585,29 @@ function ChildRow({
   const { t } = useI18n()
   const [name, setName] = useState(child.first_name)
 
+  // The two buttons never shrink, so on a phone the name field gets its own
+  // line rather than being squeezed into what they leave behind.
   return (
-    <li className="flex items-center gap-2">
+    <li className="flex flex-col gap-2 sm:flex-row sm:items-center">
       <Input
-        className="flex-1"
+        className="w-full sm:flex-1"
         value={name}
         aria-label={t('family.children.firstName')}
         onChange={(event) => setName(event.target.value)}
       />
-      <Button
-        variant="outline"
-        type="button"
-        onClick={() => onRename(name)}
-        disabled={name.trim() === '' || name === child.first_name}
-      >
-        {t('family.children.save')}
-      </Button>
-      <Button variant="destructive" type="button" onClick={onDelete}>
-        {t('family.children.delete')}
-      </Button>
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          type="button"
+          onClick={() => onRename(name)}
+          disabled={name.trim() === '' || name === child.first_name}
+        >
+          {t('family.children.save')}
+        </Button>
+        <Button variant="destructive" type="button" onClick={onDelete}>
+          {t('family.children.delete')}
+        </Button>
+      </div>
     </li>
   )
 }
@@ -656,10 +663,10 @@ function MembersPanel({ family }: { family: Family }) {
           return (
             <li
               key={member.id}
-              className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+              className="flex flex-col items-start gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
             >
-              <div className="flex flex-col gap-1">
-                <span className="font-medium text-foreground">
+              <div className="flex min-w-0 flex-col gap-1">
+                <span className="font-medium break-words text-foreground">
                   {displayName}{' '}
                   {isSelf && (
                     <span className="text-sm text-muted-foreground">
@@ -667,11 +674,13 @@ function MembersPanel({ family }: { family: Family }) {
                     </span>
                   )}
                 </span>
-                <span className="text-sm text-muted-foreground">
+                {/* An address has no break opportunities of its own, so it
+                    would otherwise push the row wider than the card. */}
+                <span className="text-sm break-all text-muted-foreground">
                   {member.email}
                 </span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex shrink-0 items-center gap-2">
                 <Badge variant="secondary">{roleLabel(t, member.role)}</Badge>
                 {manage && !isSelf && (
                   <ConfirmButton
@@ -751,9 +760,9 @@ function InvitationsPanel({ family }: { family: Family }) {
       <ul className="flex flex-col gap-4">
         {pending?.map((invite) => (
           <li key={invite.id} className="flex flex-col gap-2 border-b pb-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex flex-col gap-1">
-                <span className="font-medium text-foreground">
+            <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+              <div className="flex min-w-0 flex-col gap-1">
+                <span className="font-medium break-all text-foreground">
                   {invite.email}
                 </span>
                 <Badge variant="secondary" className="w-fit">
@@ -797,7 +806,7 @@ function InvitationsPanel({ family }: { family: Family }) {
           <Label htmlFor="invite-role">{t('family.invites.role')}</Label>
           <select
             id="invite-role"
-            className="h-9 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs"
+            className={selectClass}
             value={role}
             onChange={(event) => setRole(event.target.value as FamilyRole)}
           >

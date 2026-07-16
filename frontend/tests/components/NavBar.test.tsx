@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { getMyContractInvitations } from '@/src/api/contracts'
@@ -150,7 +150,9 @@ describe('NavBar', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Account menu' }))
     expect(screen.getByRole('menu')).toBeInTheDocument()
 
-    await userEvent.click(screen.getByText('Nounou'))
+    // The brand also appears in the mobile top bar, so target the nav's copy.
+    const nav = screen.getByRole('navigation')
+    await userEvent.click(within(nav).getByText('Nounou'))
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
 
@@ -161,5 +163,57 @@ describe('NavBar', () => {
 
     await userEvent.keyboard('{Escape}')
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+  })
+})
+
+// The drawer is shown/hidden with CSS, which jsdom does not apply, so these
+// assert the state the styling keys off: aria-expanded on the burger.
+describe('NavBar mobile drawer', () => {
+  const burger = () => screen.getByRole('button', { name: 'Open the menu' })
+
+  it('starts closed and opens from the burger', async () => {
+    renderWithProviders(<NavBar />)
+    expect(burger()).toHaveAttribute('aria-expanded', 'false')
+    expect(burger()).toHaveAttribute('aria-controls', 'primary-nav')
+
+    await userEvent.click(burger())
+    expect(burger()).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('closes from the drawer close button', async () => {
+    renderWithProviders(<NavBar />)
+    await userEvent.click(burger())
+
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Close the menu' }),
+    )
+    expect(burger()).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('closes on Escape', async () => {
+    renderWithProviders(<NavBar />)
+    await userEvent.click(burger())
+
+    await userEvent.keyboard('{Escape}')
+    expect(burger()).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('closes once a link navigates away', async () => {
+    renderWithProviders(<NavBar />)
+    await userEvent.click(burger())
+
+    await userEvent.click(screen.getByRole('link', { name: 'Planning' }))
+    expect(burger()).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('locks page scroll only while the drawer is open', async () => {
+    renderWithProviders(<NavBar />)
+    expect(document.body.style.overflow).toBe('')
+
+    await userEvent.click(burger())
+    expect(document.body.style.overflow).toBe('hidden')
+
+    await userEvent.keyboard('{Escape}')
+    expect(document.body.style.overflow).toBe('')
   })
 })
