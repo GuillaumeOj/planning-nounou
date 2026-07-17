@@ -208,6 +208,25 @@ const en = {
     'Add the children this contract covers first.',
   'exceptional.presence.childRequired': 'Choose a child.',
   'exceptional.presence.dateRequired': 'Give a date.',
+  'contractChild.title': 'Children on this contract',
+  'contractChild.description':
+    'Who the nanny looks after, and when. On a shared contract this is what the pay is split by.',
+  'contractChild.child': 'Child',
+  'contractChild.pickChild': 'Choose a child',
+  'contractChild.add': 'Add a child',
+  'contractChild.save': 'Save',
+  'contractChild.none': 'No children on this contract yet.',
+  'contractChild.noChildren': 'Add a child to your family first.',
+  'contractChild.childRequired': 'Choose a child.',
+  'contractChild.confirmDelete': 'Take this child off the contract?',
+  'contractChild.presence': 'When are they there?',
+  'contractChild.wholeTime': 'Whenever the nanny works',
+  'contractChild.someDays': 'Only on certain days',
+  // The Wednesday case is why this exists, and it is the one a parent gets
+  // wrong: absence is said by leaving the day out, not by adding anything.
+  'contractChild.someDaysHint':
+    'List only the days they are there. A day you leave out is a day they are away — that is how a family’s day off is recorded.',
+  'contractChild.addWindow': 'Add a day',
   'declaration.title': 'Declarations',
   'declaration.subtitle':
     'What each family declares to pajemploi for the month. A draft follows the planning; filing freezes it.',
@@ -296,8 +315,16 @@ const en = {
   'wizard.step1': 'Nanny',
   'wizard.step2': 'Compensation',
   'wizard.step3': 'Working hours',
-  'wizard.step4': 'Days off',
-  'wizard.step5': 'Share',
+  'wizard.step4': 'Children',
+  'wizard.step5': 'Days off',
+  'wizard.step6': 'Share',
+  'wizard.childrenOptional':
+    'Which of your children does this nanny look after?',
+  // The wizard takes the common case only. Narrowing a child to certain days is
+  // a contract's whole point of detail, and it belongs where there is room for
+  // it — not behind a Next button.
+  'wizard.childrenHint':
+    'They will be down as there whenever the nanny works. You can narrow that per day afterwards.',
   'wizard.back': 'Back',
   'wizard.next': 'Next',
   'wizard.finish': 'Create contract',
@@ -630,6 +657,25 @@ const fr: Record<TranslationKey, string> = {
     'Ajoutez d’abord les enfants couverts par ce contrat.',
   'exceptional.presence.childRequired': 'Choisissez un enfant.',
   'exceptional.presence.dateRequired': 'Indiquez une date.',
+  'contractChild.title': 'Enfants couverts par ce contrat',
+  'contractChild.description':
+    'Qui la nounou garde, et quand. En garde partagée, c’est ce qui répartit la rémunération.',
+  'contractChild.child': 'Enfant',
+  'contractChild.pickChild': 'Choisir un enfant',
+  'contractChild.add': 'Ajouter un enfant',
+  'contractChild.save': 'Enregistrer',
+  'contractChild.none': 'Aucun enfant sur ce contrat.',
+  'contractChild.noChildren': 'Ajoutez d’abord un enfant à votre famille.',
+  'contractChild.childRequired': 'Choisissez un enfant.',
+  'contractChild.confirmDelete': 'Retirer cet enfant du contrat ?',
+  'contractChild.presence': 'Quand est-il présent ?',
+  'contractChild.wholeTime': 'Dès que la nounou travaille',
+  'contractChild.someDays': 'Seulement certains jours',
+  // Le cas du mercredi est la raison d’être de ce champ, et celui qu’un parent
+  // se trompe : l’absence se dit en omettant le jour, pas en ajoutant quoi que ce soit.
+  'contractChild.someDaysHint':
+    'N’indiquez que les jours de présence. Un jour omis est un jour d’absence — c’est ainsi qu’on enregistre le jour de repos d’une famille.',
+  'contractChild.addWindow': 'Ajouter un jour',
   'declaration.title': 'Déclarations',
   'declaration.subtitle':
     'Ce que chaque famille déclare à pajemploi pour le mois. Un brouillon suit le planning ; la déclaration le fige.',
@@ -719,8 +765,15 @@ const fr: Record<TranslationKey, string> = {
   'wizard.step1': 'Nounou',
   'wizard.step2': 'Rémunération',
   'wizard.step3': 'Horaires',
-  'wizard.step4': 'Congés',
-  'wizard.step5': 'Partage',
+  'wizard.step4': 'Enfants',
+  'wizard.step5': 'Congés',
+  'wizard.step6': 'Partage',
+  'wizard.childrenOptional': 'Quels enfants cette nounou garde-t-elle ?',
+  // L’assistant ne gère que le cas courant. Restreindre un enfant à certains
+  // jours est le détail même du contrat, et sa place est là où il y a de la
+  // place — pas derrière un bouton Suivant.
+  'wizard.childrenHint':
+    'Ils seront notés présents dès que la nounou travaille. Vous pourrez préciser les jours ensuite.',
   'wizard.back': 'Précédent',
   'wizard.next': 'Suivant',
   'wizard.finish': 'Créer le contrat',

@@ -1,6 +1,7 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { listChildren } from '@/src/api/children'
 import {
   acceptContractInvitation,
   type Contract,
@@ -24,8 +25,13 @@ import {
   updateContractSchedule,
   updateContractTerms,
 } from '@/src/api/contracts'
+import {
+  createContractChild,
+  getContractChildren,
+} from '@/src/api/declarations'
 import { getFamilies } from '@/src/api/family'
-import Nannies, { duplicateDayBlocks } from '@/src/pages/Nannies'
+import { duplicateDayBlocks } from '@/src/lib/weekdays'
+import Nannies from '@/src/pages/Nannies'
 import { renderWithProviders } from '@/tests/utils'
 
 vi.mock('@/src/api/family', () => ({ getFamilies: vi.fn() }))
@@ -50,6 +56,16 @@ vi.mock('@/src/api/contracts', () => ({
   declineContractInvitation: vi.fn(),
   getMinimumWage: vi.fn(),
 }))
+// The children section mounts with the other sections once a contract is
+// expanded, so its API surface has to be mocked even for the tests that never
+// look at it: an unmocked module reaches for a real axios call.
+vi.mock('@/src/api/declarations', () => ({
+  getContractChildren: vi.fn(),
+  createContractChild: vi.fn(),
+  updateContractChild: vi.fn(),
+  deleteContractChild: vi.fn(),
+}))
+vi.mock('@/src/api/children', () => ({ listChildren: vi.fn() }))
 
 const m = {
   families: vi.mocked(getFamilies),
@@ -71,6 +87,9 @@ const m = {
   acceptMyInvitation: vi.mocked(acceptContractInvitation),
   declineMyInvitation: vi.mocked(declineContractInvitation),
   minimum: vi.mocked(getMinimumWage),
+  contractChildren: vi.mocked(getContractChildren),
+  children: vi.mocked(listChildren),
+  createContractChild: vi.mocked(createContractChild),
 }
 
 const family = {
@@ -131,6 +150,8 @@ beforeEach(() => {
   m.invitations.mockResolvedValue([])
   m.myInvitations.mockResolvedValue([])
   m.minimum.mockResolvedValue({ net_hourly_rate: '10.07' })
+  m.contractChildren.mockResolvedValue([])
+  m.children.mockResolvedValue([])
 })
 afterEach(() => vi.clearAllMocks())
 
@@ -273,7 +294,7 @@ describe('onboarding wizard', () => {
     renderWithProviders(<Nannies />)
     await screen.findByText('No nannies yet. Add your first one below.')
     await user.click(screen.getByRole('button', { name: 'Add a nanny' }))
-    await screen.findByText('Step 1 of 5')
+    await screen.findByText('Step 1 of 6')
   }
 
   it('creates a contract end-to-end with a new nanny', async () => {
@@ -298,6 +319,7 @@ describe('onboarding wizard', () => {
     await user.type(screen.getByLabelText('Net hourly rate (€)'), '12.00')
     await user.click(screen.getByRole('button', { name: 'Next' })) // → hours
     await user.click(screen.getByRole('button', { name: 'Add a time block' }))
+    await user.click(screen.getByRole('button', { name: 'Next' })) // → children
     await user.click(screen.getByRole('button', { name: 'Next' })) // → days off
     await user.type(screen.getByLabelText('Paid-leave days per year'), '25')
     await user.click(screen.getByRole('button', { name: 'Next' })) // → share
@@ -341,9 +363,59 @@ describe('onboarding wizard', () => {
     await user.type(screen.getByLabelText('Last name'), 'Martin')
     await user.type(screen.getByLabelText('Starting date'), '02/03/2026')
     await user.click(screen.getByRole('button', { name: 'Next' }))
-    expect(await screen.findByText('Step 2 of 5')).toBeInTheDocument()
+    expect(await screen.findByText('Step 2 of 6')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Back' }))
-    expect(await screen.findByText('Step 1 of 5')).toBeInTheDocument()
+    expect(await screen.findByText('Step 1 of 6')).toBeInTheDocument()
+  })
+
+  // A contract with no children has nothing for the pay split to divide by, so
+  // the wizard asks while it has the parent's attention.
+  it('puts the chosen children on the contract, present whole-time', async () => {
+    const user = userEvent.setup()
+    m.children.mockResolvedValue([
+      { id: 'kid-1', first_name: 'Léa' },
+      { id: 'kid-2', first_name: 'Noé' },
+    ])
+    m.createContract.mockResolvedValue(makeContract())
+    await openWizard(user)
+
+    await user.type(screen.getByLabelText('First name'), 'Paul')
+    await user.type(screen.getByLabelText('Last name'), 'Martin')
+    await user.type(screen.getByLabelText('Starting date'), '02/03/2026')
+    await user.click(screen.getByRole('button', { name: 'Next' })) // → compensation
+    await user.click(screen.getByRole('button', { name: 'Next' })) // → hours
+    await user.click(screen.getByRole('button', { name: 'Next' })) // → children
+
+    await user.click(screen.getByRole('checkbox', { name: 'Léa' }))
+    for (let i = 0; i < 2; i++)
+      await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Create contract' }))
+
+    await waitFor(() =>
+      expect(m.createContractChild).toHaveBeenCalledWith('1', '10', {
+        child: 'kid-1',
+        windows: [],
+      }),
+    )
+    // Only the one that was ticked.
+    expect(m.createContractChild).toHaveBeenCalledTimes(1)
+  })
+
+  it('creates no children when none are ticked', async () => {
+    const user = userEvent.setup()
+    m.children.mockResolvedValue([{ id: 'kid-1', first_name: 'Léa' }])
+    m.createContract.mockResolvedValue(makeContract())
+    await openWizard(user)
+
+    await user.type(screen.getByLabelText('First name'), 'Paul')
+    await user.type(screen.getByLabelText('Last name'), 'Martin')
+    await user.type(screen.getByLabelText('Starting date'), '02/03/2026')
+    for (let i = 0; i < 5; i++)
+      await user.click(screen.getByRole('button', { name: 'Next' }))
+    await user.click(screen.getByRole('button', { name: 'Create contract' }))
+
+    await waitFor(() => expect(m.createContract).toHaveBeenCalled())
+    expect(m.createContractChild).not.toHaveBeenCalled()
   })
 
   it('reuses an existing nanny', async () => {
@@ -353,12 +425,12 @@ describe('onboarding wizard', () => {
     renderWithProviders(<Nannies />)
     await screen.findByText('Marie Dupont')
     await user.click(screen.getByRole('button', { name: 'Add a nanny' }))
-    await screen.findByText('Step 1 of 5')
+    await screen.findByText('Step 1 of 6')
 
     await user.click(screen.getByRole('checkbox', { name: /Use a nanny/ }))
     await user.selectOptions(screen.getByLabelText('Choose a nanny'), '5')
     await user.type(screen.getByLabelText('Starting date'), '02/03/2026')
-    for (let i = 0; i < 4; i++)
+    for (let i = 0; i < 5; i++)
       await user.click(screen.getByRole('button', { name: 'Next' }))
     await user.click(screen.getByRole('button', { name: 'Create contract' }))
 

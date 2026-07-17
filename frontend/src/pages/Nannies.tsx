@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { useMemo, useState } from 'react'
+import { listChildren } from '@/src/api/children'
 import {
   acceptContractInvitation,
   type Contract,
@@ -28,9 +29,11 @@ import {
   updateContractSchedule,
   updateContractTerms,
 } from '@/src/api/contracts'
+import { createContractChild } from '@/src/api/declarations'
 import { extractErrorMessages } from '@/src/api/errors'
 import { type Family, getFamilies } from '@/src/api/family'
 import { ConfirmButton } from '@/src/components/ConfirmButton'
+import { ContractChildrenSection } from '@/src/components/ContractChildrenSection'
 import { DateField, formatDate } from '@/src/components/DateField'
 import { FormErrors } from '@/src/components/FormErrors'
 import { Modal } from '@/src/components/Modal'
@@ -43,6 +46,11 @@ import { Label } from '@/src/components/ui/label'
 import { useI18n } from '@/src/i18n/I18nContext'
 import type { Language, TranslationKey } from '@/src/i18n/translations'
 import { selectClass } from '@/src/lib/utils'
+import {
+  type DayWindow,
+  duplicateDayBlocks,
+  WEEKDAY_KEYS,
+} from '@/src/lib/weekdays'
 
 // --- Static reference content -----------------------------------------------
 
@@ -89,16 +97,6 @@ const MONEY_FIELDS: {
   },
 ]
 
-const WEEKDAY_KEYS: TranslationKey[] = [
-  'weekday.mon',
-  'weekday.tue',
-  'weekday.wed',
-  'weekday.thu',
-  'weekday.fri',
-  'weekday.sat',
-  'weekday.sun',
-]
-
 function effectiveRange(
   snapshot: { effective_from: string; effective_to: string | null },
   lang: Language,
@@ -142,11 +140,9 @@ function termsDraftToInput(draft: TermsDraft): ContractTermsInput {
   }
 }
 
-interface BlockDraft {
-  weekday: number
-  start_time: string
-  end_time: string
-}
+// A schedule block is a plain day window; the shape is shared with a child's
+// presence windows, and so is the day-copying that edits either.
+type BlockDraft = DayWindow
 interface ScheduleDraft {
   effective_from: string
   blocks: BlockDraft[]
@@ -171,20 +167,6 @@ function scheduleDraftToInput(draft: ScheduleDraft): ContractScheduleInput {
     effective_from: draft.effective_from || undefined,
     blocks: draft.blocks,
   }
-}
-
-// Copy every block of `from` onto each `toDays`, replacing those days.
-export function duplicateDayBlocks(
-  blocks: BlockDraft[],
-  from: number,
-  toDays: number[],
-): BlockDraft[] {
-  const source = blocks.filter((b) => b.weekday === from)
-  const kept = blocks.filter((b) => !toDays.includes(b.weekday))
-  const added = toDays.flatMap((day) =>
-    source.map((b) => ({ ...b, weekday: day })),
-  )
-  return [...kept, ...added]
 }
 
 // --- Reusable field groups --------------------------------------------------
@@ -941,6 +923,7 @@ const WIZARD_STEPS: TranslationKey[] = [
   'wizard.step3',
   'wizard.step4',
   'wizard.step5',
+  'wizard.step6',
 ]
 
 function ContractWizard({
@@ -965,7 +948,20 @@ function ContractWizard({
   const [paidLeave, setPaidLeave] = useState('')
   const [terms, setTerms] = useState<TermsDraft>(EMPTY_TERMS)
   const [schedule, setSchedule] = useState<ScheduleDraft>(EMPTY_SCHEDULE)
+  const [childIds, setChildIds] = useState<string[]>([])
   const [shareEmail, setShareEmail] = useState('')
+
+  // Whose children are on offer: this family's own. The other family adds its
+  // own from its side once the contract is shared.
+  const { data: children } = useQuery({
+    queryKey: ['children', familyId],
+    queryFn: () => listChildren(familyId),
+  })
+
+  const toggleChild = (id: string) =>
+    setChildIds((prev) =>
+      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id],
+    )
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -990,6 +986,14 @@ function ContractWizard({
           contract.id,
           scheduleDraftToInput(schedule),
         )
+      }
+      // Whole-time presence: the wizard's children are there whenever the nanny
+      // works, which is the common case. Narrowing is the section's job.
+      for (const id of childIds) {
+        await createContractChild(familyId, contract.id, {
+          child: id,
+          windows: [],
+        })
       }
       if (shareEmail) {
         await createContractInvitation(familyId, contract.id, shareEmail)
@@ -1108,6 +1112,35 @@ function ContractWizard({
         )}
 
         {step === 3 && (
+          <fieldset className="flex flex-col gap-2">
+            <legend className="mb-2 text-sm font-medium">
+              {t('wizard.childrenOptional')}
+            </legend>
+            {children && children.length > 0 ? (
+              <>
+                {children.map((c) => (
+                  <label key={c.id} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={childIds.includes(c.id)}
+                      onChange={() => toggleChild(c.id)}
+                    />
+                    {c.first_name}
+                  </label>
+                ))}
+                <p className="text-xs text-muted-foreground">
+                  {t('wizard.childrenHint')}
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {t('contractChild.noChildren')}
+              </p>
+            )}
+          </fieldset>
+        )}
+
+        {step === 4 && (
           <div className="flex flex-col gap-1">
             <Label htmlFor="wizard-leave">{t('contract.paidLeave')}</Label>
             <Input
@@ -1119,7 +1152,7 @@ function ContractWizard({
           </div>
         )}
 
-        {step === 4 && (
+        {step === 5 && (
           <div className="flex flex-col gap-1">
             <Label htmlFor="wizard-share">{t('wizard.shareOptional')}</Label>
             <Input
@@ -1429,6 +1462,10 @@ export default function Nannies() {
                         contract={contract}
                       />
                       <ScheduleSection
+                        familyId={activeFamilyId}
+                        contract={contract}
+                      />
+                      <ContractChildrenSection
                         familyId={activeFamilyId}
                         contract={contract}
                       />
