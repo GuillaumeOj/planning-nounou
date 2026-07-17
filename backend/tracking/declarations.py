@@ -1216,26 +1216,21 @@ def _night_indemnity(
     return dict(amounts), nights, warnings
 
 
-def compute_month(data: ContractMonth) -> dict[UUID, FamilyResult]:
-    """One month of one contract, as each family must declare it.
+def build_base(
+    data: ContractMonth, children: Mapping[UUID, ChildPresence]
+) -> tuple[list[tuple[SubPeriod, dict[UUID, Bands]]], dict[date, WeekBands], list[dict]]:
+    """The mensualised base, per sub-period, plus the rate detail behind it.
 
-    The nanny's week is banded, each band split between the families, mensualised,
-    prorated by attendance (art. 152.1), and topped up with exceptional hours.
-    Advantages follow each family's weight in the month. Everything is rounded
-    once, at the end, so the parts still sum to the whole.
+    Kept per sub-period rather than summed. Collapsing them here is what made a
+    mid-month raise price the whole month at the new rate: sub_periods had already
+    cut the month correctly and the cut bought nothing, because the pricing only
+    ever saw the total.
     """
-    children = {child.child_id: child for child in data.children}
-    periods = sub_periods(data)
-    warnings: list[str] = []
-
-    # Base, per sub-period, kept separate so each keeps its own rate. Collapsing
-    # them early is what made a mid-month raise price the whole month at the new
-    # rate — the figure the parent cannot reproduce.
     per_period: list[tuple[SubPeriod, dict[UUID, Bands]]] = []
     banded_by_date: dict[date, WeekBands] = {}
     rate_periods: list[dict] = []
 
-    for period in periods:
+    for period in sub_periods(data):
         if period.schedule is None:
             continue
         week = band_week(period.schedule, children, data.split_method, data.family_ids)
@@ -1257,7 +1252,82 @@ def compute_month(data: ContractMonth) -> dict[UUID, FamilyResult]:
                     "benefits_in_kind": str(period.terms.benefits_in_kind),
                 }
             )
+    return per_period, banded_by_date, rate_periods
 
+
+def exceptional_top_up(
+    data: ContractMonth, children: Mapping[UUID, ChildPresence], warnings: list[str]
+) -> dict[UUID, Bands]:
+    """Exceptional hours and presence corrections, as bands to add to the base."""
+    # art. 137.1 excludes présence responsable from a garde partagée. The model
+    # rejects new entries, but a row predating the rule must not quietly pay two
+    # thirds — so on a shared contract it counts as the effective work it was, and
+    # the discrepancy is surfaced.
+    shared = len(data.family_ids) > 1
+    kinds: dict[str, Fraction] = {"effective": Fraction(1)}
+    if shared and any(e.kind == "presence_responsable" for e in data.exceptional):
+        warnings.append("presence_responsable_in_shared_care")
+        kinds["presence_responsable"] = Fraction(1)
+    elif not shared:
+        kinds["presence_responsable"] = PRESENCE_RESPONSABLE_RATIO
+
+    extra = _exceptional_bands(data, children, kinds)
+    # A child there outside their window moves the split without lengthening the
+    # nanny's day, so this nets to zero across the families.
+    for family_id, bands in presence_corrections(data, children).items():
+        extra[family_id] = extra.get(family_id, Bands()) + bands
+    return extra
+
+
+def prorate_for_absence(
+    per_period: Sequence[tuple[SubPeriod, Mapping[UUID, Bands]]],
+    data: ContractMonth,
+    banded_by_date: Mapping[date, WeekBands],
+) -> list[tuple[SubPeriod, dict[UUID, Bands]]]:
+    """Scale the base by attendance — art. 152.1's ratio, not a subtraction."""
+    attendance = month_attendance(data, banded_by_date)
+    ratios = {
+        family_id: attendance_ratio(*attendance.get(family_id, (Fraction(0), Fraction(0))))
+        for family_id in data.family_ids
+    }
+    return [
+        (period, {f: b.scaled(ratios.get(f, Fraction(1))) for f, b in bands.items()})
+        for period, bands in per_period
+    ]
+
+
+def round_across_families(
+    totals: Mapping[UUID, Bands], family_ids: Sequence[UUID]
+) -> list[list[Decimal]]:
+    """Each band's hours, apportioned across the families so they sum to the band.
+
+    Across, not per family. Rounding a family's bands on their own loses the nanny
+    a centihour on every band that does not divide cleanly: two families sharing a
+    216.67h month would declare 108.33 each and the last one would be worked by
+    nobody.
+    """
+    return [
+        apportion(to_hours(sum(column, Fraction(0))), column)
+        for column in (
+            [totals[family_id].normal for family_id in family_ids],
+            [totals[family_id].at_25 for family_id in family_ids],
+            [totals[family_id].at_50 for family_id in family_ids],
+        )
+    ]
+
+
+def compute_month(data: ContractMonth) -> dict[UUID, FamilyResult]:
+    """One month of one contract, as each family must declare it.
+
+    The nanny's week is banded, each band split between the families, mensualised,
+    prorated by attendance, and topped up with exceptional hours. Advantages follow
+    each family's weight in the month. Everything is rounded once, at the end, so
+    the parts still sum to the whole.
+    """
+    children = {child.child_id: child for child in data.children}
+    warnings: list[str] = []
+
+    per_period, banded_by_date, rate_periods = build_base(data, children)
     if len({p["net_hourly_rate"] for p in rate_periods}) > 1:
         warnings.append("rates_changed_mid_month")
     if not any(child.family_id in data.family_ids for child in data.children):
@@ -1266,35 +1336,8 @@ def compute_month(data: ContractMonth) -> dict[UUID, FamilyResult]:
         # rather than let it read as a split derived from who was actually there.
         warnings.append("split_without_children")
 
-    # art. 152.1: prorate by attendance, do not subtract raw hours. See
-    # attendance_ratio for why the shape matters.
-    attendance = month_attendance(data, banded_by_date)
-    ratios = {
-        family_id: attendance_ratio(*attendance.get(family_id, (Fraction(0), Fraction(0))))
-        for family_id in data.family_ids
-    }
-    per_period = [
-        (period, {f: b.scaled(ratios.get(f, Fraction(1))) for f, b in bands.items()})
-        for period, bands in per_period
-    ]
-
-    # art. 137.1 excludes presence responsable from a garde partagee. The model
-    # rejects new entries, but a row predating the rule must not quietly pay two
-    # thirds — so on a shared contract it is counted as the effective work it
-    # actually was, and the discrepancy is surfaced.
-    shared = len(data.family_ids) > 1
-    kinds: dict[str, Fraction] = {"effective": Fraction(1)}
-    if shared and any(e.kind == "presence_responsable" for e in data.exceptional):
-        warnings.append("presence_responsable_in_shared_care")
-        kinds["presence_responsable"] = Fraction(1)
-    elif not shared:
-        kinds["presence_responsable"] = PRESENCE_RESPONSABLE_RATIO
-    extra = _exceptional_bands(data, children, kinds)
-
-    # A child there outside their window moves the split without lengthening the
-    # nanny's day, so this nets to zero across the families.
-    for family_id, bands in presence_corrections(data, children).items():
-        extra[family_id] = extra.get(family_id, Bands()) + bands
+    per_period = prorate_for_absence(per_period, data, banded_by_date)
+    extra = exceptional_top_up(data, children, warnings)
 
     _, last = month_bounds(data.month)
     current = in_force(data.terms, last) or (data.terms[-1] if data.terms else None)
@@ -1309,41 +1352,32 @@ def compute_month(data: ContractMonth) -> dict[UUID, FamilyResult]:
             combined = combined + bands.get(family_id, Bands())
         totals[family_id] = (combined + extra.get(family_id, Bands())).clamped()
 
+    # Advantages are one monthly lump for one nanny, so they follow each family's
+    # weight in the month rather than being declared whole by each — otherwise she
+    # is credited a multiple of what was agreed.
     weights = [totals[family_id].total for family_id in data.family_ids]
-    kilometers = data.kilometers or {}
-    rate = current.net_hourly_rate if current else Decimal("0")
     transport = apportion(
         current.transport_fee if current else Decimal("0"), weights, MONEY_QUANTUM
     )
     in_kind = apportion(
         current.benefits_in_kind if current else Decimal("0"), weights, MONEY_QUANTUM
     )
+    hours_by_band = round_across_families(totals, data.family_ids)
 
-    # Round each band ACROSS the families, not each family's bands on their own.
-    # Rounding per family loses the nanny a centihour on every band that does not
-    # divide cleanly: two families sharing a 216.67h month would declare 108.33
-    # each and the last one would simply never be worked by anybody.
-    hours_by_band = [
-        apportion(to_hours(sum(column, Fraction(0))), column)
-        for column in (
-            [totals[family_id].normal for family_id in data.family_ids],
-            [totals[family_id].at_25 for family_id in data.family_ids],
-            [totals[family_id].at_50 for family_id in data.family_ids],
-        )
-    ]
+    kilometers = data.kilometers or {}
+    rate = current.net_hourly_rate if current else Decimal("0")
+    mileage_rate = current.mileage_rate if current else Decimal("0")
 
     results: dict[UUID, FamilyResult] = {}
     for index, family_id in enumerate(data.family_ids):
         normal_hours, hours_25, hours_50 = (band[index] for band in hours_by_band)
         km = kilometers.get(family_id, Decimal("0"))
-        mileage_rate = current.mileage_rate if current else Decimal("0")
         night = nights.get(family_id, Decimal("0"))
         holiday = holidays.get(family_id, Decimal("0"))
         # Priced per sub-period, each at its own rate, so a mid-month avenant is
         # charged for the days it actually applied to. With one period — nearly
         # always — this is exactly hours x rate, which is what pajemploi asks the
-        # parent to type: "Additionnez le nombre d'heures normales x taux horaire
-        # net + le nombre d'heures supplementaires a 25% x le taux majore a 25%".
+        # parent to type.
         salary = _period_amount(per_period, extra, family_id, current)
         results[family_id] = FamilyResult(
             family_id=family_id,
