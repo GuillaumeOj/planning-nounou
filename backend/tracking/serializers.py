@@ -1,23 +1,30 @@
 from __future__ import annotations
 
 from datetime import date as date_cls
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 from decimal import Decimal
 
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
 from .models import (
     BankHoliday,
     Contract,
+    ContractChild,
+    ContractChildWindow,
     ContractInvitation,
     ContractSchedule,
     ContractTerms,
+    ExceptionalHours,
+    ExceptionalPresence,
     Leave,
     MinimumWage,
+    MonthlyDeclaration,
     Nanny,
     ScheduleBlock,
 )
+from .sources import source_for
 
 NON_NEGATIVE_DECIMAL = {"min_value": Decimal("0")}
 _MISSING = object()
@@ -407,3 +414,237 @@ class MyContractInvitationSerializer(serializers.ModelSerializer):
         model = ContractInvitation
         fields = ("id", "nanny_first_name", "nanny_last_name", "token", "expires_at")
         read_only_fields = fields
+
+
+class SourceSerializer(serializers.Serializer):
+    """A citation: what the rule is called, where it lives, and what it says."""
+
+    ref = serializers.CharField(read_only=True)
+    url = serializers.URLField(read_only=True)
+    quote = serializers.CharField(read_only=True)
+
+
+class ContractChildWindowSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ContractChildWindow
+        fields = ("id", "weekday", "start_time", "end_time")
+        read_only_fields = ("id",)
+
+    def validate(self, attrs: dict) -> dict:
+        if attrs["end_time"] <= attrs["start_time"]:
+            raise serializers.ValidationError(
+                {"end_time": _("The end time must be after the start time.")}
+            )
+        return attrs
+
+
+class ContractChildSerializer(serializers.ModelSerializer):
+    """A child on the contract and the hours they are actually there.
+
+    ``windows`` is nested and written whole, like a schedule's blocks. Sending an
+    empty list is not "leave it alone" — it means the child is there whenever the
+    nanny is, which is the common case and the default.
+    """
+
+    windows = ContractChildWindowSerializer(many=True, required=False)
+    first_name = serializers.CharField(source="child.first_name", read_only=True)
+    family_id = serializers.UUIDField(source="child.family_id", read_only=True)
+
+    class Meta:
+        model = ContractChild
+        fields = ("id", "child", "first_name", "family_id", "windows")
+        read_only_fields = ("id", "first_name", "family_id")
+
+    def validate_child(self, child):
+        contract = self.context["contract"]
+        if not contract.shares.filter(family_id=child.family_id).exists():
+            # Otherwise their hours route to a family that never employed the
+            # nanny, and the child's name surfaces in that family's declaration.
+            raise serializers.ValidationError(
+                _("This child's family does not share this contract.")
+            )
+        return child
+
+    def validate_windows(self, windows: list[dict]) -> list[dict]:
+        # Overlapping windows on one day are deliberately allowed: their union is
+        # what counts. Only the ordering within a window is a mistake.
+        return windows
+
+    def create(self, validated_data: dict) -> ContractChild:
+        windows = validated_data.pop("windows", [])
+        link = ContractChild.objects.create(**validated_data)
+        self._write_windows(link, windows)
+        return link
+
+    def update(self, instance: ContractChild, validated_data: dict) -> ContractChild:
+        windows = validated_data.pop("windows", None)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        if windows is not None:
+            instance.windows.all().delete()
+            self._write_windows(instance, windows)
+        return instance
+
+    @staticmethod
+    def _write_windows(link: ContractChild, windows: list[dict]) -> None:
+        ContractChildWindow.objects.bulk_create(
+            ContractChildWindow(contract_child=link, **window) for window in windows
+        )
+
+
+class ExceptionalHoursSerializer(serializers.ModelSerializer):
+    """Hours beyond the schedule, filed by one family and read by all of them.
+
+    ``family`` is never accepted from the payload — the viewset pins it to the
+    acting family. A family may read the other's filings (its own hours depend on
+    them) and must never write them.
+    """
+
+    class Meta:
+        model = ExceptionalHours
+        fields = (
+            "id",
+            "family",
+            "kind",
+            "start_date",
+            "start_time",
+            "end_date",
+            "end_time",
+            "interventions",
+            "notes",
+        )
+        read_only_fields = ("id", "family")
+
+    def validate(self, attrs: dict) -> dict:
+        def resolved(field: str):
+            if field in attrs:
+                return attrs[field]
+            return getattr(self.instance, field, None)
+
+        # Validate the resulting state, not the delta: a PATCH that moves only the
+        # end time must still be checked against the start it will end up with.
+        instance = ExceptionalHours(
+            contract=self.context["contract"],
+            family=self.context["family"],
+            kind=resolved("kind") or ExceptionalHours.Kind.EFFECTIVE,
+            start_date=resolved("start_date"),
+            start_time=resolved("start_time"),
+            end_date=resolved("end_date"),
+            end_time=resolved("end_time"),
+            interventions=resolved("interventions") or 0,
+        )
+        try:
+            instance.clean()
+        except DjangoValidationError as error:
+            raise serializers.ValidationError(error.message_dict) from error
+
+        if _overlaps_schedule(instance):
+            # Scheduled hours are already paid through the mensualisation, so
+            # counting them again pays them twice. A child present outside their
+            # *window* but inside the schedule is a different thing entirely —
+            # that is an ExceptionalPresence.
+            raise serializers.ValidationError(
+                {
+                    "start_time": _(
+                        "These hours overlap the planning. Exceptional hours are the ones "
+                        "worked beyond it."
+                    )
+                }
+            )
+        return attrs
+
+
+def _overlaps_schedule(entry: ExceptionalHours) -> bool:
+    """Does an exceptional entry collide with the week the nanny already works?"""
+    for day in (entry.start_date, entry.end_date):
+        schedule = entry.contract.current_schedule(day)
+        if schedule is None:
+            continue
+        start = entry.start_time if day == entry.start_date else time(0, 0)
+        end = entry.end_time if day == entry.end_date else time(23, 59)
+        for block in schedule.blocks.filter(weekday=day.weekday()):
+            if start < block.end_time and block.start_time < end:
+                return True
+    return False
+
+
+class ExceptionalPresenceSerializer(serializers.ModelSerializer):
+    """A child present on one date outside their usual window.
+
+    The nanny works no longer for it; only the split moves. Contrast
+    ExceptionalHours, which lengthens her day.
+    """
+
+    first_name = serializers.CharField(source="child.first_name", read_only=True)
+
+    class Meta:
+        model = ExceptionalPresence
+        fields = ("id", "child", "first_name", "date", "start_time", "end_time", "notes")
+        read_only_fields = ("id", "first_name")
+
+    def validate(self, attrs: dict) -> dict:
+        instance = ExceptionalPresence(
+            contract=self.context["contract"],
+            child=attrs.get("child") or getattr(self.instance, "child", None),
+            date=attrs.get("date") or getattr(self.instance, "date", None),
+            start_time=attrs.get("start_time") or getattr(self.instance, "start_time", None),
+            end_time=attrs.get("end_time") or getattr(self.instance, "end_time", None),
+        )
+        try:
+            instance.clean()
+        except DjangoValidationError as error:
+            raise serializers.ValidationError(error.message_dict) from error
+        return attrs
+
+
+class MonthlyDeclarationSerializer(serializers.ModelSerializer):
+    """The five numbers pajemploi asks for, and where they came from.
+
+    Almost everything is read-only: it is computed, not typed. ``kilometers`` is
+    the exception — mileage_rate's missing operand, which only a parent knows.
+    """
+
+    warnings = serializers.SerializerMethodField()
+    family_name = serializers.CharField(source="family.name", read_only=True)
+
+    class Meta:
+        model = MonthlyDeclaration
+        fields = (
+            "id",
+            "family",
+            "family_name",
+            "month",
+            "status",
+            "normal_hours",
+            "hours_25",
+            "hours_50",
+            "total_amount",
+            "transport_amount",
+            "benefits_in_kind_amount",
+            "kilometers",
+            "mileage_amount",
+            "night_count",
+            "night_indemnity",
+            "holiday_majoration",
+            "net_hourly_rate",
+            "night_presence_rate",
+            "mileage_rate",
+            "rate_periods",
+            "warnings",
+            "computed_at",
+            "filed_at",
+        )
+        read_only_fields = tuple(f for f in fields if f != "kilometers")
+
+    def get_warnings(self, obj: MonthlyDeclaration) -> list[dict]:
+        """Each warning with the rule behind it, so the UI can show its source.
+
+        A bare code makes a parent take our word for a number they are about to
+        file. The quote and the URL are what let them check it.
+        """
+        out = []
+        for code in obj.warnings or []:
+            source = source_for(code)
+            out.append({"code": code, "source": SourceSerializer(source).data if source else None})
+        return out

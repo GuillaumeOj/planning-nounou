@@ -1,10 +1,12 @@
+from datetime import date, datetime
 from typing import cast
 
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.dateparse import parse_date
+from django.utils.translation import gettext_lazy as _
 from rest_framework import generics, mixins, permissions, status, viewsets
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import AllowAny
 from rest_framework.request import Request
@@ -14,15 +16,27 @@ from rest_framework.serializers import BaseSerializer
 from accounts.models import Family, User
 from accounts.views import FamilyScopedMixin
 
-from .models import BankHoliday, Contract, ContractInvitation, ContractShare, MinimumWage
+from .declarations_repo import declarations_for, file_declaration
+from .models import (
+    BankHoliday,
+    Contract,
+    ContractInvitation,
+    ContractShare,
+    MinimumWage,
+    MonthlyDeclaration,
+)
 from .serializers import (
     BankHolidaySerializer,
+    ContractChildSerializer,
     ContractInvitationPreviewSerializer,
     ContractInvitationSerializer,
     ContractScheduleSerializer,
     ContractSerializer,
     ContractTermsSerializer,
+    ExceptionalHoursSerializer,
+    ExceptionalPresenceSerializer,
     LeaveSerializer,
+    MonthlyDeclarationSerializer,
     MyContractInvitationSerializer,
 )
 
@@ -281,3 +295,193 @@ class ContractInvitationDeclineView(generics.GenericAPIView):
         invitation = _get_actionable_invitation(token)
         invitation.decline()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class FamilyScopedWriteMixin(ContractScopedMixin):
+    """Read every family's rows on the contract; write only the acting family's.
+
+    A shape nothing else in this codebase has, and the reason LeaveViewSet must
+    not simply be copied. Family A's declared hours depend on whether B filed an
+    overlapping entry, so A has to *read* B's rows — but letting A *edit* them
+    would let one employer rewrite the other's declaration.
+
+    ContractScopedMixin only ever checks the contract. That is enough for a Leave,
+    which belongs to the nanny and is contract-wide for both reads and writes. It
+    is not enough here.
+    """
+
+    def get_acting_family(self) -> Family:
+        return self.get_family(manage=True)
+
+    def check_owned(self, instance) -> None:
+        if instance.family_id != self.get_acting_family().id:
+            raise PermissionDenied(_("This entry belongs to another family."))
+
+    def perform_update(self, serializer: BaseSerializer) -> None:
+        self.check_owned(serializer.instance)
+        serializer.save()
+
+    def perform_destroy(self, instance) -> None:
+        self.check_owned(instance)
+        instance.delete()
+
+
+class ContractChildViewSet(
+    ContractScopedMixin,
+    mixins.ListModelMixin,
+    mixins.CreateModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
+    """Which children a contract covers, and the hours they are there.
+
+    Contract-wide for reads and writes, like the schedule it describes: the
+    families agree the arrangement jointly, and one family's windows change the
+    other's declared hours.
+    """
+
+    serializer_class = ContractChildSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        contract = self.get_contract(manage=self.action in _WRITE_ACTIONS)
+        return contract.contract_children.select_related("child").prefetch_related("windows")
+
+    def get_serializer_context(self) -> dict:
+        return {
+            **super().get_serializer_context(),
+            "contract": self.get_contract(manage=self.action in _WRITE_ACTIONS),
+        }
+
+    def perform_create(self, serializer: BaseSerializer) -> None:
+        serializer.save(contract=self.get_contract(manage=True))
+
+
+class ExceptionalHoursViewSet(
+    FamilyScopedWriteMixin,
+    mixins.ListModelMixin,
+    mixins.CreateModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
+    """Hours worked beyond the planning. Read every family's, write your own."""
+
+    serializer_class = ExceptionalHoursSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        # Deliberately unfiltered by family: the acting family's own numbers
+        # depend on what the others filed, so it must see them.
+        return self.get_contract(
+            manage=self.action in _WRITE_ACTIONS
+        ).exceptional_hours.select_related("family")
+
+    def get_serializer_context(self) -> dict:
+        manage = self.action in _WRITE_ACTIONS
+        context = {**super().get_serializer_context(), "contract": self.get_contract(manage=manage)}
+        if manage:
+            context["family"] = self.get_acting_family()
+        return context
+
+    def perform_create(self, serializer: BaseSerializer) -> None:
+        # family is pinned here, never taken from the payload.
+        serializer.save(
+            contract=self.get_contract(manage=True),
+            family=self.get_acting_family(),
+            created_by=self.request.user,
+        )
+
+
+class ExceptionalPresenceViewSet(
+    ContractScopedMixin,
+    mixins.ListModelMixin,
+    mixins.CreateModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
+    viewsets.GenericViewSet,
+):
+    """A child there outside their usual window. Contract-wide: it moves the split
+    between the families, so it is not one family's to hide."""
+
+    serializer_class = ExceptionalPresenceSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        return self.get_contract(
+            manage=self.action in _WRITE_ACTIONS
+        ).exceptional_presences.select_related("child")
+
+    def get_serializer_context(self) -> dict:
+        return {
+            **super().get_serializer_context(),
+            "contract": self.get_contract(manage=self.action in _WRITE_ACTIONS),
+        }
+
+    def perform_create(self, serializer: BaseSerializer) -> None:
+        serializer.save(contract=self.get_contract(manage=True), created_by=self.request.user)
+
+
+class MonthlyDeclarationViewSet(
+    FamilyScopedWriteMixin,
+    mixins.ListModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.UpdateModelMixin,
+    viewsets.GenericViewSet,
+):
+    """What each family declares to pajemploi for a month.
+
+    Listing recomputes every family's draft from live data, so a schedule edited
+    yesterday shows up rather than lurking. A filed declaration is the record of
+    what was actually sent and is returned untouched.
+
+    Read every family's — a parent wants to see the whole arrangement adds up —
+    but write only your own, and only `kilometers`: everything else is computed.
+    """
+
+    serializer_class = MonthlyDeclarationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _month(self) -> date:
+        raw = self.request.query_params.get("month")
+        if not raw:
+            return timezone.localdate().replace(day=1)
+        try:
+            return datetime.strptime(raw, "%Y-%m").date().replace(day=1)
+        except ValueError:
+            raise ValidationError({"month": _("Give a month as YYYY-MM.")}) from None
+
+    def get_queryset(self):
+        contract = self.get_contract(manage=self.action in _WRITE_ACTIONS)
+        if self.action == "list":
+            declarations_for(contract, self._month())
+        return contract.declarations.select_related("family")
+
+    def filter_queryset(self, queryset):
+        if self.action == "list":
+            return queryset.filter(month=self._month())
+        return queryset
+
+    def perform_update(self, serializer: BaseSerializer) -> None:
+        declaration = cast("MonthlyDeclaration", serializer.instance)
+        self.check_owned(declaration)
+        if declaration.is_frozen:
+            raise ValidationError(
+                {"status": _("A filed declaration cannot be changed. Nothing may rewrite it.")}
+            )
+        serializer.save()
+        # Kilometres feed the mileage, so the row is stale the moment they change.
+        declarations_for(declaration.contract, declaration.month)
+        declaration.refresh_from_db()
+
+    @action(detail=True, methods=["post"])
+    def file(self, request, **kwargs):
+        """Freeze this declaration as sent to pajemploi. Idempotent."""
+        declaration = self.get_object()
+        self.check_owned(declaration)
+        file_declaration(declaration, request.user)
+        return Response(self.get_serializer(declaration).data)

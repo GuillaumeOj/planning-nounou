@@ -23,6 +23,25 @@ leave_list = views.LeaveViewSet.as_view({"get": "list", "post": "create"})
 leave_detail = views.LeaveViewSet.as_view(
     {"get": "retrieve", "put": "update", "patch": "partial_update", "delete": "destroy"}
 )
+contract_child_list = views.ContractChildViewSet.as_view({"get": "list", "post": "create"})
+contract_child_detail = views.ContractChildViewSet.as_view(
+    {"get": "retrieve", "put": "update", "patch": "partial_update", "delete": "destroy"}
+)
+exceptional_hours_list = views.ExceptionalHoursViewSet.as_view({"get": "list", "post": "create"})
+exceptional_hours_detail = views.ExceptionalHoursViewSet.as_view(
+    {"get": "retrieve", "put": "update", "patch": "partial_update", "delete": "destroy"}
+)
+exceptional_presence_list = views.ExceptionalPresenceViewSet.as_view(
+    {"get": "list", "post": "create"}
+)
+exceptional_presence_detail = views.ExceptionalPresenceViewSet.as_view(
+    {"get": "retrieve", "put": "update", "patch": "partial_update", "delete": "destroy"}
+)
+declaration_list = views.MonthlyDeclarationViewSet.as_view({"get": "list"})
+declaration_detail = views.MonthlyDeclarationViewSet.as_view(
+    {"get": "retrieve", "patch": "partial_update"}
+)
+declaration_file = views.MonthlyDeclarationViewSet.as_view({"post": "file"})
 invitation_list = views.ContractInvitationViewSet.as_view({"get": "list", "post": "create"})
 invitation_detail = views.ContractInvitationViewSet.as_view({"delete": "destroy"})
 
@@ -72,6 +91,51 @@ urlpatterns = [
         name="contract-leave",
     ),
     # Invitations to share a contract with another family.
+    path(
+        "families/<uuid:family_pk>/contracts/<uuid:contract_pk>/children/",
+        contract_child_list,
+        name="contract-children",
+    ),
+    path(
+        "families/<uuid:family_pk>/contracts/<uuid:contract_pk>/children/<uuid:pk>/",
+        contract_child_detail,
+        name="contract-child",
+    ),
+    path(
+        "families/<uuid:family_pk>/contracts/<uuid:contract_pk>/exceptional-hours/",
+        exceptional_hours_list,
+        name="contract-exceptional-hours",
+    ),
+    path(
+        "families/<uuid:family_pk>/contracts/<uuid:contract_pk>/exceptional-hours/<uuid:pk>/",
+        exceptional_hours_detail,
+        name="contract-exceptional-hour",
+    ),
+    path(
+        "families/<uuid:family_pk>/contracts/<uuid:contract_pk>/exceptional-presences/",
+        exceptional_presence_list,
+        name="contract-exceptional-presences",
+    ),
+    path(
+        "families/<uuid:family_pk>/contracts/<uuid:contract_pk>/exceptional-presences/<uuid:pk>/",
+        exceptional_presence_detail,
+        name="contract-exceptional-presence",
+    ),
+    path(
+        "families/<uuid:family_pk>/contracts/<uuid:contract_pk>/declarations/",
+        declaration_list,
+        name="contract-declarations",
+    ),
+    path(
+        "families/<uuid:family_pk>/contracts/<uuid:contract_pk>/declarations/<uuid:pk>/",
+        declaration_detail,
+        name="contract-declaration",
+    ),
+    path(
+        "families/<uuid:family_pk>/contracts/<uuid:contract_pk>/declarations/<uuid:pk>/file/",
+        declaration_file,
+        name="contract-declaration-file",
+    ),
     path(
         "families/<uuid:family_pk>/contracts/<uuid:contract_pk>/invitations/",
         invitation_list,
