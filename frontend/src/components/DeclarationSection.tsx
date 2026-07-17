@@ -261,12 +261,12 @@ function DeclarationCard({
   const queryClient = useQueryClient()
   const [errors, setErrors] = useState<string[]>([])
 
-  const isOwn = declaration.family === familyId
   const isFiled = declaration.status === 'filed'
   // The one place that decides whether the kilometres control is showing. The
-  // mileage row below is its complement, so the two cannot drift apart and
-  // leave a declaration — the other family's draft — showing neither.
-  const editsKilometers = isOwn && !isFiled
+  // mileage row below is its complement, so a figure can never end up with
+  // neither. Every row the endpoint returns is the acting family's, so being
+  // yours is no longer part of the question.
+  const editsKilometers = !isFiled
 
   const fileMutation = useMutation({
     mutationFn: () => fileDeclaration(familyId, contractId, declaration.id),
@@ -354,22 +354,9 @@ function DeclarationCard({
   ]
 
   return (
-    <div
-      className={cn(
-        'flex flex-col gap-4 rounded-md border p-3',
-        // Your own is the one you act on; the others are context.
-        isOwn && 'border-primary/40 bg-primary/5',
-      )}
-    >
+    <div className="flex flex-col gap-4 rounded-md border border-primary/40 bg-primary/5 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="font-medium">
-          {declaration.family_name}
-          {isOwn && (
-            <span className="ml-2 text-xs font-normal text-muted-foreground">
-              {t('declaration.yours')}
-            </span>
-          )}
-        </h3>
+        <h3 className="font-medium">{declaration.family_name}</h3>
         <span
           className={cn(
             'rounded-full px-2 py-0.5 text-xs font-medium',
@@ -408,7 +395,7 @@ function DeclarationCard({
             {formatDate(declaration.filed_at.slice(0, 10), lang)}
           </p>
         )
-      ) : isOwn ? (
+      ) : (
         <div className="self-start">
           <ConfirmButton
             variant="default"
@@ -423,7 +410,7 @@ function DeclarationCard({
             onConfirm={() => fileMutation.mutate()}
           />
         </div>
-      ) : null}
+      )}
     </div>
   )
 }

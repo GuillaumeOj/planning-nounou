@@ -24,7 +24,6 @@ const m = {
 }
 
 const OWN_FAMILY = 'fam-1'
-const OTHER_FAMILY = 'fam-2'
 
 const contract = {
   id: 'contract-1',
@@ -101,6 +100,19 @@ describe('DeclarationSection', () => {
   it('names the nanny the declaration is for', async () => {
     render()
     expect(await screen.findByText('Marie Dupont')).toBeInTheDocument()
+  })
+
+  // The endpoint returns the acting family's row and nobody else's — B's hours
+  // and B's salary are B's — so there is exactly one card and it is always
+  // yours. The gating that used to live here is a backend test now.
+  it('shows the acting family’s declaration, and only it', async () => {
+    render()
+
+    expect(await screen.findByText('Ada')).toBeInTheDocument()
+    expect(screen.getAllByLabelText('Kilometres driven')).toHaveLength(1)
+    expect(
+      screen.getAllByRole('button', { name: 'File this month' }),
+    ).toHaveLength(1)
   })
 
   it('says so when there is nothing to declare', async () => {
@@ -307,68 +319,6 @@ describe('DeclarationSection filing', () => {
   it('marks a draft as a draft', async () => {
     render()
     expect(await screen.findByText('Draft')).toBeInTheDocument()
-  })
-})
-
-describe('DeclarationSection other families', () => {
-  // A parent wants to see the whole arrangement adds up, so the other family's
-  // declaration is shown — but the backend refuses writes to it, and so does the UI.
-  it('shows the other family’s declaration read-only', async () => {
-    m.declarations.mockResolvedValue([
-      makeDeclaration(),
-      makeDeclaration({
-        id: 'dec-2',
-        family: OTHER_FAMILY,
-        family_name: 'Martin',
-        total_amount: '800.00',
-      }),
-    ])
-    render()
-
-    expect(await screen.findByText('Martin')).toBeInTheDocument()
-    expect(screen.getByText('€800.00')).toBeInTheDocument()
-
-    // One of each control: the own card's, never the other's.
-    expect(screen.getAllByLabelText('Kilometres driven')).toHaveLength(1)
-    expect(
-      screen.getAllByRole('button', { name: 'File this month' }),
-    ).toHaveLength(1)
-  })
-
-  // Anything without a kilometres control still has to show its mileage, or the
-  // figure would exist on the backend and appear nowhere.
-  it('shows the other family’s mileage, draft or not', async () => {
-    m.declarations.mockResolvedValue([
-      makeDeclaration(),
-      makeDeclaration({
-        id: 'dec-2',
-        family: OTHER_FAMILY,
-        family_name: 'Martin',
-        kilometers: '42.00',
-        mileage_amount: '18.90',
-      }),
-    ])
-    render()
-
-    expect(await screen.findByText('Martin')).toBeInTheDocument()
-    expect(screen.getByText('Mileage')).toBeInTheDocument()
-    expect(screen.getByText('€18.90')).toBeInTheDocument()
-    // Shown, never editable: the backend refuses the write anyway.
-    expect(screen.getAllByLabelText('Kilometres driven')).toHaveLength(1)
-  })
-
-  it('marks which one is yours', async () => {
-    m.declarations.mockResolvedValue([
-      makeDeclaration(),
-      makeDeclaration({
-        id: 'dec-2',
-        family: OTHER_FAMILY,
-        family_name: 'Martin',
-      }),
-    ])
-    render()
-
-    expect(await screen.findByText('Your declaration')).toBeInTheDocument()
   })
 })
 

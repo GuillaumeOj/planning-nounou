@@ -297,33 +297,46 @@ class ContractInvitationDeclineView(generics.GenericAPIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class FamilyScopedWriteMixin(ContractScopedMixin):
-    """Read every family's rows on the contract; write only the acting family's.
+class FamilyPrivateMixin(ContractScopedMixin):
+    """Rows that belong to one family on a shared contract, and are private to it.
 
-    A shape nothing else in this codebase has, and the reason LeaveViewSet must
-    not simply be copied. Family A's declared hours depend on whether B filed an
-    overlapping entry, so A has to *read* B's rows — but letting A *edit* them
-    would let one employer rewrite the other's declaration.
+    The two employers share a nanny, not a payslip. What B pays her, and which
+    evenings B kept her late, are B's — so A never reads them, and of course
+    never writes them.
 
-    ContractScopedMixin only ever checks the contract. That is enough for a Leave,
-    which belongs to the nanny and is contract-wide for both reads and writes. It
-    is not enough here.
+    This does *not* mean A's numbers are computed in ignorance of B's. They
+    cannot be: the split bands the nanny's whole week before dividing it
+    (art. 144.2), so A's overtime depends on hours B filed. That arithmetic
+    happens in declarations.py, which reads the database directly and needs no
+    permission from anyone. The dependency is real; shipping B's rows to A's
+    browser was never what satisfied it.
+
+    ContractScopedMixin only ever checks the *contract*. That is right for a
+    Leave — it belongs to the nanny, and both employers must see when she is off
+    — and wrong here.
+
+    Scoping the queryset rather than checking ownership on the way out is what
+    makes a cross-family read a 404 rather than a 403. A 403 reading "this entry
+    belongs to another family" confirms the entry exists, which is the very thing
+    being kept private.
     """
 
+    #: Set by ViewSet dispatch; declared so the mixin may read it on its own.
+    action: str
+
+    #: Actions that need manage rights on the acting family. Subclasses with a
+    #: custom write action (declarations have `file`) extend this.
+    write_actions: tuple[str, ...] = _WRITE_ACTIONS
+
+    def _manage(self) -> bool:
+        return self.action in self.write_actions
+
     def get_acting_family(self) -> Family:
-        return self.get_family(manage=True)
+        return self.get_family(manage=self._manage())
 
-    def check_owned(self, instance) -> None:
-        if instance.family_id != self.get_acting_family().id:
-            raise PermissionDenied(_("This entry belongs to another family."))
-
-    def perform_update(self, serializer: BaseSerializer) -> None:
-        self.check_owned(serializer.instance)
-        serializer.save()
-
-    def perform_destroy(self, instance) -> None:
-        self.check_owned(instance)
-        instance.delete()
+    def scoped_to_family(self, queryset):
+        """The acting family's rows, and no one else's."""
+        return queryset.filter(family=self.get_acting_family())
 
 
 class ContractChildViewSet(
@@ -360,7 +373,7 @@ class ContractChildViewSet(
 
 
 class ExceptionalHoursViewSet(
-    FamilyScopedWriteMixin,
+    FamilyPrivateMixin,
     mixins.ListModelMixin,
     mixins.CreateModelMixin,
     mixins.RetrieveModelMixin,
@@ -368,20 +381,23 @@ class ExceptionalHoursViewSet(
     mixins.DestroyModelMixin,
     viewsets.GenericViewSet,
 ):
-    """Hours worked beyond the planning. Read every family's, write your own."""
+    """Hours worked beyond the planning. Your family's only.
+
+    An evening B kept the nanny late is B's business with her. It still lengthens
+    the nanny's week, and so can push A into overtime — compute_month reads every
+    family's rows to work that out. It just does it server-side.
+    """
 
     serializer_class = ExceptionalHoursSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        # Deliberately unfiltered by family: the acting family's own numbers
-        # depend on what the others filed, so it must see them.
-        return self.get_contract(
-            manage=self.action in _WRITE_ACTIONS
-        ).exceptional_hours.select_related("family")
+        return self.scoped_to_family(
+            self.get_contract(manage=self._manage()).exceptional_hours.select_related("family")
+        )
 
     def get_serializer_context(self) -> dict:
-        manage = self.action in _WRITE_ACTIONS
+        manage = self._manage()
         context = {**super().get_serializer_context(), "contract": self.get_contract(manage=manage)}
         if manage:
             context["family"] = self.get_acting_family()
@@ -427,24 +443,27 @@ class ExceptionalPresenceViewSet(
 
 
 class MonthlyDeclarationViewSet(
-    FamilyScopedWriteMixin,
+    FamilyPrivateMixin,
     mixins.ListModelMixin,
     mixins.RetrieveModelMixin,
     mixins.UpdateModelMixin,
     viewsets.GenericViewSet,
 ):
-    """What each family declares to pajemploi for a month.
+    """What the acting family declares to pajemploi for a month.
 
-    Listing recomputes every family's draft from live data, so a schedule edited
-    yesterday shows up rather than lurking. A filed declaration is the record of
-    what was actually sent and is returned untouched.
+    Listing recomputes *every* family's draft from live data — the split is one
+    calculation over the nanny's whole month, and B's row would go stale if only
+    A's were rebuilt — but returns only the acting family's. What B pays her is
+    B's. A filed declaration is the record of what was actually sent and is
+    returned untouched.
 
-    Read every family's — a parent wants to see the whole arrangement adds up —
-    but write only your own, and only `kilometers`: everything else is computed.
+    Only `kilometers` is writable: everything else is computed.
     """
 
     serializer_class = MonthlyDeclarationSerializer
     permission_classes = [permissions.IsAuthenticated]
+    # Filing is a write, and DRF's default write set does not know the name.
+    write_actions = (*_WRITE_ACTIONS, "file")
 
     def _month(self) -> date:
         raw = self.request.query_params.get("month")
@@ -456,10 +475,11 @@ class MonthlyDeclarationViewSet(
             raise ValidationError({"month": _("Give a month as YYYY-MM.")}) from None
 
     def get_queryset(self):
-        contract = self.get_contract(manage=self.action in _WRITE_ACTIONS)
+        contract = self.get_contract(manage=self._manage())
         if self.action == "list":
+            # Computes both families' rows; scoped_to_family returns one of them.
             declarations_for(contract, self._month())
-        return contract.declarations.select_related("family")
+        return self.scoped_to_family(contract.declarations.select_related("family"))
 
     def filter_queryset(self, queryset):
         if self.action == "list":
@@ -468,7 +488,6 @@ class MonthlyDeclarationViewSet(
 
     def perform_update(self, serializer: BaseSerializer) -> None:
         declaration = cast("MonthlyDeclaration", serializer.instance)
-        self.check_owned(declaration)
         if declaration.is_frozen:
             raise ValidationError(
                 {"status": _("A filed declaration cannot be changed. Nothing may rewrite it.")}
@@ -482,6 +501,5 @@ class MonthlyDeclarationViewSet(
     def file(self, request, **kwargs):
         """Freeze this declaration as sent to pajemploi. Idempotent."""
         declaration = self.get_object()
-        self.check_owned(declaration)
         file_declaration(declaration, request.user)
         return Response(self.get_serializer(declaration).data)

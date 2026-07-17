@@ -1,10 +1,18 @@
 """The declaration API, and the permission shape it introduces.
 
-ExceptionalHours and MonthlyDeclaration are readable contract-wide and writable
-family-scoped — a shape nothing else here has. Family A's numbers depend on what
-B filed, so A must read B's rows; letting A write them would let one employer
-rewrite the other's declaration. LeaveViewSet is contract-wide for both, so
-copying it is the bug these tests exist to catch.
+ExceptionalHours and MonthlyDeclaration are private to the family that filed
+them — a shape nothing else here has. The two employers share a nanny, not a
+payslip: what B pays her, and which evenings B kept her late, are B's.
+
+The subtlety these tests exist to pin down is that A's numbers still *depend* on
+B's rows — the split bands the nanny's whole week before dividing it — while A
+never *sees* them. That dependency is settled server-side in declarations.py,
+which reads the database directly. So the sum invariant is asserted against the
+database, and the API is asserted to hand back one family's row and 404 the
+other's. A 403 would confirm the row exists, which is the thing being hidden.
+
+LeaveViewSet is contract-wide for both reads and writes — right for a day off,
+which belongs to the nanny — so copying it here is the bug these tests catch.
 """
 
 from datetime import date, time
@@ -159,9 +167,10 @@ def test_the_family_cannot_be_chosen_from_the_payload(client, owner, family, sha
     assert resp.data["family"] == family.id
 
 
-def test_a_family_reads_the_other_familys_entries(client, owner, family, shared, other_family):
-    """Not a leak — a necessity. A's declared hours depend on whether B filed an
-    overlapping evening, so A cannot compute its own month without seeing B's."""
+def test_a_family_does_not_read_the_other_familys_entries(
+    client, owner, family, shared, other_family
+):
+    """An evening B kept the nanny late is B's business with her, not A's."""
     ExceptionalHours.objects.create(
         contract=shared,
         family=other_family,
@@ -173,8 +182,38 @@ def test_a_family_reads_the_other_familys_entries(client, owner, family, shared,
     client.force_authenticate(user=owner)
     resp = client.get(hours_url(family, shared))
     assert resp.status_code == 200
-    assert len(resp.data) == 1
-    assert resp.data[0]["family"] == other_family.id
+    assert resp.data == []
+
+
+def test_a_family_reads_only_its_own_entries(client, owner, family, shared, other_family):
+    """The list is filtered, not emptied: A's own entries are still A's to see."""
+    ExceptionalHours.objects.create(
+        contract=shared,
+        family=other_family,
+        start_date=date(2026, 7, 14),
+        start_time=time(18, 30),
+        end_date=date(2026, 7, 14),
+        end_time=time(20, 0),
+    )
+    client.force_authenticate(user=owner)
+    post_hours(client, family, shared, start_date="2026-07-15", end_date="2026-07-15")
+    resp = client.get(hours_url(family, shared))
+    assert [r["family"] for r in resp.data] == [family.id]
+
+
+def test_the_other_familys_entry_is_a_404_not_a_403(client, owner, family, shared, other_family):
+    """404, deliberately. A 403 saying "this belongs to another family" answers
+    the question A is not allowed to ask."""
+    theirs = ExceptionalHours.objects.create(
+        contract=shared,
+        family=other_family,
+        start_date=date(2026, 7, 14),
+        start_time=time(18, 30),
+        end_date=date(2026, 7, 14),
+        end_time=time(20, 0),
+    )
+    client.force_authenticate(user=owner)
+    assert client.get(hour_url(family, shared, theirs.id)).status_code == 404
 
 
 def test_a_family_cannot_edit_the_other_familys_entry(client, owner, family, shared, other_family):
@@ -189,7 +228,7 @@ def test_a_family_cannot_edit_the_other_familys_entry(client, owner, family, sha
     )
     client.force_authenticate(user=owner)
     resp = client.patch(hour_url(family, shared, theirs.id), {"end_time": "23:00"})
-    assert resp.status_code == 403
+    assert resp.status_code == 404
     theirs.refresh_from_db()
     assert theirs.end_time == time(20, 0)
 
@@ -206,7 +245,7 @@ def test_a_family_cannot_delete_the_other_familys_entry(
         end_time=time(20, 0),
     )
     client.force_authenticate(user=owner)
-    assert client.delete(hour_url(family, shared, theirs.id)).status_code == 403
+    assert client.delete(hour_url(family, shared, theirs.id)).status_code == 404
     assert ExceptionalHours.objects.filter(pk=theirs.pk).exists()
 
 
@@ -271,14 +310,22 @@ def test_reading_exceptional_hours_requires_family_access(client, outsider, fami
 # --- declarations -------------------------------------------------------------
 
 
-def test_listing_computes_a_draft_per_family(client, owner, family, shared):
+def test_listing_computes_a_draft_per_family_and_returns_only_yours(
+    client, owner, family, shared, other_family
+):
+    """Both rows are rebuilt — the split is one calculation over the nanny's whole
+    month, so B's would go stale if only A's were — but only A's comes back."""
     client.force_authenticate(user=owner)
     resp = client.get(declarations_url(family, shared), {"month": "2026-07"})
     assert resp.status_code == 200
-    assert len(resp.data) == 2
-    assert all(row["status"] == "draft" for row in resp.data)
-    mine = next(r for r in resp.data if r["family"] == family.id)
-    assert Decimal(mine["normal_hours"]) > 0
+    assert [r["family"] for r in resp.data] == [family.id]
+    assert resp.data[0]["status"] == "draft"
+    assert Decimal(resp.data[0]["normal_hours"]) > 0
+
+    # B's draft exists all the same; it just never left the server.
+    assert MonthlyDeclaration.objects.filter(
+        contract=shared, family=other_family, month=date(2026, 7, 1)
+    ).exists()
 
 
 def test_a_bad_month_is_a_400_not_a_500(client, owner, family, wired):
@@ -359,18 +406,30 @@ def test_a_filed_declaration_refuses_to_be_edited(client, owner, family, wired):
 def test_a_family_cannot_file_the_other_familys_declaration(
     client, owner, family, shared, other_family
 ):
+    """Reached by id straight from the database, since the API would never name it."""
     client.force_authenticate(user=owner)
-    rows = client.get(declarations_url(family, shared), {"month": "2026-07"}).data
-    theirs = next(r for r in rows if r["family"] == other_family.id)
-    assert client.post(file_url(family, shared, theirs["id"])).status_code == 403
-    assert MonthlyDeclaration.objects.get(pk=theirs["id"]).status == "draft"
+    client.get(declarations_url(family, shared), {"month": "2026-07"})
+    theirs = MonthlyDeclaration.objects.get(
+        contract=shared, family=other_family, month=date(2026, 7, 1)
+    )
+    assert client.post(file_url(family, shared, theirs.id)).status_code == 404
+    theirs.refresh_from_db()
+    assert theirs.status == "draft"
 
 
-def test_a_family_reads_the_other_familys_declaration(client, owner, family, shared, other_family):
-    """A parent wants to see the whole arrangement adds up to the nanny's month."""
+def test_a_family_does_not_read_the_other_familys_declaration(
+    client, owner, family, shared, other_family
+):
+    """What B pays the nanny is between B and the nanny."""
     client.force_authenticate(user=owner)
     rows = client.get(declarations_url(family, shared), {"month": "2026-07"}).data
-    assert {r["family"] for r in rows} == {family.id, other_family.id}
+    assert {r["family"] for r in rows} == {family.id}
+
+    theirs = MonthlyDeclaration.objects.get(
+        contract=shared, family=other_family, month=date(2026, 7, 1)
+    )
+    detail = reverse("tracking:contract-declaration", args=[family.id, shared.id, theirs.id])
+    assert client.get(detail).status_code == 404
 
 
 def test_member_can_read_declarations(client, member, family, wired):
@@ -384,14 +443,22 @@ def test_reading_declarations_requires_family_access(client, outsider, family, w
 
 
 def test_the_shared_month_adds_up_to_the_nannys_month(client, owner, family, shared, other_family):
-    """The invariant, through the API: what the families declare between them is
-    what the nanny actually worked."""
+    """The invariant: what the families declare between them is what the nanny
+    actually worked.
+
+    Asserted against the database, because no single caller of the API can see
+    both halves any more — which is the point. The split still has to add up; a
+    family simply has to take that on trust now, and this is what makes the trust
+    good.
+    """
     for fam in (family, other_family):
         child = Child.objects.create(family=fam, first_name="Kid")
         ContractChild.objects.create(contract=shared, child=child)
     client.force_authenticate(user=owner)
-    rows = client.get(declarations_url(family, shared), {"month": "2026-07"}).data
-    declared = sum(
-        Decimal(r["normal_hours"]) + Decimal(r["hours_25"]) + Decimal(r["hours_50"]) for r in rows
-    )
+    # One GET rebuilds both drafts.
+    client.get(declarations_url(family, shared), {"month": "2026-07"})
+
+    rows = MonthlyDeclaration.objects.filter(contract=shared, month=date(2026, 7, 1))
+    assert {r.family_id for r in rows} == {family.id, other_family.id}
+    declared = sum(r.normal_hours + r.hours_25 + r.hours_50 for r in rows)
     assert declared == Decimal("173.33")  # 40h x 52 / 12

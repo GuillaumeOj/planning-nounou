@@ -235,7 +235,6 @@ const en = {
   'declaration.none': 'Nothing to declare for this month.',
   // Not contract.empty: that one points at an add form, and there is none here.
   'declaration.noContracts': 'No nannies yet. Add one to declare their hours.',
-  'declaration.yours': 'Your declaration',
   'declaration.status.draft': 'Draft',
   'declaration.status.filed': 'Filed',
   'declaration.filedOn': 'Filed on',
@@ -686,7 +685,6 @@ const fr: Record<TranslationKey, string> = {
   // Pas contract.empty : celle-ci renvoie à un formulaire d’ajout, absent ici.
   'declaration.noContracts':
     'Aucune nounou pour le moment. Ajoutez-en une pour déclarer ses heures.',
-  'declaration.yours': 'Votre déclaration',
   'declaration.status.draft': 'Brouillon',
   'declaration.status.filed': 'Déclaré',
   'declaration.filedOn': 'Déclaré le',

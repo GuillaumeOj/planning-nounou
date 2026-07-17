@@ -240,16 +240,19 @@ describe('ExceptionalHoursSection', () => {
     await waitFor(() => expect(m.del).toHaveBeenCalledWith('1', '10', 'H1'))
   })
 
-  it('reads the other family’s entries without offering to change them', async () => {
-    m.get.mockResolvedValue([makeHours({ family: '2' })])
+  // The endpoint returns the acting family's entries and nobody else's — an
+  // evening the other family kept the nanny late is their business with her —
+  // so every row here is yours to edit. What the API hands back is a backend
+  // test now; what this one owes is that the row offers its controls.
+  it('offers Edit and Delete on the entries it is given', async () => {
+    m.get.mockResolvedValue([makeHours()])
     render()
-    // Its own pay depends on what the other family filed, so it must see it —
-    // and the API would refuse the write anyway.
+
     expect(
       await screen.findByText(/07\/06\/2026 6:00 PM → 8:00 PM/),
     ).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Edit' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
   })
 
   it('surfaces the reason the server refused the combination', async () => {

@@ -302,26 +302,22 @@ export function ExceptionalHoursSection({
               <span className="min-w-0 text-muted-foreground">
                 {describe(entry)}
               </span>
-              {/* The other family's entries are readable and theirs alone to
-                  change; the API would refuse the write anyway. */}
-              {entry.family === familyId && (
-                <span className="flex shrink-0 gap-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => open(entry.id, entryToDraft(entry))}
-                  >
-                    {t('nanny.edit')}
-                  </Button>
-                  <ConfirmButton
-                    trigger={t('nanny.delete')}
-                    title={t('nanny.delete')}
-                    description={t('exceptional.hours.confirmDelete')}
-                    onConfirm={() => deleteMutation.mutate(entry.id)}
-                  />
-                </span>
-              )}
+              <span className="flex shrink-0 gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => open(entry.id, entryToDraft(entry))}
+                >
+                  {t('nanny.edit')}
+                </Button>
+                <ConfirmButton
+                  trigger={t('nanny.delete')}
+                  title={t('nanny.delete')}
+                  description={t('exceptional.hours.confirmDelete')}
+                  onConfirm={() => deleteMutation.mutate(entry.id)}
+                />
+              </span>
             </li>
           ))}
         </ul>
