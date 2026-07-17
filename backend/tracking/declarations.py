@@ -176,8 +176,6 @@ class LeaveSpan:
     end_date: date
     portion: str
     hours: Decimal | None = None
-    start_time: time | None = None
-    end_time: time | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -526,8 +524,12 @@ def segment_weights(
 # --- banding -----------------------------------------------------------------
 
 
-def _band_at(position: int) -> tuple[int, int | None]:
-    """The band a minute at `position` in the week falls in, and its room left."""
+def _band_at(position):
+    """The band a minute at `position` in the week falls in, and its room left.
+
+    Numeric-agnostic on purpose: an int position gives an int room, a Fraction
+    position gives a Fraction one. See allocate_bands.
+    """
     if position < WEEKLY_NORMAL_MINUTES:
         return BAND_NORMAL, WEEKLY_NORMAL_MINUTES - position
     limit = WEEKLY_NORMAL_MINUTES + WEEKLY_BAND_25_MINUTES
@@ -544,9 +546,16 @@ def _add_band(bands: Bands, band: int, minutes: Fraction) -> Bands:
     return Bands(bands.normal, bands.at_25, bands.at_50 + minutes)
 
 
-def allocate_bands(start_position: int, minutes: int) -> list[tuple[int, int]]:
-    """Split `minutes` starting at `start_position` in the week into (band, minutes)."""
-    out: list[tuple[int, int]] = []
+def allocate_bands(start_position, minutes):
+    """Split `minutes` starting at `start_position` in the week into (band, minutes).
+
+    Works on ints and Fractions alike, and must: présence responsable converts at
+    two thirds, so a week's exceptional minutes are rarely whole. Truncating the
+    position to an int — as a separate "exact" variant of this function once did —
+    puts a whole minute in the band below whenever the position lands mid-minute
+    on a threshold, quietly defeating the exact arithmetic this module rests on.
+    """
+    out = []
     position, left = start_position, minutes
     while left > 0:
         band, room = _band_at(position)
@@ -865,19 +874,29 @@ def presence_corrections(
             continue
         if day < data.starting_date or (data.ending_date and day > data.ending_date):
             continue
-        blocks = tuple(b for b in schedule.blocks if b.weekday == day.weekday())
-        if not blocks:
+        if not any(b.weekday == day.weekday() for b in schedule.blocks):
             continue
-        one_day = replace(schedule, blocks=blocks)
-        before = band_week(one_day, children, data.split_method, data.family_ids)
+        # Band the WHOLE week both ways and diff that weekday's slice. Re-banding
+        # the day on its own would walk it from position 0, so a Friday in a 45h
+        # week — which really straddles the 40h line — would report its whole
+        # correction as normal hours and never touch the 25% band. The override
+        # moves presence, not minutes, so both walks hit the same band boundaries
+        # and the difference is exact per band.
+        before = band_week(schedule, children, data.split_method, data.family_ids)
         after = band_week(
-            one_day, children, data.split_method, data.family_ids, day=day, overrides=by_day[day]
+            schedule,
+            children,
+            data.split_method,
+            data.family_ids,
+            day=day,
+            overrides=by_day[day],
         )
+        weekday = day.weekday()
         for family_id in data.family_ids:
             out[family_id] = (
                 out[family_id]
-                + after.total.get(family_id, Bands())
-                - before.total.get(family_id, Bands())
+                + after.by_weekday.get(weekday, {}).get(family_id, Bands())
+                - before.by_weekday.get(weekday, {}).get(family_id, Bands())
             )
     return dict(out)
 
@@ -1086,12 +1105,23 @@ def _exceptional_bands(
             else 0
         )
 
-        # Every kind in the week, pooled, so the bands are walked once.
+        # Reconcile each kind's entries AS A SET, then pool the kinds so the bands
+        # are walked once. Passing one entry at a time reads harmlessly and is the
+        # whole bug: a lone entry has nothing to reconcile against, so every filer
+        # collects 100% of its own hours, and two families on the same evening bill
+        # the nanny for it twice. Kinds are grouped first because they do not
+        # reconcile with each other — a night and an evening are different work.
+        by_kind: defaultdict[str, list[ExceptionalEntry]] = defaultdict(list)
+        for entry, _ratio in entries:
+            by_kind[entry.kind].append(entry)
+
         per_family: defaultdict[UUID, Fraction] = defaultdict(Fraction)
-        for entry, ratio in entries:
-            split = reconcile_exceptional([entry], children, data.split_method, data.family_ids)
+        for kind, kind_entries in by_kind.items():
+            split = reconcile_exceptional(
+                kind_entries, children, data.split_method, data.family_ids
+            )
             for family_id, minutes in split.items():
-                per_family[family_id] += minutes * ratio
+                per_family[family_id] += minutes * kinds[kind]
 
         total = sum(per_family.values(), Fraction(0))
         if total <= 0:
@@ -1102,22 +1132,9 @@ def _exceptional_bands(
         position = Fraction(contractual)
         for family_id, family_minutes in per_family.items():
             share = family_minutes / total
-            for band, minutes in allocate_bands_exact(position, total):
+            for band, minutes in allocate_bands(position, total):
                 out[family_id] = _add_band(out[family_id], band, minutes * share)
     return dict(out)
-
-
-def allocate_bands_exact(start_position: Fraction, minutes: Fraction) -> list[tuple[int, Fraction]]:
-    """:func:`allocate_bands` over exact minutes, for hours that are not whole."""
-    out: list[tuple[int, Fraction]] = []
-    position, left = start_position, minutes
-    while left > 0:
-        band, room = _band_at(int(position))
-        take = left if room is None else min(left, Fraction(room))
-        out.append((band, take))
-        position += take
-        left -= take
-    return out
 
 
 def night_indemnity_ratio(interventions: int) -> Fraction:

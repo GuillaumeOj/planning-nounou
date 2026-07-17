@@ -984,3 +984,126 @@ def test_the_majoration_reaches_the_total():
     plain = d.compute_month(month())[FAMILY_A]
     worked = d.compute_month(month(holidays=(bastille_day(is_workable=True),)))[FAMILY_A]
     assert worked.total_amount - plain.total_amount == Decimal("12.00")
+
+
+# --- reconciliation, through compute_month ------------------------------------
+#
+# These go through compute_month deliberately. reconcile_exceptional was correct
+# and unit-tested all along; its caller passed it one entry at a time, so nothing
+# reconciled and a shared evening billed the nanny twice. Every assertion that
+# mattered was one level below the bug.
+
+
+def two_family_month(**kw):
+    a, b = child(FAMILY_A), child(FAMILY_B)
+    return month(children=(a, b), families=(FAMILY_A, FAMILY_B), **kw)
+
+
+def declared(results):
+    return sum(r.normal_hours + r.hours_25 + r.hours_50 for r in results.values())
+
+
+def evening(family, start, end, kind="effective", day=14):
+    return d.ExceptionalEntry(
+        family, kind, date(2026, 7, day), time(start, 0), date(2026, 7, day), time(end, 0)
+    )
+
+
+def test_two_families_on_the_same_evening_pay_for_it_once():
+    both = (evening(FAMILY_A, 18, 20), evening(FAMILY_B, 18, 20))
+    plain = d.compute_month(two_family_month())
+    shared = d.compute_month(two_family_month(exceptional=both))
+    # The nanny worked those two hours once.
+    assert declared(shared) - declared(plain) == Decimal("2.00")
+
+
+def test_the_overlap_is_shared_and_the_rest_stays_with_the_filer():
+    # A needs 18:00-21:00, B needs 18:00-20:00. The nanny works 3h.
+    entries = (evening(FAMILY_A, 18, 21), evening(FAMILY_B, 18, 20))
+    plain = d.compute_month(two_family_month())
+    shared = d.compute_month(two_family_month(exceptional=entries))
+    assert declared(shared) - declared(plain) == Decimal("3.00")
+
+    def gained(family):
+        return (shared[family].normal_hours + shared[family].hours_25 + shared[family].hours_50) - (
+            plain[family].normal_hours + plain[family].hours_25 + plain[family].hours_50
+        )
+
+    # 18:00-20:00 halved, 20:00-21:00 wholly A's.
+    assert gained(FAMILY_A) == Decimal("2.00")
+    assert gained(FAMILY_B) == Decimal("1.00")
+
+
+def test_one_family_filing_alone_still_carries_all_of_it():
+    plain = d.compute_month(two_family_month())
+    solo = d.compute_month(two_family_month(exceptional=(evening(FAMILY_A, 18, 20),)))
+
+    def gained(family, results):
+        return (
+            results[family].normal_hours + results[family].hours_25 + results[family].hours_50
+        ) - (plain[family].normal_hours + plain[family].hours_25 + plain[family].hours_50)
+
+    assert gained(FAMILY_A, solo) == Decimal("2.00")
+    assert gained(FAMILY_B, solo) == Decimal("0")
+
+
+def test_a_family_filing_the_same_evening_twice_is_not_paid_for_both():
+    # The union runs inside reconcile_exceptional; this checks it survives the trip
+    # through compute_month too.
+    sloppy = (evening(FAMILY_A, 18, 20), evening(FAMILY_A, 19, 21))
+    plain = d.compute_month(two_family_month())
+    result = d.compute_month(two_family_month(exceptional=sloppy))
+    assert declared(result) - declared(plain) == Decimal("3.00")  # 18:00-21:00, not 4h
+
+
+def test_nights_and_evenings_do_not_reconcile_with_each_other():
+    # Different work: an evening for A and a night for B on the same date must not
+    # be treated as one shared span.
+    entries = (
+        evening(FAMILY_A, 18, 20),
+        d.ExceptionalEntry(
+            FAMILY_B,
+            "night_presence",
+            date(2026, 7, 14),
+            time(21, 0),
+            date(2026, 7, 15),
+            time(1, 0),
+        ),
+    )
+    plain = d.compute_month(two_family_month(terms_=(terms("12.00"),)))
+    result = d.compute_month(two_family_month(terms_=(terms("12.00"),), exceptional=entries))
+    # Only the evening is hours; the night is an indemnity and stays out of them.
+    assert declared(result) - declared(plain) == Decimal("2.00")
+    assert result[FAMILY_B].night_indemnity == Decimal("12.00")
+    assert result[FAMILY_A].night_indemnity == Decimal("0")
+
+
+# --- a presence override lands in the band its day really sits in --------------
+
+
+def test_a_correction_on_a_late_week_day_reaches_the_overtime_band():
+    # A 45h week is 40h normal + 5h at 25%, so Friday straddles the line. Banding
+    # the day on its own would walk it from zero and call the whole correction
+    # normal, leaving the 25% counts wrong on both declarations.
+    a1 = child(FAMILY_A, child_id=UUID("11111111-0000-0000-0000-000000000001"))
+    a2 = child(
+        FAMILY_A,
+        *[(day, time(16, 0), time(17, 0)) for day in range(5)],
+        child_id=UUID("11111111-0000-0000-0000-000000000002"),
+    )
+    b1 = child(FAMILY_B, child_id=UUID("22222222-0000-0000-0000-000000000001"))
+    children = by_id(a1, a2, b1)
+    blocks = [block(day, time(8, 0), time(17, 0)) for day in range(5)]  # 45h
+    friday = d.PresenceOverride(a2.child_id, date(2026, 7, 17), time(8, 0), time(16, 0))
+    data = month(
+        children=(a1, a2, b1),
+        schedules=(schedule(*blocks),),
+        split="by_children",
+        families=(FAMILY_A, FAMILY_B),
+        overrides=(friday,),
+    )
+    corrections = d.presence_corrections(data, children)
+    assert corrections[FAMILY_A].at_25 != 0, "a Friday correction never touched the 25% band"
+    # Still a transfer: the nanny's day is no longer for it.
+    assert (corrections[FAMILY_A] + corrections[FAMILY_B]).total == 0
+    assert corrections[FAMILY_A].at_25 == -corrections[FAMILY_B].at_25

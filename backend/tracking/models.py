@@ -459,6 +459,13 @@ class Leave(UUIDModel):
     ``start_date``..``end_date`` with a single :class:`Portion`. Hourly leaves
     carry an ``hours`` count and are only allowed on an *unpaid* leave.
 
+    An hourly leave has no time of day, so the deduction cannot know which
+    children would have been there and prorates the day's aggregate shares
+    instead. Optional start/end times were added here and then read by nothing,
+    with a comment claiming they bought precision they never delivered; they are
+    gone. Add them back when something actually segments the day — it is one
+    column.
+
     Only an **unpaid** leave deducts. Paid leave is already inside the
     mensualised salary (52 weeks = 47 worked + 5 of paid leave), so deducting it
     would take it off the nanny twice — see ``docs/shared-care-pay.md``.
@@ -483,12 +490,6 @@ class Leave(UUIDModel):
     hours = models.DecimalField(
         max_digits=4, decimal_places=2, null=True, blank=True, validators=NON_NEGATIVE
     )
-    # Which hours of the day an hourly leave covers. Optional, and only on an
-    # hourly leave. Without them `hours` is a bare count with no time of day, so
-    # the deduction cannot be told which children would have been there and can
-    # only fall back on the day's aggregate shares.
-    start_time = models.TimeField(null=True, blank=True)
-    end_time = models.TimeField(null=True, blank=True)
     notes = models.TextField(blank=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -521,12 +522,6 @@ class Leave(UUIDModel):
                 raise ValidationError({"hours": _("Give the number of hours for an hourly leave.")})
         elif self.hours is not None:
             raise ValidationError({"hours": _("Hours only apply to an hourly leave.")})
-        if self.portion != self.Portion.HOURLY and (self.start_time or self.end_time):
-            raise ValidationError({"start_time": _("Times only apply to an hourly leave.")})
-        if bool(self.start_time) != bool(self.end_time):
-            raise ValidationError({"end_time": _("Give both a start and an end time, or neither.")})
-        if self.start_time and self.end_time and self.end_time <= self.start_time:
-            raise ValidationError({"end_time": _("The end time must be after the start time.")})
 
 
 class BankHoliday(UUIDModel):
