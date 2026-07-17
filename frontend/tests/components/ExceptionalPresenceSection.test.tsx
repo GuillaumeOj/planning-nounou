@@ -14,13 +14,23 @@ import {
 import { ExceptionalPresenceSection } from '@/src/components/ExceptionalPresenceSection'
 import { renderWithProviders } from '@/tests/utils'
 
-vi.mock('@/src/api/declarations', () => ({
-  getExceptionalPresences: vi.fn(),
-  createExceptionalPresence: vi.fn(),
-  updateExceptionalPresence: vi.fn(),
-  deleteExceptionalPresence: vi.fn(),
-  getContractChildren: vi.fn(),
-}))
+vi.mock('@/src/api/declarations', () => {
+  const getExceptionalPresences = vi.fn()
+  return {
+    getExceptionalPresences,
+    createExceptionalPresence: vi.fn(),
+    updateExceptionalPresence: vi.fn(),
+    deleteExceptionalPresence: vi.fn(),
+    getContractChildren: vi.fn(),
+    exceptionalPresencesQueryOptions: (
+      familyId: string,
+      contractId: string,
+    ) => ({
+      queryKey: ['exceptional-presences', contractId],
+      queryFn: () => getExceptionalPresences(familyId, contractId),
+    }),
+  }
+})
 
 const m = {
   get: vi.mocked(getExceptionalPresences),
@@ -35,6 +45,7 @@ const contract = {
   nanny: { id: '5', first_name: 'Marie', last_name: 'Dupont' },
   starting_date: '2026-06-01',
   ending_date: null,
+  split_method: 'equal',
   paid_leave_days: 25,
   notes: '',
   families: [{ id: '1', name: 'Home', is_originator: true }],
@@ -72,7 +83,11 @@ function makePresence(
 
 const render = () =>
   renderWithProviders(
-    <ExceptionalPresenceSection familyId="1" contract={contract} />,
+    <ExceptionalPresenceSection
+      familyId="1"
+      contract={contract}
+      month="2026-07"
+    />,
   )
 
 beforeEach(() => {
@@ -89,7 +104,7 @@ describe('ExceptionalPresenceSection', () => {
     render()
     expect(await screen.findByText('Marie Dupont')).toBeInTheDocument()
     expect(
-      screen.getByText('No exceptional presence recorded yet.'),
+      screen.getByText('No exceptional presence this month.'),
     ).toBeInTheDocument()
   })
 

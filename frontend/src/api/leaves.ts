@@ -35,6 +35,16 @@ export async function getLeaves(
   return data
 }
 
+// The query key and fetcher in one place, so every consumer — the section that
+// edits leaves and the calendar that only marks them — shares a cache entry
+// instead of hand-matching the key in two files.
+export function leavesQueryOptions(familyId: string, contractId: string) {
+  return {
+    queryKey: ['contract-leaves', contractId] as const,
+    queryFn: () => getLeaves(familyId, contractId),
+  }
+}
+
 export async function createLeave(
   familyId: string,
   contractId: string,

@@ -18,13 +18,25 @@ import {
   getContractSchedules,
   getContracts,
 } from '@/src/api/contracts'
+import {
+  exceptionalHoursQueryOptions,
+  exceptionalPresencesQueryOptions,
+} from '@/src/api/declarations'
 import { getFamilies } from '@/src/api/family'
 import { type BankHoliday, getBankHolidays } from '@/src/api/holidays'
+import { leavesQueryOptions } from '@/src/api/leaves'
+import { formatDate } from '@/src/components/DateField'
 import { ExceptionalHoursSection } from '@/src/components/ExceptionalHoursSection'
 import { ExceptionalPresenceSection } from '@/src/components/ExceptionalPresenceSection'
 import { LeavesSection } from '@/src/components/LeavesSection'
+import { hhmm, toDisplayTime } from '@/src/components/TimeField'
 import { Button } from '@/src/components/ui/button'
 import { Label } from '@/src/components/ui/label'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/src/components/ui/popover'
 import {
   Tabs,
   TabsContent,
@@ -33,6 +45,7 @@ import {
 } from '@/src/components/ui/tabs'
 import { MOBILE_QUERY, useMediaQuery } from '@/src/hooks/useMediaQuery'
 import { useI18n } from '@/src/i18n/I18nContext'
+import { toMonthParam } from '@/src/lib/months'
 import { cn, localeFor, selectClass } from '@/src/lib/utils'
 import {
   nannyColorMap,
@@ -86,6 +99,99 @@ const NANNY_COLORS = [
   },
 ] as const
 
+// A special event on a day — a leave, exceptional hours, or an exceptional
+// presence — surfaced as a mark on the calendar and spelled out on click. Kept
+// apart from the nanny palette (a solid dot) and the holiday (red) by a hollow,
+// muted marker, so a busy day still reads at a glance.
+type PlanningEventKind = 'leave' | 'hours' | 'presence'
+
+interface PlanningEvent {
+  key: string
+  kind: PlanningEventKind
+  text: string
+}
+
+// Literal class strings, both the solid fill (the popover list) and the hollow
+// ring (a phone cell's mark) — Tailwind's scanner only keeps classes it can see
+// spelled out, so these cannot be built from a base by string surgery.
+const EVENT_STYLES: Record<PlanningEventKind, { dot: string; ring: string }> = {
+  leave: { dot: 'bg-amber-500', ring: 'ring-amber-500' },
+  hours: { dot: 'bg-indigo-500', ring: 'ring-indigo-500' },
+  presence: { dot: 'bg-teal-500', ring: 'ring-teal-500' },
+}
+
+// The kinds a day carries, once. Marks and the popover both key off it.
+const distinctKinds = (events: PlanningEvent[]): PlanningEventKind[] => [
+  ...new Set(events.map((event) => event.kind)),
+]
+
+// The one marker dot — a solid fill in a list, or a hollow ring on a phone cell
+// where it must read apart from a worked-block dot. `className` carries the
+// per-site alignment (a list row needs `mt-1.5 shrink-0`).
+function EventDot({
+  kind,
+  ring,
+  className,
+}: {
+  kind: PlanningEventKind
+  ring?: boolean
+  className?: string
+}) {
+  return (
+    <span
+      className={cn(
+        'size-1.5 rounded-full',
+        ring
+          ? `ring-1 ring-inset ${EVENT_STYLES[kind].ring}`
+          : EVENT_STYLES[kind].dot,
+        className,
+      )}
+    />
+  )
+}
+
+// A day's special-event mark: one hollow dot per kind present, opening a popover
+// that spells the events out. Desktop only — a phone lists them in the panel
+// under the grid instead, where there is room. Returns nothing on an empty day,
+// so a cell without events carries no marker at all.
+function DayEventsMark({
+  events,
+  title,
+}: {
+  events: PlanningEvent[]
+  title: string
+}) {
+  if (events.length === 0) return null
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={title}
+          className="mt-auto flex items-center gap-0.5 self-start rounded p-0.5 hover:bg-muted"
+        >
+          {distinctKinds(events).map((kind) => (
+            <EventDot key={kind} kind={kind} />
+          ))}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="flex w-64 flex-col gap-2">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          {title}
+        </p>
+        <ul className="flex flex-col gap-1.5 text-sm">
+          {events.map((event) => (
+            <li key={event.key} className="flex items-start gap-2">
+              <EventDot kind={event.kind} className="mt-1.5 shrink-0" />
+              <span>{event.text}</span>
+            </li>
+          ))}
+        </ul>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
 export default function Planning() {
   const { t, lang } = useI18n()
   const locale = localeFor(lang)
@@ -137,6 +243,33 @@ export default function Planning() {
       scheduleQueries[index]?.data ?? [],
     ]),
   )
+
+  // The special events the calendar marks: days off, exceptional hours, and a
+  // child present outside their window. One query set each, per contract, so a
+  // mark can name the nanny it belongs to. Shared exceptional hours come back
+  // for every family; that is fine here — a mark is a mark. Each uses the same
+  // query options as its record section, so the two share a cache entry rather
+  // than fetching the resource twice.
+  const eventsEnabled = activeFamilyId !== null
+  const eventsFamilyId = activeFamilyId ?? ''
+  const leaveQueries = useQueries({
+    queries: contractList.map((contract) => ({
+      ...leavesQueryOptions(eventsFamilyId, contract.id),
+      enabled: eventsEnabled,
+    })),
+  })
+  const hoursQueries = useQueries({
+    queries: contractList.map((contract) => ({
+      ...exceptionalHoursQueryOptions(eventsFamilyId, contract.id),
+      enabled: eventsEnabled,
+    })),
+  })
+  const presenceQueries = useQueries({
+    queries: contractList.map((contract) => ({
+      ...exceptionalPresencesQueryOptions(eventsFamilyId, contract.id),
+      enabled: eventsEnabled,
+    })),
+  })
 
   // Days shown in the grid: whole weeks (Monday-first) spanning the month.
   const days = useMemo(() => {
@@ -191,6 +324,51 @@ export default function Planning() {
   // the selection all key off it.
   const isoDays = days.map((day) => toISODate(day))
 
+  // The special events, keyed by ISO date. A leave is marked on every day it
+  // spans within the grid; exceptional hours and presences on their own day.
+  // Built inline (≈42 days × a handful of records) each render.
+  const gridIso = new Set(isoDays)
+  const eventsByIso = new Map<string, PlanningEvent[]>()
+  const addEvent = (iso: string, event: PlanningEvent) => {
+    if (!gridIso.has(iso)) return
+    const list = eventsByIso.get(iso)
+    if (list) list.push(event)
+    else eventsByIso.set(iso, [event])
+  }
+  contractList.forEach((contract, index) => {
+    const who = contract.nanny.first_name
+    for (const leave of leaveQueries[index]?.data ?? []) {
+      for (const day of eachDayOfInterval({
+        start: new Date(`${leave.start_date}T00:00:00`),
+        end: new Date(`${leave.end_date}T00:00:00`),
+      })) {
+        addEvent(toISODate(day), {
+          key: `leave-${leave.id}-${toISODate(day)}`,
+          kind: 'leave',
+          text: `${who} · ${t('planning.event.leave')}`,
+        })
+      }
+    }
+    for (const entry of hoursQueries[index]?.data ?? []) {
+      const span =
+        entry.start_date === entry.end_date
+          ? toDisplayTime(hhmm(entry.start_time), lang)
+          : `${toDisplayTime(hhmm(entry.start_time), lang)} → ${formatDate(entry.end_date, lang)}`
+      addEvent(entry.start_date, {
+        key: `hours-${entry.id}`,
+        kind: 'hours',
+        text: `${who} · ${t('planning.event.hours')} · ${span}`,
+      })
+    }
+    for (const presence of presenceQueries[index]?.data ?? []) {
+      addEvent(presence.date, {
+        key: `presence-${presence.id}`,
+        kind: 'presence',
+        text: `${who} · ${t('planning.event.presence')} · ${presence.first_name}`,
+      })
+    }
+  })
+
   // Navigating away from the selected day's month leaves the selection off the
   // grid; fall back to the 1st rather than showing a panel for an unseen day.
   // Resolving to an index (not a Date) keeps the panel, the ring and the entries
@@ -202,12 +380,22 @@ export default function Planning() {
   const selectedDay = days[selectedIndex]
   const selectedEntries = entriesByDay[selectedIndex]
   const selectedHoliday = holidaysByIso.get(isoDays[selectedIndex])
+  const selectedEvents = eventsByIso.get(isoDays[selectedIndex]) ?? []
+
+  // The month the record tabs are scoped to, so days off, exceptional hours and
+  // exceptional care show the *visible* month's entries rather than the whole
+  // contract's history — the same month the calendar and the declaration use.
+  const monthParam = toMonthParam(visibleMonth)
 
   // The record tabs all hang off the same contracts query and all lay out the
-  // same way — a card per nanny, scoped to the family selected above. Only the
-  // section inside the card differs, so the shell is written once.
+  // same way — a card per nanny, scoped to the family and month selected above.
+  // Only the section inside the card differs, so the shell is written once.
   const contractCards = (
-    Section: ComponentType<{ familyId: string; contract: Contract }>,
+    Section: ComponentType<{
+      familyId: string
+      contract: Contract
+      month: string
+    }>,
   ) => {
     if (isLoading) {
       return (
@@ -231,6 +419,7 @@ export default function Planning() {
             key={contract.id}
             familyId={activeFamilyId}
             contract={contract}
+            month={monthParam}
           />
         ))}
       </div>
@@ -343,6 +532,8 @@ export default function Planning() {
                 {days.map((day, index) => {
                   const iso = isoDays[index]
                   const entries = entriesByDay[index]
+                  const events = eventsByIso.get(iso) ?? []
+                  const eventKinds = distinctKinds(events)
                   const outside = !isSameMonth(day, visibleMonth)
                   const today = isToday(day)
                   const holiday = holidaysByIso.get(iso)
@@ -398,6 +589,11 @@ export default function Planning() {
                               )}
                             />
                           ))}
+                          {/* Hollow ring so an event mark reads apart from a
+                              solid worked-block dot. */}
+                          {eventKinds.map((kind) => (
+                            <EventDot key={kind} kind={kind} ring />
+                          ))}
                         </span>
                       </button>
                     )
@@ -433,6 +629,10 @@ export default function Planning() {
                           </div>
                         </div>
                       ))}
+                      <DayEventsMark
+                        events={events}
+                        title={t('planning.event.title')}
+                      />
                     </div>
                   )
                 })}
@@ -448,7 +648,8 @@ export default function Planning() {
                       {selectedHoliday.name}
                     </p>
                   )}
-                  {selectedEntries.length === 0 ? (
+                  {selectedEntries.length === 0 &&
+                  selectedEvents.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
                       {t('planning.noWorkedDay')}
                     </p>
@@ -470,6 +671,17 @@ export default function Planning() {
                       </div>
                     ))
                   )}
+                  {/* The special events for the selected day: the phone's stand-in
+                      for the desktop popover, spelled out under the grid. */}
+                  {selectedEvents.map((event) => (
+                    <div
+                      key={event.key}
+                      className="flex items-start gap-2 rounded-lg border px-3 py-2 text-sm"
+                    >
+                      <EventDot kind={event.kind} className="mt-1.5 shrink-0" />
+                      <span className="min-w-0">{event.text}</span>
+                    </div>
+                  ))}
                 </section>
               )}
 

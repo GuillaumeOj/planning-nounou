@@ -14,8 +14,9 @@ here look wrong and are not:
   jours fériés than March and the salary is identical. The planning hides working
   blocks on a holiday; pay must not.
 * **Paid leave deducts nothing.** 52 weeks = 47 worked + 5 of paid leave, so the
-  leave is already inside the base. Only ``UNPAID`` deducts. "She was off all
-  week and got paid the same" is the design working.
+  leave is already inside the base. ``UNPAID`` and ``SICKNESS`` deduct (both
+  suspend the paid relationship for the hours not worked); *paid* leave does not.
+  "She was off all week on congés and got paid the same" is the design working.
 * **The week is banded before it is split.** Splitting a 45h week 30/15 leaves
   both families under the 40h threshold and the majoration silently disappears.
   The nanny worked 45h; band her week, then split each band. The ruling lives in
@@ -26,9 +27,13 @@ here look wrong and are not:
   declared in the wrong month. Never let an aware datetime in here.
 
 Arithmetic is exact until the last step: integer minutes and :class:`Fraction`
-weights throughout, rounded once at the end by :func:`apportion`, which
-guarantees the parts sum to the whole. Floats do not: 10h split three ways is
-3.33 × 3 = 9.99, and the missing 0.01 is the nanny's.
+weights throughout. The fixed advantages are rounded once at the end by
+:func:`apportion`, which guarantees the parts sum to the whole — floats do not:
+10h split three ways is 3.33 × 3 = 9.99, and the missing 0.01 is the nanny's. The
+declared *hours* are the exception: each family rounds its own bands UP to whole
+hours (:func:`ceil_hours`), erring in the nanny's favour, so those deliberately
+do **not** sum to her exact total. The salary is then priced from the declared
+hours, so what we show and what the parent types agree.
 """
 
 from __future__ import annotations
@@ -96,8 +101,14 @@ MONTHS_PER_YEAR = 12
 #: does not implement rather than a different week count.
 WEEKS_PER_YEAR = 52
 
-#: Only unpaid leave deducts; paid leave is already inside the mensualised base.
-DEDUCTING_LEAVE_TYPES = frozenset({"unpaid"})
+#: Which leave types reduce the declared hours. Unpaid absence and sickness both
+#: suspend the *paid* relationship for the hours not worked — the nanny does not
+#: work them and the employer does not pay them (in sickness she draws IJSS, and
+#: any maintien de salaire is a separate indemnity this module does not model) —
+#: so both deduct, via the art. 152.1 ratio, shared across the families by the
+#: same per-family attendance each would have had. Paid leave (congés payés) is
+#: the exception: it is already inside the mensualised base and must not deduct.
+DEDUCTING_LEAVE_TYPES = frozenset({"unpaid", "sickness"})
 
 HOUR_QUANTUM = Decimal("0.01")
 MONEY_QUANTUM = Decimal("0.01")
@@ -180,7 +191,19 @@ class LeaveSpan:
 
 @dataclass(frozen=True, slots=True)
 class ExceptionalEntry:
-    """Hours beyond the schedule, filed by one family."""
+    """Hours beyond the schedule, filed by one family.
+
+    ``is_shared`` decides how the hours attribute, and it is the whole of a
+    family's dependence on the other being removed. A *solo* entry (the default)
+    is wholly the filer's: a family that keeps the nanny late pays the full hour,
+    full stop, and its declaration cannot move because of anything the other
+    family did or did not file. A *shared* entry is care both families needed at
+    once, and the filer declares only its own contractual share of it — again
+    without reading the other's rows. Both families are expected to file their
+    own shared entry (the UI prompts the second one), and then the shares sum to
+    the whole; if one forgets, the nanny is short exactly that family's share and
+    nobody else's number is wrong. See docs/shared-care-pay.md §3.1.
+    """
 
     family_id: UUID
     kind: str
@@ -190,6 +213,9 @@ class ExceptionalEntry:
     end_time: time
     #: Times the nanny was woken. Prices the night; see night_indemnity_ratio.
     interventions: int = 0
+    #: Care both families needed at once — split by the contract's usual rule —
+    #: rather than one family's own extra hour, which it pays whole.
+    is_shared: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -323,6 +349,10 @@ class FamilyResult:
     benefits_in_kind_amount: Decimal
     kilometers: Decimal
     mileage_amount: Decimal
+    #: pajemploi's "salaire net": the banded hours priced, and nothing else.
+    net_salary: Decimal
+    #: net_salary plus the night indemnity and the worked-holiday majoration —
+    #: the whole net wage due, before the advantages, which are their own fields.
     total_amount: Decimal
     net_hourly_rate: Decimal
     night_presence_rate: Decimal
@@ -346,6 +376,20 @@ def minutes_between(start: time, end: time) -> int:
 def to_hours(minutes: Fraction) -> Decimal:
     """Exact minutes to a rounded hour count. Round once, at the very end."""
     return _quantize(Decimal(minutes.numerator) / Decimal(minutes.denominator) / MINUTES_PER_HOUR)
+
+
+def ceil_hours(minutes: Fraction) -> Decimal:
+    """Exact minutes to a *whole* hour count, always rounded UP.
+
+    What a family declares to pajemploi, and deliberately generous: a fraction of
+    an hour rounds to the next whole one so the nanny is never short. This drops
+    the "families sum to exactly the nanny's hours" invariant that apportion keeps
+    — each family rounds up independently, so the declared hours can sum to a hair
+    more than she worked. That is the safe direction, and the one asked for. The
+    money follows: net_salary is priced from these declared hours, not the exact
+    ones, so what the parent types and what we show agree.
+    """
+    return Decimal(math.ceil(minutes / MINUTES_PER_HOUR))
 
 
 def _quantize(value: Decimal, quantum: Decimal = HOUR_QUANTUM) -> Decimal:
@@ -935,80 +979,72 @@ def family_intervals(entries: Iterable[ExceptionalEntry]) -> dict[UUID, list[tup
     return out
 
 
-def _child_counts(children: Mapping[UUID, ChildPresence]) -> dict[UUID, int]:
-    counts: defaultdict[UUID, int] = defaultdict(int)
-    for child in children.values():
-        counts[child.family_id] += 1
-    return dict(counts)
-
-
-def reconcile_exceptional(
-    entries: Sequence[ExceptionalEntry],
+def contract_shares(
     children: Mapping[UUID, ChildPresence],
     split_method: str,
     family_ids: Sequence[UUID],
 ) -> dict[UUID, Fraction]:
-    """Minutes of one kind of exceptional hours, per family, after reconciliation.
+    """Each family's contractual share, as if every child were present at once.
 
-    Presence is **who filed**, never the children's windows. The windows describe
-    the regular week; an exceptional entry is by definition irregular, so a child
-    windowed to 16:30–18:00 would read as absent at 19:00 and their family's own
-    late night would be billed to the other family.
-
-    Where two families' spans overlap, the nanny worked those minutes once and
-    they divide by the contract's usual rule. Where they do not, they are wholly
-    the filer's.
+    The weight a *shared* exceptional hour splits by. It is the same rule the
+    schedule uses (segment_weights), asked the one question shared care poses —
+    "everyone is here, how does this hour divide?" — so a contract cannot split
+    its regular week one way and a shared evening another. Sums to exactly 1.
     """
-    # Filter BEFORE splitting, never after. A filer with no share in the contract
-    # would otherwise dilute the split and then be dropped from the result, and
-    # the minutes it diluted away would go to nobody: two families filing the same
-    # two hours would pay the nanny for one.
+    return segment_weights(frozenset(children), children, split_method, family_ids)
+
+
+def attribute_exceptional(
+    entries: Sequence[ExceptionalEntry],
+    shares: Mapping[UUID, Fraction],
+    family_ids: Sequence[UUID],
+) -> dict[UUID, Fraction]:
+    """Minutes of one kind of exceptional hours, per family — solo whole, shared split.
+
+    The rule that makes each family's declaration self-contained (§3.1):
+
+    * a **solo** entry is wholly its filer's — a family's own extra hour is paid
+      in full, and nothing the other family files can change that number;
+    * a **shared** entry is care both needed at once, so its filer takes only its
+      own ``shares`` weight of it, again reading nobody else's rows. Both families
+      file their own and the weights sum to the whole; if one forgets, the nanny
+      is short precisely that family's share, and no other declaration is wrong.
+
+    Each family's own overlapping entries are unioned first (filing 19–21 and
+    20–22 by mistake is 3h, not 5h). Two *different* families both filing solo for
+    the same clock time each pay the full hour — the nanny cannot be in two places
+    at once, so that is care they should have marked shared; compute_month warns
+    about it rather than silently reconciling it away.
+    """
     on_contract = set(family_ids)
-    spans = family_intervals(e for e in entries if e.family_id in on_contract)
-    if not spans:
-        return {}
-
-    edges = sorted({edge for intervals in spans.values() for span in intervals for edge in span})
-    counts = _child_counts(children)
     out: defaultdict[UUID, Fraction] = defaultdict(Fraction)
-
-    for start, end in zip(edges, edges[1:], strict=False):
-        minutes = end - start
-        if minutes <= 0:
-            continue
-        present = [
-            family_id
-            for family_id, intervals in spans.items()
-            if any(a <= start and end <= b for a, b in intervals)
-        ]
-        if not present:
-            continue
-        weights = _family_weights(present, counts, split_method)
-        total = sum(weights.values())
-        for family_id, weight in weights.items():
-            out[family_id] += Fraction(minutes) * weight / total
-
+    solo = family_intervals(e for e in entries if e.family_id in on_contract and not e.is_shared)
+    for family_id, spans in solo.items():
+        out[family_id] += Fraction(sum(end - start for start, end in spans))
+    shared = family_intervals(e for e in entries if e.family_id in on_contract and e.is_shared)
+    for family_id, spans in shared.items():
+        minutes = Fraction(sum(end - start for start, end in spans))
+        out[family_id] += shares.get(family_id, Fraction(0)) * minutes
     return dict(out)
 
 
-def _family_weights(
-    present: Sequence[UUID], counts: Mapping[UUID, int], split_method: str
-) -> dict[UUID, Fraction]:
-    """Weights for a set of families, given how many children each has.
+def solo_overlaps_across_families(entries: Sequence[ExceptionalEntry]) -> bool:
+    """Do two different families file *solo* entries covering the same minute?
 
-    The counterpart of segment_weights for a context with no children in it —
-    exceptional hours are attributed by who filed, not by the windows. Both must
-    answer "no children anywhere" the same way, an equal split, or the same
-    contract splits its schedule one way and its late nights another.
+    A tell-tale of care that should have been marked shared: the nanny worked
+    those minutes once, but each solo filer pays for them in full. Surfaces as a
+    warning so the families reconcile it, rather than the nanny being paid twice
+    in silence.
     """
-    if split_method == "equal" or not any(counts.get(f) for f in present):
-        return {family_id: Fraction(1) for family_id in present}
-    return {family_id: Fraction(max(1, counts.get(family_id, 0))) for family_id in present}
-
-
-def night_spans(entries: Sequence[ExceptionalEntry]) -> int:
-    """How many distinct nights the night-presence entries cover."""
-    return len({entry.start_date for entry in entries})
+    solo = family_intervals(e for e in entries if not e.is_shared)
+    spans = [(start, end, fam) for fam, ivals in solo.items() for start, end in ivals]
+    # A handful of entries a month; the plain pairwise check is clearest and its
+    # cost is nothing. Two spans overlap iff each starts before the other ends.
+    for i, (start_a, end_a, fam_a) in enumerate(spans):
+        for start_b, end_b, fam_b in spans[i + 1 :]:
+            if fam_a != fam_b and start_a < end_b and start_b < end_a:
+                return True
+    return False
 
 
 # --- rounding ----------------------------------------------------------------
@@ -1092,6 +1128,8 @@ def _exceptional_bands(
         by_week[_iso_week(entry.start_date)].append((entry, ratio))
 
     out: defaultdict[UUID, Bands] = defaultdict(Bands)
+    # The shared-care weight is the same every week, so compute it once.
+    shares = contract_shares(children, data.split_method, data.family_ids)
     # Sorted so the result cannot depend on the order rows came back in. Anchoring
     # on `entries[0]` — as this once did — meant the same data declared different
     # hours depending on which entry the ORM happened to yield first.
@@ -1105,21 +1143,18 @@ def _exceptional_bands(
             else 0
         )
 
-        # Reconcile each kind's entries AS A SET, then pool the kinds so the bands
-        # are walked once. Passing one entry at a time reads harmlessly and is the
-        # whole bug: a lone entry has nothing to reconcile against, so every filer
-        # collects 100% of its own hours, and two families on the same evening bill
-        # the nanny for it twice. Kinds are grouped first because they do not
-        # reconcile with each other — a night and an evening are different work.
+        # Attribute each kind's entries — solo to their filer, shared by the
+        # contract's share — then pool the kinds so the bands are walked once.
+        # Kinds are grouped first because they do not pool with each other: a
+        # night and an evening are different work, banded on the same anchor but
+        # each worth its own ratio.
         by_kind: defaultdict[str, list[ExceptionalEntry]] = defaultdict(list)
         for entry, _ratio in entries:
             by_kind[entry.kind].append(entry)
 
         per_family: defaultdict[UUID, Fraction] = defaultdict(Fraction)
         for kind, kind_entries in by_kind.items():
-            split = reconcile_exceptional(
-                kind_entries, children, data.split_method, data.family_ids
-            )
+            split = attribute_exceptional(kind_entries, shares, data.family_ids)
             for family_id, minutes in split.items():
                 per_family[family_id] += minutes * kinds[kind]
 
@@ -1189,6 +1224,7 @@ def _night_indemnity(
     amounts: defaultdict[UUID, Decimal] = defaultdict(Decimal)
     counts: defaultdict[UUID, set[date]] = defaultdict(set)
     below_floor = False
+    shares = contract_shares(children, data.split_method, data.family_ids)
 
     for night, night_entries in by_night.items():
         interventions = max(e.interventions for e in night_entries)
@@ -1197,9 +1233,7 @@ def _night_indemnity(
         if agreed < required:
             below_floor = True
         rate = max(agreed, required)
-        per_family = reconcile_exceptional(
-            night_entries, children, data.split_method, data.family_ids
-        )
+        per_family = attribute_exceptional(night_entries, shares, data.family_ids)
         for family_id, minutes in per_family.items():
             value = minutes / MINUTES_PER_HOUR * rate
             amounts[family_id] += _quantize(
@@ -1279,40 +1313,49 @@ def exceptional_top_up(
     return extra
 
 
-def prorate_for_absence(
-    per_period: Sequence[tuple[SubPeriod, Mapping[UUID, Bands]]],
-    data: ContractMonth,
-    banded_by_date: Mapping[date, WeekBands],
-) -> list[tuple[SubPeriod, dict[UUID, Bands]]]:
-    """Scale the base by attendance — art. 152.1's ratio, not a subtraction."""
+def attendance_ratios(
+    data: ContractMonth, banded_by_date: Mapping[date, WeekBands]
+) -> dict[UUID, Fraction]:
+    """Each family's art. 152.1 attendance ratio — 1 when nothing deducts.
+
+    Only the deducting leaves (unpaid, sickness) move it below 1; paid leave and a
+    day the nanny does not work leave planned == worked. So ``any(ratio < 1)`` is
+    exactly "an unpaid or sickness absence reduced this month's hours", which is
+    what the declaration flags so the lower figure does not read as a mistake.
+    """
     attendance = month_attendance(data, banded_by_date)
-    ratios = {
+    return {
         family_id: attendance_ratio(*attendance.get(family_id, (Fraction(0), Fraction(0))))
         for family_id in data.family_ids
     }
+
+
+def prorate_for_absence(
+    per_period: Sequence[tuple[SubPeriod, Mapping[UUID, Bands]]],
+    ratios: Mapping[UUID, Fraction],
+) -> list[tuple[SubPeriod, dict[UUID, Bands]]]:
+    """Scale the base by attendance — art. 152.1's ratio, not a subtraction."""
     return [
         (period, {f: b.scaled(ratios.get(f, Fraction(1))) for f, b in bands.items()})
         for period, bands in per_period
     ]
 
 
-def round_across_families(
-    totals: Mapping[UUID, Bands], family_ids: Sequence[UUID]
-) -> list[list[Decimal]]:
-    """Each band's hours, apportioned across the families so they sum to the band.
+def base_weights(
+    per_period: Sequence[tuple[SubPeriod, Mapping[UUID, Bands]]], family_ids: Sequence[UUID]
+) -> list[Fraction]:
+    """Each family's contractual share of the month, before absence or exceptional hours.
 
-    Across, not per family. Rounding a family's bands on their own loses the nanny
-    a centihour on every band that does not divide cleanly: two families sharing a
-    216.67h month would declare 108.33 each and the last one would be worked by
-    nobody.
+    The weight the fixed monthly advantages split by. Taken from the *mensualised
+    base* alone — never the prorated or topped-up totals — so it is the same every
+    ordinary month: the transport fee a family sees in July is the one it saw in
+    June, and an exceptional evening does not quietly enlarge its share of it. The
+    convention treats the advantage as one lump for one nanny (§3 point 4); this
+    only decides how that constant is divided.
     """
     return [
-        apportion(to_hours(sum(column, Fraction(0))), column)
-        for column in (
-            [totals[family_id].normal for family_id in family_ids],
-            [totals[family_id].at_25 for family_id in family_ids],
-            [totals[family_id].at_50 for family_id in family_ids],
-        )
+        sum((bands.get(family_id, Bands()).total for _period, bands in per_period), Fraction(0))
+        for family_id in family_ids
     ]
 
 
@@ -1320,9 +1363,12 @@ def compute_month(data: ContractMonth) -> dict[UUID, FamilyResult]:
     """One month of one contract, as each family must declare it.
 
     The nanny's week is banded, each band split between the families, mensualised,
-    prorated by attendance, and topped up with exceptional hours. Advantages follow
-    each family's weight in the month. Everything is rounded once, at the end, so
-    the parts still sum to the whole.
+    prorated by attendance, and topped up with exceptional hours. Each family's
+    three band totals are then rounded UP to whole hours — what it declares, erring
+    in the nanny's favour — and the salary is priced from those declared hours, so
+    the figure matches what the parent will type. The fixed advantages (transport,
+    benefits) split by the contractual base, not the month's ups and downs, so they
+    hold steady month to month.
     """
     children = {child.child_id: child for child in data.children}
     warnings: list[str] = []
@@ -1335,8 +1381,24 @@ def compute_month(data: ContractMonth) -> dict[UUID, FamilyResult]:
         # the status quo for a contract that predates the children — but say so
         # rather than let it read as a split derived from who was actually there.
         warnings.append("split_without_children")
+    if solo_overlaps_across_families(data.exceptional):
+        # Two families each booking the same clock time as their own — the nanny
+        # worked it once but each pays it whole. Almost always shared care that was
+        # not marked shared; flag it rather than pay her twice in silence.
+        warnings.append("overlapping_solo_exceptional")
 
-    per_period = prorate_for_absence(per_period, data, banded_by_date)
+    # The advantages' split is the *contractual* base, captured before proration
+    # and before the exceptional top-up so it does not drift from month to month.
+    advantage_weights = base_weights(per_period, data.family_ids)
+
+    ratios = attendance_ratios(data, banded_by_date)
+    if any(ratio < 1 for ratio in ratios.values()):
+        # An unpaid or sickness absence has pulled the hours below the contractual
+        # base. Say so on the declaration: a lower figure than usual is exactly the
+        # kind of thing a parent reads as a bug, and the reduction is shared across
+        # the families (each by the attendance it would have had).
+        warnings.append("hours_reduced_for_absence")
+    per_period = prorate_for_absence(per_period, ratios)
     extra = exceptional_top_up(data, children, warnings)
 
     _, last = month_bounds(data.month)
@@ -1352,17 +1414,15 @@ def compute_month(data: ContractMonth) -> dict[UUID, FamilyResult]:
             combined = combined + bands.get(family_id, Bands())
         totals[family_id] = (combined + extra.get(family_id, Bands())).clamped()
 
-    # Advantages are one monthly lump for one nanny, so they follow each family's
-    # weight in the month rather than being declared whole by each — otherwise she
-    # is credited a multiple of what was agreed.
-    weights = [totals[family_id].total for family_id in data.family_ids]
+    # Advantages are one monthly lump for one nanny, split by each family's
+    # contractual share so the nanny is credited the agreed total once, and the
+    # share does not move with a month's exceptional hours.
     transport = apportion(
-        current.transport_fee if current else Decimal("0"), weights, MONEY_QUANTUM
+        current.transport_fee if current else Decimal("0"), advantage_weights, MONEY_QUANTUM
     )
     in_kind = apportion(
-        current.benefits_in_kind if current else Decimal("0"), weights, MONEY_QUANTUM
+        current.benefits_in_kind if current else Decimal("0"), advantage_weights, MONEY_QUANTUM
     )
-    hours_by_band = round_across_families(totals, data.family_ids)
 
     kilometers = data.kilometers or {}
     rate = current.net_hourly_rate if current else Decimal("0")
@@ -1370,15 +1430,24 @@ def compute_month(data: ContractMonth) -> dict[UUID, FamilyResult]:
 
     results: dict[UUID, FamilyResult] = {}
     for index, family_id in enumerate(data.family_ids):
-        normal_hours, hours_25, hours_50 = (band[index] for band in hours_by_band)
+        bands = totals[family_id]
+        # Rounded UP, per family and per band: the declared hours, erring the
+        # nanny's way. This drops the sum-to-the-whole invariant apportion kept —
+        # each family rounds up on its own — which is the point of a ceiling.
+        normal_hours = ceil_hours(bands.normal)
+        hours_25 = ceil_hours(bands.at_25)
+        hours_50 = ceil_hours(bands.at_50)
         km = kilometers.get(family_id, Decimal("0"))
         night = nights.get(family_id, Decimal("0"))
         holiday = holidays.get(family_id, Decimal("0"))
-        # Priced per sub-period, each at its own rate, so a mid-month avenant is
-        # charged for the days it actually applied to. With one period — nearly
-        # always — this is exactly hours x rate, which is what pajemploi asks the
-        # parent to type.
-        salary = _period_amount(per_period, extra, family_id, current)
+        # Priced from the *declared* whole hours at the current rate, so salaire
+        # net = what pajemploi recomputes from the numbers the parent types. A
+        # mid-month rate change makes this the last day's rate for the whole month;
+        # rate_periods and the rates_changed_mid_month warning carry the detail.
+        net_salary = _quantize(
+            normal_hours * rate + hours_25 * rate * MAJORATION_25 + hours_50 * rate * MAJORATION_50,
+            MONEY_QUANTUM,
+        )
         results[family_id] = FamilyResult(
             family_id=family_id,
             normal_hours=normal_hours,
@@ -1391,7 +1460,8 @@ def compute_month(data: ContractMonth) -> dict[UUID, FamilyResult]:
             benefits_in_kind_amount=in_kind[index],
             kilometers=km,
             mileage_amount=_quantize(km * mileage_rate, MONEY_QUANTUM),
-            total_amount=_quantize(salary + night + holiday, MONEY_QUANTUM),
+            net_salary=net_salary,
+            total_amount=_quantize(net_salary + night + holiday, MONEY_QUANTUM),
             net_hourly_rate=rate,
             night_presence_rate=current.night_presence_rate if current else Decimal("0"),
             mileage_rate=mileage_rate,
@@ -1399,29 +1469,3 @@ def compute_month(data: ContractMonth) -> dict[UUID, FamilyResult]:
             warnings=tuple(warnings),
         )
     return results
-
-
-def _period_amount(
-    per_period: Sequence[tuple[SubPeriod, Mapping[UUID, Bands]]],
-    extra: Mapping[UUID, Bands],
-    family_id: UUID,
-    current: Terms | None,
-) -> Decimal:
-    """A family's salary, each sub-period priced at the rate in force then."""
-    total = Decimal("0")
-    for period, bands in per_period:
-        terms = period.terms or current
-        if terms is None:
-            continue
-        total += _price(bands.get(family_id, Bands()), terms.net_hourly_rate)
-    if current is not None:
-        total += _price(extra.get(family_id, Bands()), current.net_hourly_rate)
-    return _quantize(total, MONEY_QUANTUM)
-
-
-def _price(bands: Bands, rate: Decimal) -> Decimal:
-    return (
-        to_hours(bands.normal) * rate
-        + to_hours(bands.at_25) * rate * MAJORATION_25
-        + to_hours(bands.at_50) * rate * MAJORATION_50
-    )

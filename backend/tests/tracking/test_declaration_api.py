@@ -442,9 +442,10 @@ def test_reading_declarations_requires_family_access(client, outsider, family, w
     assert client.get(declarations_url(family, wired), {"month": "2026-07"}).status_code == 403
 
 
-def test_the_shared_month_adds_up_to_the_nannys_month(client, owner, family, shared, other_family):
-    """The invariant: what the families declare between them is what the nanny
-    actually worked.
+def test_the_shared_month_covers_the_nannys_month(client, owner, family, shared, other_family):
+    """The invariant: what the families declare between them is at least what the
+    nanny actually worked — the declared hours round UP, per family, so together
+    they cover her month and never fall short of it.
 
     Asserted against the database, because no single caller of the API can see
     both halves any more — which is the point. The split still has to add up; a
@@ -461,4 +462,6 @@ def test_the_shared_month_adds_up_to_the_nannys_month(client, owner, family, sha
     rows = MonthlyDeclaration.objects.filter(contract=shared, month=date(2026, 7, 1))
     assert {r.family_id for r in rows} == {family.id, other_family.id}
     declared = sum(r.normal_hours + r.hours_25 + r.hours_50 for r in rows)
-    assert declared == Decimal("173.33")  # 40h x 52 / 12
+    # 40h x 52 / 12 = 173.33h worked; each family rounds its 86.67h up to 87.
+    assert declared >= Decimal("173.33")
+    assert declared == Decimal("174")

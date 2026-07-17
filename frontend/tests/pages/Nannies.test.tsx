@@ -132,6 +132,7 @@ function makeContract(o: Partial<Contract> = {}): Contract {
     nanny: { id: '5', first_name: 'Marie', last_name: 'Dupont' },
     starting_date: '2026-01-05',
     ending_date: null,
+    split_method: 'equal',
     paid_leave_days: 25,
     notes: '',
     families: [{ id: '1', name: 'Home', is_originator: true }],
@@ -310,6 +311,7 @@ describe('onboarding wizard', () => {
       expect(m.createContract).toHaveBeenCalledWith('1', {
         starting_date: '2026-02-03',
         paid_leave_days: 25,
+        split_method: 'equal',
         first_name: 'Paul',
         last_name: 'Martin',
       }),
@@ -415,6 +417,7 @@ describe('onboarding wizard', () => {
       expect(m.createContract).toHaveBeenCalledWith('1', {
         starting_date: '2026-02-03',
         paid_leave_days: undefined,
+        split_method: 'equal',
         nanny_id: '5',
       }),
     )

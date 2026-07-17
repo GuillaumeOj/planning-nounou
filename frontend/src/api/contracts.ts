@@ -56,11 +56,19 @@ export interface ContractFamily {
   is_originator: boolean
 }
 
+// How a moment's hours divide between the families whose children are there.
+// `equal` splits it in half between the families present; `by_children` weighs
+// each family by how many of its children are there. A genuine choice the
+// families make — two families with 2 and 1 children may still agree on halves —
+// so it is stored, not derived.
+export type SplitMethod = 'equal' | 'by_children'
+
 export interface Contract {
   id: string
   nanny: Nanny
   starting_date: string
   ending_date: string | null
+  split_method: SplitMethod
   paid_leave_days: number
   notes: string
   families: ContractFamily[]
@@ -75,6 +83,7 @@ export interface ContractInput {
   last_name?: string
   starting_date: string
   ending_date?: string | null
+  split_method?: SplitMethod
   paid_leave_days?: number
   notes?: string
 }

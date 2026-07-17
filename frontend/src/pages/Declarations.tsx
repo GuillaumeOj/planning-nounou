@@ -8,11 +8,8 @@ import { DeclarationSection } from '@/src/components/DeclarationSection'
 import { Button } from '@/src/components/ui/button'
 import { Label } from '@/src/components/ui/label'
 import { useI18n } from '@/src/i18n/I18nContext'
+import { toMonthParam } from '@/src/lib/months'
 import { localeFor, selectClass } from '@/src/lib/utils'
-
-// What the declarations endpoint scopes by. Not the ISO date: the month is a
-// month, and 'YYYY-MM' is what the API asks for.
-const toMonthParam = (month: Date) => format(month, 'yyyy-MM')
 
 // The month's pay, per contract and per family, ready to be typed into
 // pajemploi. The figures come from the backend already priced — this page picks

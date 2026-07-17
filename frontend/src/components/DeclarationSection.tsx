@@ -39,6 +39,9 @@ const WARNING_KEYS: Record<string, TranslationKey> = {
   presence_responsable_in_shared_care:
     'declaration.warning.presence_responsable_in_shared_care',
   split_without_children: 'declaration.warning.split_without_children',
+  hours_reduced_for_absence: 'declaration.warning.hours_reduced_for_absence',
+  overlapping_solo_exceptional:
+    'declaration.warning.overlapping_solo_exceptional',
   weekly_hours_over_maximum: 'declaration.warning.weekly_hours_over_maximum',
   worked_holiday_not_majorated:
     'declaration.warning.worked_holiday_not_majorated',
@@ -280,11 +283,9 @@ function DeclarationCard({
       setErrors(extractErrorMessages(error, t('declaration.fileError'))),
   })
 
+  // The order matches the pajemploi form the parent copies these into, top to
+  // bottom: hours at 25%, then 50%, then normal.
   const hours: Figure[] = [
-    {
-      label: t('declaration.normalHours'),
-      value: formatHours(declaration.normal_hours, lang),
-    },
     {
       label: t('declaration.hours25'),
       value: formatHours(declaration.hours_25, lang),
@@ -293,16 +294,20 @@ function DeclarationCard({
       label: t('declaration.hours50'),
       value: formatHours(declaration.hours_50, lang),
     },
+    {
+      label: t('declaration.normalHours'),
+      value: formatHours(declaration.normal_hours, lang),
+    },
   ]
 
-  // The optional lines only earn their space when they carry a figure: a zeroed
-  // night indemnity on a contract that has no nights is noise between a parent
-  // and the number they came for.
+  // pajemploi order again: net salary, then the total. The optional lines only
+  // earn their space when they carry a figure — a zeroed night indemnity on a
+  // contract that has no nights is noise between a parent and the number they
+  // came for. total = net salary + these, which is why they sit between them.
   const pay: Figure[] = [
     {
-      label: t('declaration.totalAmount'),
-      value: formatMoney(declaration.total_amount, lang),
-      strong: true,
+      label: t('declaration.netSalary'),
+      value: formatMoney(declaration.net_salary, lang),
     },
     ...when(!isZero(declaration.holiday_majoration), {
       label: t('declaration.holidayMajoration'),
@@ -319,6 +324,11 @@ function DeclarationCard({
         value: formatMoney(declaration.night_indemnity, lang),
       },
     ),
+    {
+      label: t('declaration.totalAmount'),
+      value: formatMoney(declaration.total_amount, lang),
+      strong: true,
+    },
   ]
 
   const extras: Figure[] = [

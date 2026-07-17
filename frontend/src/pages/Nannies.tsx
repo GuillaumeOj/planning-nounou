@@ -26,6 +26,8 @@ import {
   getMyContractInvitations,
   type Nanny,
   revokeContractInvitation,
+  type SplitMethod,
+  updateContract,
   updateContractSchedule,
   updateContractTerms,
 } from '@/src/api/contracts'
@@ -774,6 +776,86 @@ function SharingSection({
   )
 }
 
+// --- how the families split the hours ---------------------------------------
+
+const SPLIT_METHODS: SplitMethod[] = ['equal', 'by_children']
+
+// The radios the families set once and can revisit — 50/50 or fair-by-children.
+// Just the choices; the caller supplies the heading, so this reads the same in
+// the wizard step and the edit card without either repeating the other's title.
+function SplitMethodChoice({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: SplitMethod
+  onChange: (value: SplitMethod) => void
+  disabled?: boolean
+}) {
+  const { t } = useI18n()
+  return (
+    <div className="flex flex-col gap-2">
+      {SPLIT_METHODS.map((method) => (
+        <label key={method} className="flex items-start gap-2 text-sm">
+          <input
+            type="radio"
+            name="split-method"
+            className="mt-0.5 size-4"
+            checked={value === method}
+            disabled={disabled}
+            onChange={() => onChange(method)}
+          />
+          <span>
+            <span className="font-medium">{t(`contract.split.${method}`)}</span>
+            <span className="block text-xs text-muted-foreground">
+              {t(`contract.split.${method}.hint`)}
+            </span>
+          </span>
+        </label>
+      ))}
+    </div>
+  )
+}
+
+// Editing the split on an existing contract. Its own card so it reads alongside
+// the schedule and children it depends on. Saved immediately — a radio has no
+// draft worth keeping.
+function SplitSection({
+  familyId,
+  contract,
+}: {
+  familyId: string
+  contract: Contract
+}) {
+  const { t } = useI18n()
+  const queryClient = useQueryClient()
+  const [errors, setErrors] = useState<string[]>([])
+
+  const mutation = useMutation({
+    mutationFn: (split_method: SplitMethod) =>
+      updateContract(familyId, contract.id, { split_method }),
+    onSuccess: async () => {
+      setErrors([])
+      await queryClient.invalidateQueries({ queryKey: ['contracts', familyId] })
+    },
+    onError: (err) => setErrors(extractErrorMessages(err, t('nanny.error'))),
+  })
+
+  return (
+    <SectionCard
+      title={t('contract.split')}
+      description={t('contract.splitHint')}
+    >
+      <SplitMethodChoice
+        value={contract.split_method}
+        onChange={(method) => mutation.mutate(method)}
+        disabled={mutation.isPending}
+      />
+      <FormErrors messages={errors} />
+    </SectionCard>
+  )
+}
+
 // --- Onboarding wizard ------------------------------------------------------
 
 // The order of the wizard, and the only place it is written down.
@@ -806,6 +888,7 @@ function ContractWizard({
   const [lastName, setLastName] = useState('')
   const [startingDate, setStartingDate] = useState('')
   const [paidLeave, setPaidLeave] = useState('')
+  const [splitMethod, setSplitMethod] = useState<SplitMethod>('equal')
   const [terms, setTerms] = useState<TermsDraft>(EMPTY_TERMS)
   const [schedule, setSchedule] = useState<ScheduleDraft>(EMPTY_SCHEDULE)
   const [childIds, setChildIds] = useState<string[]>([])
@@ -828,6 +911,7 @@ function ContractWizard({
       const input: ContractInput = {
         starting_date: startingDate,
         paid_leave_days: paidLeave ? Number(paidLeave) : undefined,
+        split_method: splitMethod,
         ...(useExisting
           ? { nanny_id: nannyId }
           : { first_name: firstName, last_name: lastName }),
@@ -1013,14 +1097,26 @@ function ContractWizard({
         )}
 
         {step === 5 && (
-          <div className="flex flex-col gap-1">
-            <Label htmlFor="wizard-share">{t('wizard.shareOptional')}</Label>
-            <Input
-              id="wizard-share"
-              type="email"
-              value={shareEmail}
-              onChange={(e) => setShareEmail(e.target.value)}
-            />
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="wizard-share">{t('wizard.shareOptional')}</Label>
+              <Input
+                id="wizard-share"
+                type="email"
+                value={shareEmail}
+                onChange={(e) => setShareEmail(e.target.value)}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <p className="text-sm font-medium">{t('contract.split')}</p>
+              <p className="text-xs text-muted-foreground">
+                {t('contract.splitHint')}
+              </p>
+              <SplitMethodChoice
+                value={splitMethod}
+                onChange={setSplitMethod}
+              />
+            </div>
           </div>
         )}
 
@@ -1326,6 +1422,10 @@ export default function Nannies() {
                         contract={contract}
                       />
                       <ContractChildrenSection
+                        familyId={activeFamilyId}
+                        contract={contract}
+                      />
+                      <SplitSection
                         familyId={activeFamilyId}
                         contract={contract}
                       />

@@ -92,10 +92,15 @@ export type ExceptionalKind =
 
 export interface ExceptionalHours {
   id: string
-  // Who filed it. Read-only: the backend pins it to the acting family, so a
-  // family can see the other's entries and never write them.
+  // Who filed it. Read-only: the backend pins it to the acting family. A family
+  // sees its own entries and every family's SHARED ones (so it can be prompted to
+  // add its half), and can only ever write its own.
   family: string
   kind: ExceptionalKind
+  // Care both families needed at once, split by the contract's usual rule, rather
+  // than this family's own extra hour (which it pays whole). Only meaningful on a
+  // shared contract.
+  is_shared: boolean
   start_date: string
   start_time: string
   // Not always start_date: a night runs past midnight.
@@ -109,6 +114,7 @@ export interface ExceptionalHours {
 
 export interface ExceptionalHoursInput {
   kind: ExceptionalKind
+  is_shared?: boolean
   start_date: string
   start_time: string
   end_date: string
@@ -128,6 +134,18 @@ export async function getExceptionalHours(
     hoursBase(familyId, contractId),
   )
   return data
+}
+
+// Query key + fetcher in one place, shared by the hours section and the calendar
+// marks so they read from a single cache entry rather than hand-matched keys.
+export function exceptionalHoursQueryOptions(
+  familyId: string,
+  contractId: string,
+) {
+  return {
+    queryKey: ['exceptional-hours', contractId] as const,
+    queryFn: () => getExceptionalHours(familyId, contractId),
+  }
 }
 
 export async function createExceptionalHours(
@@ -197,6 +215,18 @@ export async function getExceptionalPresences(
     presenceBase(familyId, contractId),
   )
   return data
+}
+
+// Query key + fetcher in one place, shared by the presence section and the
+// calendar marks (a single cache entry rather than a hand-matched key).
+export function exceptionalPresencesQueryOptions(
+  familyId: string,
+  contractId: string,
+) {
+  return {
+    queryKey: ['exceptional-presences', contractId] as const,
+    queryFn: () => getExceptionalPresences(familyId, contractId),
+  }
 }
 
 export async function createExceptionalPresence(
@@ -276,6 +306,10 @@ export interface MonthlyDeclaration {
   normal_hours: string
   hours_25: string
   hours_50: string
+  // pajemploi's "salaire net": the declared hours priced, and nothing else.
+  net_salary: string
+  // net_salary plus the night indemnity and any worked-holiday majoration. The
+  // advantages below are their own pajemploi fields and are not folded in here.
   total_amount: string
   transport_amount: string
   benefits_in_kind_amount: string

@@ -331,19 +331,24 @@ class Command(BaseCommand):
             notes="Nuit — demo.",
         )
         if len(families) > 1:
-            # Both families needing the same evening: the overlap reconciles, the
-            # rest is wholly the filer's. Nobody would see this path otherwise.
+            # Care both families needed at once: each files the *same* window,
+            # marked shared, so each declares only its own contractual share and
+            # neither's figure depends on the other. This is the path the "the
+            # other family logged shared care, add yours" prompt is built for; one
+            # family filed here, and the second's matching entry stands in for
+            # having answered the prompt. Nobody would see it otherwise.
             shared_evening = today - timedelta(days=rng.randint(5, 15))
-            for family, end in ((families[0], time(22, 0)), (families[1], time(21, 0))):
+            for family in (families[0], families[1]):
                 ExceptionalHours.objects.create(
                     contract=contract,
                     family=family,
                     created_by=owner,
                     kind=ExceptionalHours.Kind.EFFECTIVE,
+                    is_shared=True,
                     start_date=shared_evening,
                     start_time=time(18, 30),
                     end_date=shared_evening,
-                    end_time=end,
+                    end_time=time(21, 0),
                     notes="Soirée partagée — demo.",
                 )
             # A child there outside their window: no extra hours, only a shifted

@@ -287,13 +287,28 @@ The families agree a répartition and write it down.
 
 ## 3. The monthly declaration
 
-What each family ultimately needs to type into pajemploi:
+What each family ultimately needs to type into pajemploi, **in the form's own order**:
 
-- working hours
 - overtime hours at 25%
 - overtime hours at 50%
-- total amount = `normal × rate + h25 × rate × 1.25 + h50 × rate × 1.50`
-- each advantage: transport, kilometric, in-kind
+- normal (working) hours
+- **net salary** = `normal × rate + h25 × rate × 1.25 + h50 × rate × 1.50`
+- **total amount** = net salary + the night indemnity + any worked-holiday majoration
+- each advantage, its own field: transport, kilometric, in-kind
+
+Two figures, not one, because the pajemploi form has both. The **advantages are not
+folded into the total** — they are separate lines on the form — so `total_amount` stops
+at the net wage due. For an ordinary month with no night or holiday work the two are
+equal, which is the common case.
+
+> [!IMPORTANT]
+> **The declared hours are rounded UP to whole hours, per family.** A family's exact
+> mensualised 173.33 h is declared as 174. This deliberately drops the "families sum to
+> exactly the nanny's hours" invariant that `apportion` keeps elsewhere: each family
+> ceils on its own, so the parts sum to a hair *more* than she worked — the safe
+> direction, and a product decision, not an arithmetic one. The **salary is then priced
+> from the declared (ceiled) hours**, so what we show and what pajemploi recomputes from
+> the numbers the parent types agree. `ceil_hours()` is the one edit if this is revisited.
 
 Assembled as:
 
@@ -317,9 +332,14 @@ Assembled as:
    cannot unilaterally decide its own holiday is unpaid.
 3. **Plus exceptional hours** — typed per §1, attributed per §3.1 below.
 4. **Advantages** — `transport_fee` and `benefits_in_kind` are one monthly figure for
-   one nanny, so they are **split by each family's share of the month's hours**; the
-   nanny receives the agreed total, not a multiple of it. `mileage_rate × kilometers`
-   uses the km entered on the declaration.
+   one nanny, so they are split so that the nanny receives the agreed total, not a
+   multiple of it. The split weight is each family's share of the **contractual base** —
+   the mensualised schedule, taken *before* absence proration and *before* the
+   exceptional top-up (`base_weights()`) — **not** its share of the month's actual hours.
+   That is deliberate: a fixed monthly advantage should be the same every ordinary month,
+   and weighting it by the month's total hours made an exceptional evening quietly enlarge
+   a family's share of the transport fee, which is confusing and wrong. `mileage_rate ×
+   kilometers` uses the km entered on the declaration.
 5. **Paid leave** taken is reported two ways, without choosing between them: quota −
    taken, and accrued (2.5 days per month worked) − taken.
 
@@ -342,11 +362,35 @@ reading presence from the windows is not just imprecise — it is backwards. If 
 window is 16:30–18:00 and family A files an exceptional 19:00–21:00, the window says A's
 child is absent, weight 0, and **family A's own extra hours are billed to family B**.
 
-Rule: for exceptional hours, presence is **whoever filed the entry**. Under
-`BY_CHILDREN` a filing family weighs as its full `ContractChild` count. Union each
-family's own overlapping entries before splitting (A filing 19–21 *and* 20–22 by mistake
-means 3h, not 5h). Where two *different* families' entries overlap in time, that overlap
-splits by the same weight rule — which is the reconciliation the families expect.
+Rule: for exceptional hours, presence is **whoever filed the entry**, never the windows.
+Union each family's own overlapping entries before attributing (A filing 19–21 *and*
+20–22 by mistake means 3h, not 5h).
+
+**Solo vs shared, and why a declaration must not depend on the other family.** An earlier
+version reconciled overlapping entries between families automatically: if A and B both
+filed 19:00–21:00, the overlap split by the usual weight. That is dangerous — it makes
+A's declared hours a function of whether B happened to file, so a family that forgets its
+entry silently changes the other's number. A declaration each family files separately at
+pajemploi must be reproducible from that family's own data alone.
+
+So `is_shared` is now an explicit flag on the entry, and attribution reads nobody else's
+rows (`attribute_exceptional`):
+
+- a **solo** entry (the default) is *wholly its filer's*. A family's own extra hour is
+  paid in full — a family that keeps the nanny late for its own child pays the whole hour,
+  and nothing the other family does can move that number.
+- a **shared** entry is care both families needed at once, and its filer takes only its
+  own contractual share of it (`contract_shares`, the same `EQUAL`/`BY_CHILDREN` weight
+  the schedule uses, asked as "everyone is here"). Both families are expected to file
+  their own — the UI shows the second family a *"the other family logged shared care, add
+  yours"* prompt, and answering it files an identical shared entry — and then the shares
+  sum to the whole. If one forgets, the nanny is short **exactly that family's share** and
+  no other declaration is wrong: the failure is local and visible, not a silent shift.
+
+Two *different* families each filing **solo** for the same clock time each pay the full
+hour — the nanny cannot be in two places at once, so that is almost always shared care
+they should have marked shared. Rather than reconcile it away in silence (and reintroduce
+the dependency), `compute_month` raises `overlapping_solo_exceptional` so they fix it.
 
 Exceptional hours must fall **outside** the schedule; an entry overlapping a scheduled
 block would be paid twice, once inside the mensualised base and once as an add-on. A
@@ -370,12 +414,30 @@ changes the price, never the total hours**.
 
 **Paid leave deducts nothing.** 52 weeks = 47 worked + 5 of paid leave. The leave is
 already inside the mensualised base. "She was off all week and got paid the same" is
-mensualisation working exactly as intended. Only *unpaid* leave deducts. Confirmed for
-this exact population by [URSSAF][urssaf-cp]:
+mensualisation working exactly as intended. Confirmed for this exact population by
+[URSSAF][urssaf-cp]:
 
 > **Rémunération mensualisée sur 52 semaines (assistants maternels agréés et gardes
 > d'enfants à domicile)** — Les congés sont rémunérés lorsqu'ils sont pris. Le salaire
 > mensualisé est versé tous les mois, y compris pendant les périodes de congés payés.
+
+**Unpaid absence and sickness both deduct**, via the same art. 152.1 ratio (§3, step 2),
+and the reduction is shared across the families by the presence each would have had that
+day — a shared Monday off comes off both, a Monday only one family used comes off only
+that one. The two are the same to the declaration: in each the hours are simply not worked
+and the employer does not pay them. Sickness adds nothing beyond that here — the nanny's
+IJSS, and any *maintien de salaire* the CCN's seniority conditions might owe, are separate
+indemnities paid outside the declared hours and are not modelled, exactly like the night
+and holiday indemnities are kept apart from the bands.
+
+> [!IMPORTANT]
+> **A deducted month is flagged, on purpose.** A declaration whose hours sit below the
+> contractual base reads as a bug to a parent who does not know an absence caused it. So
+> `compute_month` raises `hours_reduced_for_absence` whenever any family's attendance ratio
+> falls below 1 — which happens for unpaid and sickness leave and nothing else (paid leave
+> and a day she never works both leave the ratio at 1) — and the UI shows it in the amber
+> warning box beside the figures. The signal is the whole point: the lower number is
+> correct, and saying why is what keeps it from looking wrong.
 
 ### 3.3 An *unchômé* bank holiday is paid extra, and we owe it
 
@@ -452,8 +514,12 @@ own field help:
 > taux horaire normal majoré à 25%. »
 
 So the declared net salary **includes** the overtime, and the 25% and 50% hour counts go in
-their own separate fields. Five numbers: normal hours, hours at 25%, hours at 50%, the net
-salary, and the advantages.
+their own separate fields. The fields, in the order the form lays them out: hours at 25%,
+hours at 50%, normal hours, the net salary, the total amount, then each advantage
+(transport, kilometric, in-kind) on its own line — the UI mirrors that order so a parent
+copies straight down. The total is the net wage due (net salary plus the night indemnity
+and any worked-holiday majoration); the advantages are **not** rolled into it, because the
+form collects them separately.
 
 Everything in this codebase is **net**, because that is what pajemploi asks for. The
 convention, however, defines majorations, floors and indemnities in **brut** — so any

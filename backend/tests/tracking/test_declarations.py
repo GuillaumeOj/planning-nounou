@@ -303,7 +303,20 @@ def test_a_month_before_the_contract_starts_yields_nothing():
 # --- exceptional hours -------------------------------------------------------
 
 
-def test_a_family_filing_overlapping_entries_is_not_paid_for_both():
+EQUAL_SHARES = {FAMILY_A: Fraction(1, 2), FAMILY_B: Fraction(1, 2)}
+
+
+def test_a_solo_entry_is_wholly_its_filers():
+    # A family's own extra hour is paid in full — nothing the other family does
+    # can move that number.
+    entry = d.ExceptionalEntry(
+        FAMILY_A, "effective", date(2026, 7, 14), time(20, 0), date(2026, 7, 14), time(23, 0)
+    )
+    minutes = d.attribute_exceptional([entry], EQUAL_SHARES, [FAMILY_A, FAMILY_B])
+    assert minutes == {FAMILY_A: Fraction(3 * 60)}
+
+
+def test_a_family_filing_overlapping_solo_entries_is_not_paid_for_both():
     entries = [
         d.ExceptionalEntry(
             FAMILY_A, "effective", date(2026, 7, 14), time(19, 0), date(2026, 7, 14), time(21, 0)
@@ -312,36 +325,81 @@ def test_a_family_filing_overlapping_entries_is_not_paid_for_both():
             FAMILY_A, "effective", date(2026, 7, 14), time(20, 0), date(2026, 7, 14), time(22, 0)
         ),
     ]
-    minutes = d.reconcile_exceptional(entries, {}, "equal", [FAMILY_A, FAMILY_B])
-    assert minutes[FAMILY_A] == 3 * 60  # 19:00-22:00, not 4h
+    minutes = d.attribute_exceptional(entries, EQUAL_SHARES, [FAMILY_A, FAMILY_B])
+    assert minutes[FAMILY_A] == 3 * 60  # 19:00-22:00 unioned, not 4h
 
 
-def test_two_families_overlapping_share_the_overlap_and_keep_the_rest():
+def test_a_shared_entry_takes_only_its_filers_contractual_share():
+    # Care both families needed at once: A declares its own half of it, without
+    # reading whether B filed anything.
+    entry = d.ExceptionalEntry(
+        FAMILY_A,
+        "effective",
+        date(2026, 7, 14),
+        time(20, 0),
+        date(2026, 7, 14),
+        time(22, 0),
+        is_shared=True,
+    )
+    minutes = d.attribute_exceptional([entry], EQUAL_SHARES, [FAMILY_A, FAMILY_B])
+    assert minutes == {FAMILY_A: Fraction(60)}  # half of the 2h
+
+
+def test_both_families_filing_a_matching_shared_entry_sum_to_the_whole():
     entries = [
         d.ExceptionalEntry(
-            FAMILY_A, "effective", date(2026, 7, 14), time(20, 0), date(2026, 7, 14), time(23, 0)
+            FAMILY_A,
+            "effective",
+            date(2026, 7, 14),
+            time(20, 0),
+            date(2026, 7, 14),
+            time(22, 0),
+            is_shared=True,
         ),
         d.ExceptionalEntry(
-            FAMILY_B, "effective", date(2026, 7, 14), time(20, 0), date(2026, 7, 14), time(22, 0)
+            FAMILY_B,
+            "effective",
+            date(2026, 7, 14),
+            time(20, 0),
+            date(2026, 7, 14),
+            time(22, 0),
+            is_shared=True,
         ),
     ]
-    minutes = d.reconcile_exceptional(entries, {}, "equal", [FAMILY_A, FAMILY_B])
-    # 20:00-22:00 shared (1h each), 22:00-23:00 all A.
-    assert minutes[FAMILY_A] == 2 * 60
+    minutes = d.attribute_exceptional(entries, EQUAL_SHARES, [FAMILY_A, FAMILY_B])
+    assert minutes[FAMILY_A] == 60
     assert minutes[FAMILY_B] == 60
-    # The nanny worked 3h and is paid for 3h.
-    assert sum(minutes.values()) == 3 * 60
+    assert sum(minutes.values()) == 2 * 60  # the nanny is paid the 2h once
 
 
-def test_exceptional_hours_ignore_the_childrens_windows():
-    # A's child is windowed to the afternoon, so the windows would call them
-    # absent at 19:00 and bill A's own late night to B.
+def test_a_shared_entry_splits_by_children_when_the_contract_says_so():
+    a1, a2 = child(FAMILY_A), child(FAMILY_A)
+    b1 = child(FAMILY_B)
+    children = by_id(a1, a2, b1)
+    shares = d.contract_shares(children, "by_children", [FAMILY_A, FAMILY_B])
+    entry = d.ExceptionalEntry(
+        FAMILY_A,
+        "effective",
+        date(2026, 7, 14),
+        time(20, 0),
+        date(2026, 7, 14),
+        time(23, 0),
+        is_shared=True,
+    )
+    minutes = d.attribute_exceptional([entry], shares, [FAMILY_A, FAMILY_B])
+    assert minutes == {FAMILY_A: Fraction(2, 3) * 3 * 60}  # A weighs 2 of 3 children
+
+
+def test_solo_entries_never_read_the_childrens_windows():
+    # A's child is windowed to the afternoon; a solo entry is still wholly A's,
+    # because presence for exceptional hours is who filed, never the windows.
     a = child(FAMILY_A, (TUESDAY, time(16, 30), time(18, 0)))
     b = child(FAMILY_B)
+    shares = d.contract_shares(by_id(a, b), "equal", [FAMILY_A, FAMILY_B])
     entry = d.ExceptionalEntry(
         FAMILY_A, "effective", date(2026, 7, 14), time(19, 0), date(2026, 7, 14), time(21, 0)
     )
-    minutes = d.reconcile_exceptional([entry], by_id(a, b), "equal", [FAMILY_A, FAMILY_B])
+    minutes = d.attribute_exceptional([entry], shares, [FAMILY_A, FAMILY_B])
     assert minutes == {FAMILY_A: Fraction(2 * 60)}
 
 
@@ -356,7 +414,7 @@ def test_a_night_crossing_midnight_is_one_span():
             time(2, 0),
         )
     ]
-    minutes = d.reconcile_exceptional(entries, {}, "equal", [FAMILY_A])
+    minutes = d.attribute_exceptional(entries, {FAMILY_A: Fraction(1)}, [FAMILY_A])
     assert minutes[FAMILY_A] == 4 * 60
 
 
@@ -404,15 +462,19 @@ def month(*, children=(), schedules=None, terms_=None, split="equal", families=(
 
 
 def test_a_solo_forty_hour_week_mensualises_to_the_urssaf_figure():
-    # 8h x 5 days = 40h; 40 x 52 / 12 = 173.33h, all normal, at 12 EUR.
+    # 8h x 5 days = 40h; 40 x 52 / 12 = 173.33h, rounded UP to the 174h declared,
+    # all normal, at 12 EUR -> 2088.00.
     blocks = [block(day, time(9, 0), time(17, 0)) for day in range(5)]
     result = d.compute_month(month(schedules=(schedule(*blocks),)))[FAMILY_A]
-    assert result.normal_hours == Decimal("173.33")
+    assert result.normal_hours == Decimal("174")
     assert result.hours_25 == Decimal("0")
-    assert result.total_amount == Decimal("2079.96")
+    assert result.net_salary == Decimal("2088.00")
+    assert result.total_amount == Decimal("2088.00")
 
 
-def test_a_shared_month_never_declares_more_hours_than_the_nanny_worked():
+def test_a_shared_month_declares_at_least_what_the_nanny_worked():
+    # The declared hours round UP, per family, so together they never fall short
+    # of what she worked — the ceiling errs in her favour.
     a1 = child(FAMILY_A)
     a2 = child(FAMILY_A, *[(day, time(16, 30), time(18, 0)) for day in range(5)])
     b1 = child(FAMILY_B)
@@ -422,9 +484,9 @@ def test_a_shared_month_never_declares_more_hours_than_the_nanny_worked():
     declared = sum(r.normal_hours + r.hours_25 + r.hours_50 for r in results.values())
     # 10h x 5 = 50h/week -> 40 normal + 8 at 25% + 2 at 50%, mensualised.
     worked = d.to_hours(d.mensualise(d.Bands(Fraction(50 * 60))).normal)
-    assert declared == worked
+    assert declared >= worked
     # A carries more than B, because A's second child is there after school.
-    assert results[FAMILY_A].normal_hours > results[FAMILY_B].normal_hours
+    assert results[FAMILY_A].normal_hours >= results[FAMILY_B].normal_hours
 
 
 def test_the_overtime_bands_survive_the_split():
@@ -449,8 +511,9 @@ def test_unpaid_leave_prorates_the_month_rather_than_subtracting_the_day():
     leave = d.LeaveSpan("unpaid", date(2026, 7, 13), date(2026, 7, 13), "full_day")
     without = d.compute_month(month(schedules=(schedule(*blocks),)))[FAMILY_A]
     with_leave = d.compute_month(month(schedules=(schedule(*blocks),), leaves=(leave,)))[FAMILY_A]
-    assert without.normal_hours == Decimal("173.33")
-    assert with_leave.normal_hours == Decimal("165.80")
+    # 173.33h and 165.80h before the ceiling; 174h and 166h once rounded up.
+    assert without.normal_hours == Decimal("174")
+    assert with_leave.normal_hours == Decimal("166")
 
 
 def test_paid_leave_deducts_nothing_because_the_base_already_holds_it():
@@ -496,6 +559,52 @@ def test_a_month_of_unpaid_leave_is_worth_nothing_whatever_the_month(first, last
     result = d.compute_month(data)[FAMILY_A]
     assert result.normal_hours == Decimal("0")
     assert result.total_amount == Decimal("0")
+
+
+def test_sickness_deducts_the_hours_like_an_unpaid_absence():
+    # A sick day is not worked and the employer does not pay it, so the hours drop
+    # exactly as an unpaid day off would — and the base is untouched by paid leave.
+    blocks = [block(day, time(9, 0), time(17, 0)) for day in range(5)]
+    sick = d.LeaveSpan("sickness", date(2026, 7, 13), date(2026, 7, 13), "full_day")
+    unpaid = d.LeaveSpan("unpaid", date(2026, 7, 13), date(2026, 7, 13), "full_day")
+    with_sick = d.compute_month(month(schedules=(schedule(*blocks),), leaves=(sick,)))[FAMILY_A]
+    with_unpaid = d.compute_month(month(schedules=(schedule(*blocks),), leaves=(unpaid,)))[FAMILY_A]
+    without = d.compute_month(month(schedules=(schedule(*blocks),)))[FAMILY_A]
+    assert with_sick.normal_hours == with_unpaid.normal_hours
+    assert with_sick.normal_hours < without.normal_hours
+
+
+def test_a_sick_day_shares_its_reduction_across_the_families():
+    # The nanny is off, so every family that would have had her that day loses its
+    # share of it. A shared Monday deducts from both, by the presence each had.
+    a, b = child(FAMILY_A), child(FAMILY_B)
+    sick = d.LeaveSpan("sickness", date(2026, 7, 13), date(2026, 7, 13), "full_day")  # a Monday
+    plain = d.compute_month(month(children=(a, b), families=(FAMILY_A, FAMILY_B)))
+    sickened = d.compute_month(
+        month(children=(a, b), families=(FAMILY_A, FAMILY_B), leaves=(sick,))
+    )
+    for family in (FAMILY_A, FAMILY_B):
+        base = plain[family].normal_hours + plain[family].hours_25 + plain[family].hours_50
+        after = (
+            sickened[family].normal_hours + sickened[family].hours_25 + sickened[family].hours_50
+        )
+        assert after < base
+
+
+def test_a_deducting_absence_is_flagged_but_paid_leave_is_not():
+    # The lower figure must not read as a bug, so the declaration says why. Paid
+    # leave changes nothing and raises nothing.
+    sick = d.LeaveSpan("sickness", date(2026, 7, 13), date(2026, 7, 13), "full_day")
+    unpaid = d.LeaveSpan("unpaid", date(2026, 7, 13), date(2026, 7, 13), "full_day")
+    paid = d.LeaveSpan("paid", date(2026, 7, 13), date(2026, 7, 13), "full_day")
+    assert "hours_reduced_for_absence" in d.compute_month(month(leaves=(sick,)))[FAMILY_A].warnings
+    assert (
+        "hours_reduced_for_absence" in d.compute_month(month(leaves=(unpaid,)))[FAMILY_A].warnings
+    )
+    assert (
+        "hours_reduced_for_absence" not in d.compute_month(month(leaves=(paid,)))[FAMILY_A].warnings
+    )
+    assert "hours_reduced_for_absence" not in d.compute_month(month())[FAMILY_A].warnings
 
 
 def test_exceptional_hours_add_to_the_month():
@@ -643,19 +752,22 @@ def test_a_mid_month_raise_is_flagged_and_its_periods_kept():
     assert result.net_hourly_rate == Decimal("13.00")
 
 
-def test_a_mid_month_raise_changes_the_price_but_not_the_hours():
+def test_a_mid_month_raise_keeps_the_hours_and_prices_the_declared_ones():
+    # salaire net has to equal what pajemploi recomputes from the hours the parent
+    # types, so it is priced from the declared (whole) hours at the last day's
+    # rate — the one number the parent sees. The mid-month detail lives in
+    # rate_periods and the rates_changed_mid_month warning, not in the headline.
     flat = d.compute_month(month())[FAMILY_A]
     raised = d.compute_month(
         month(terms_=(terms("12.00"), terms("13.00", effective_from=date(2026, 7, 16))))
     )[FAMILY_A]
     assert raised.normal_hours == flat.normal_hours
-    # This assertion is the point of the test and was missing, which is how the
-    # whole month came to be priced at the last day's rate. 15 days at 12.00 and
-    # 16 at 13.00 lands strictly between the two flat months, and nowhere near
-    # either.
-    at_old = d.compute_month(month())[FAMILY_A].total_amount
-    at_new = d.compute_month(month(terms_=(terms("13.00"),)))[FAMILY_A].total_amount
-    assert at_old < raised.total_amount < at_new
+    assert "rates_changed_mid_month" in raised.warnings
+    at_new = d.compute_month(month(terms_=(terms("13.00"),)))[FAMILY_A]
+    # Priced at the last day's 13.00 for the whole month: the same as a flat
+    # 13.00 month on the same hours.
+    assert raised.net_salary == at_new.net_salary
+    assert raised.total_amount == at_new.total_amount
 
 
 def test_a_month_with_no_schedule_yields_zeroes_rather_than_an_error():
@@ -674,10 +786,10 @@ def test_a_month_with_no_schedule_yields_zeroes_rather_than_an_error():
         (20, "equal", 2),
     ],
 )
-def test_the_families_together_always_declare_exactly_what_the_nanny_worked(end_hour, split, kids):
-    # The invariant the whole feature rests on. It is not automatic: rounding each
-    # family's bands on their own quietly loses a centihour whenever a band does
-    # not divide cleanly, and that hour is one nobody pays for.
+def test_the_families_together_never_declare_less_than_the_nanny_worked(end_hour, split, kids):
+    # The ceiling errs the nanny's way: each family rounds its own bands UP, so
+    # the parts sum to at least what she worked, never less. (The old exact-sum
+    # invariant is deliberately gone — that is what a ceiling costs.)
     a_kids = [child(FAMILY_A) for _ in range(kids)]
     b1 = child(FAMILY_B)
     blocks = [block(day, time(8, 0), time(end_hour, 0)) for day in range(5)]
@@ -691,15 +803,18 @@ def test_the_families_together_always_declare_exactly_what_the_nanny_worked(end_
     )
     declared = sum(r.normal_hours + r.hours_25 + r.hours_50 for r in results.values())
     weekly = (end_hour - 8) * 5 * 60
-    assert declared == d.to_hours(d.mensualise(d.Bands(Fraction(weekly))).normal)
+    worked = d.to_hours(d.mensualise(d.Bands(Fraction(weekly))).normal)
+    assert declared >= worked
+    # ...and by no more than one whole hour per family per band it rounded up.
+    assert declared - worked < len(results) * 3
 
 
 # --- the sum invariant under adversarial input -------------------------------
 
 
-def test_a_filer_with_no_share_in_the_contract_cannot_delete_minutes():
-    # Filtering after the split would let X dilute the two hours and then be
-    # dropped, paying the nanny for one of them.
+def test_a_filer_with_no_share_in_the_contract_is_ignored():
+    # A row from a family not on the contract attributes to nobody, rather than
+    # its minutes leaking into the split.
     stray = UUID("cccccccc-0000-0000-0000-000000000003")
     entries = [
         d.ExceptionalEntry(
@@ -709,7 +824,7 @@ def test_a_filer_with_no_share_in_the_contract_cannot_delete_minutes():
             stray, "effective", date(2026, 7, 14), time(20, 0), date(2026, 7, 14), time(22, 0)
         ),
     ]
-    minutes = d.reconcile_exceptional(entries, {}, "equal", [FAMILY_A, FAMILY_B])
+    minutes = d.attribute_exceptional(entries, EQUAL_SHARES, [FAMILY_A, FAMILY_B])
     assert minutes == {FAMILY_A: Fraction(2 * 60)}
 
 
@@ -986,12 +1101,14 @@ def test_the_majoration_reaches_the_total():
     assert worked.total_amount - plain.total_amount == Decimal("12.00")
 
 
-# --- reconciliation, through compute_month ------------------------------------
+# --- solo vs shared exceptional hours, through compute_month -------------------
 #
-# These go through compute_month deliberately. reconcile_exceptional was correct
-# and unit-tested all along; its caller passed it one entry at a time, so nothing
-# reconciled and a shared evening billed the nanny twice. Every assertion that
-# mattered was one level below the bug.
+# These go through compute_month deliberately. The attribution rule is unit-tested
+# on attribute_exceptional above; here it is the integration that matters — that a
+# solo entry stays wholly its filer's, a shared one splits, and each family's
+# number never depends on whether the other filed. The base is a 50h week, so an
+# evening lands in the 50% band; adding a whole number of hours to a band survives
+# the ceiling exactly, which is why these deltas stay clean.
 
 
 def two_family_month(**kw):
@@ -1003,35 +1120,61 @@ def declared(results):
     return sum(r.normal_hours + r.hours_25 + r.hours_50 for r in results.values())
 
 
-def evening(family, start, end, kind="effective", day=14):
+def evening(family, start, end, kind="effective", day=14, shared=False):
     return d.ExceptionalEntry(
-        family, kind, date(2026, 7, day), time(start, 0), date(2026, 7, day), time(end, 0)
+        family,
+        kind,
+        date(2026, 7, day),
+        time(start, 0),
+        date(2026, 7, day),
+        time(end, 0),
+        is_shared=shared,
     )
 
 
-def test_two_families_on_the_same_evening_pay_for_it_once():
-    both = (evening(FAMILY_A, 18, 20), evening(FAMILY_B, 18, 20))
+def gained_by(plain, results, family):
+    return (results[family].normal_hours + results[family].hours_25 + results[family].hours_50) - (
+        plain[family].normal_hours + plain[family].hours_25 + plain[family].hours_50
+    )
+
+
+def test_both_families_filing_a_matching_shared_evening_pay_for_it_once():
+    both = (evening(FAMILY_A, 18, 20, shared=True), evening(FAMILY_B, 18, 20, shared=True))
     plain = d.compute_month(two_family_month())
     shared = d.compute_month(two_family_month(exceptional=both))
-    # The nanny worked those two hours once.
+    # Each declares its own half of the 2h, so together the nanny is paid it once.
+    assert gained_by(plain, shared, FAMILY_A) == Decimal("1.00")
+    assert gained_by(plain, shared, FAMILY_B) == Decimal("1.00")
     assert declared(shared) - declared(plain) == Decimal("2.00")
+    assert "overlapping_solo_exceptional" not in shared[FAMILY_A].warnings
 
 
-def test_the_overlap_is_shared_and_the_rest_stays_with_the_filer():
-    # A needs 18:00-21:00, B needs 18:00-20:00. The nanny works 3h.
-    entries = (evening(FAMILY_A, 18, 21), evening(FAMILY_B, 18, 20))
+def test_two_families_filing_solo_for_the_same_evening_each_pay_full_and_are_warned():
+    # The new independence: a solo entry is wholly its filer's, so two families
+    # each booking 18:00-20:00 as their own each pay the full 2h. That is almost
+    # always shared care that was not marked shared, so it is flagged.
+    both = (evening(FAMILY_A, 18, 20), evening(FAMILY_B, 18, 20))
+    plain = d.compute_month(two_family_month())
+    result = d.compute_month(two_family_month(exceptional=both))
+    assert gained_by(plain, result, FAMILY_A) == Decimal("2.00")
+    assert gained_by(plain, result, FAMILY_B) == Decimal("2.00")
+    assert "overlapping_solo_exceptional" in result[FAMILY_A].warnings
+
+
+def test_shared_care_plus_a_solo_extension_attributes_each_part_on_its_own():
+    # 18:00-20:00 both needed her (each files it shared); 20:00-21:00 only A did
+    # (A files it solo). A gets its half of the shared 2h plus the whole solo 1h;
+    # B gets only its half of the shared 2h. Neither reads the other's rows.
+    entries = (
+        evening(FAMILY_A, 18, 20, shared=True),
+        evening(FAMILY_B, 18, 20, shared=True),
+        evening(FAMILY_A, 20, 21),
+    )
     plain = d.compute_month(two_family_month())
     shared = d.compute_month(two_family_month(exceptional=entries))
+    assert gained_by(plain, shared, FAMILY_A) == Decimal("2.00")
+    assert gained_by(plain, shared, FAMILY_B) == Decimal("1.00")
     assert declared(shared) - declared(plain) == Decimal("3.00")
-
-    def gained(family):
-        return (shared[family].normal_hours + shared[family].hours_25 + shared[family].hours_50) - (
-            plain[family].normal_hours + plain[family].hours_25 + plain[family].hours_50
-        )
-
-    # 18:00-20:00 halved, 20:00-21:00 wholly A's.
-    assert gained(FAMILY_A) == Decimal("2.00")
-    assert gained(FAMILY_B) == Decimal("1.00")
 
 
 def test_one_family_filing_alone_still_carries_all_of_it():

@@ -130,8 +130,10 @@ def load_contract_month(
             end_date=entry.end_date,
             end_time=entry.end_time,
             interventions=entry.interventions,
+            is_shared=entry.is_shared,
         )
-        # Every family's, deliberately: A's hours depend on what B filed.
+        # Every family's, deliberately: a shared entry splits between them, and the
+        # overlapping-solo warning needs to see both families' rows at once.
         for entry in ExceptionalHours.objects.filter(
             contract=contract, start_date__lte=last, end_date__gte=first
         ).order_by("start_date", "start_time", "id")
@@ -219,6 +221,7 @@ def _apply(row: MonthlyDeclaration, result: dec.FamilyResult) -> None:
     row.normal_hours = result.normal_hours
     row.hours_25 = result.hours_25
     row.hours_50 = result.hours_50
+    row.net_salary = result.net_salary
     row.total_amount = result.total_amount
     row.transport_amount = result.transport_amount
     row.benefits_in_kind_amount = result.benefits_in_kind_amount

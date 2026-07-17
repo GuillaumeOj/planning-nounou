@@ -28,23 +28,45 @@ vi.mock('@/src/api/holidays', () => ({ getBankHolidays: vi.fn() }))
 // The record tabs live on this page now, so their API surface has to be mocked
 // even for the tests that never leave the calendar: an unmocked module reaches
 // for a real axios call the moment a tab mounts.
-vi.mock('@/src/api/leaves', () => ({
-  getLeaves: vi.fn(),
-  createLeave: vi.fn(),
-  updateLeave: vi.fn(),
-  deleteLeave: vi.fn(),
-}))
-vi.mock('@/src/api/declarations', () => ({
-  getExceptionalHours: vi.fn(),
-  createExceptionalHours: vi.fn(),
-  updateExceptionalHours: vi.fn(),
-  deleteExceptionalHours: vi.fn(),
-  getExceptionalPresences: vi.fn(),
-  createExceptionalPresence: vi.fn(),
-  updateExceptionalPresence: vi.fn(),
-  deleteExceptionalPresence: vi.fn(),
-  getContractChildren: vi.fn(),
-}))
+vi.mock('@/src/api/leaves', () => {
+  const getLeaves = vi.fn()
+  return {
+    getLeaves,
+    createLeave: vi.fn(),
+    updateLeave: vi.fn(),
+    deleteLeave: vi.fn(),
+    leavesQueryOptions: (familyId: string, contractId: string) => ({
+      queryKey: ['contract-leaves', contractId],
+      queryFn: () => getLeaves(familyId, contractId),
+    }),
+  }
+})
+vi.mock('@/src/api/declarations', () => {
+  const getExceptionalHours = vi.fn()
+  const getExceptionalPresences = vi.fn()
+  return {
+    getExceptionalHours,
+    createExceptionalHours: vi.fn(),
+    updateExceptionalHours: vi.fn(),
+    deleteExceptionalHours: vi.fn(),
+    getExceptionalPresences,
+    createExceptionalPresence: vi.fn(),
+    updateExceptionalPresence: vi.fn(),
+    deleteExceptionalPresence: vi.fn(),
+    getContractChildren: vi.fn(),
+    exceptionalHoursQueryOptions: (familyId: string, contractId: string) => ({
+      queryKey: ['exceptional-hours', contractId],
+      queryFn: () => getExceptionalHours(familyId, contractId),
+    }),
+    exceptionalPresencesQueryOptions: (
+      familyId: string,
+      contractId: string,
+    ) => ({
+      queryKey: ['exceptional-presences', contractId],
+      queryFn: () => getExceptionalPresences(familyId, contractId),
+    }),
+  }
+})
 
 const m = {
   families: vi.mocked(getFamilies),
@@ -82,6 +104,7 @@ function makeContract(o: Partial<Contract> = {}): Contract {
     nanny: { id: '5', first_name: 'Marie', last_name: 'Dupont' },
     starting_date: '2026-06-01',
     ending_date: null,
+    split_method: 'equal',
     paid_leave_days: 25,
     notes: '',
     families: [{ id: '1', name: 'Home', is_originator: true }],
@@ -256,16 +279,18 @@ describe('Planning tabs', () => {
     expect(
       await screen.findByRole('tab', { name: 'Calendar' }),
     ).toHaveAttribute('aria-selected', 'true')
-    // The record tabs are not merely hidden: they never asked for their data.
-    expect(m.leaves).not.toHaveBeenCalled()
-    expect(m.hours).not.toHaveBeenCalled()
-    expect(m.presences).not.toHaveBeenCalled()
+    // The calendar itself now reads the records — it marks days off, exceptional
+    // hours and exceptional presences — so those queries run for its sake, keyed
+    // the same way the tabs use so a tab finds them already cached.
+    await waitFor(() => expect(m.leaves).toHaveBeenCalledWith('1', '10'))
+    expect(m.hours).toHaveBeenCalledWith('1', '10')
+    expect(m.presences).toHaveBeenCalledWith('1', '10')
   })
 
   it('shows the days off of each nanny, and drops the calendar', async () => {
     await openTab('Days off')
     expect(
-      await screen.findByText('No days off recorded yet.'),
+      await screen.findByText('No days off this month.'),
     ).toBeInTheDocument()
     // The name is the card's title now — the five worked cells are unmounted.
     expect(screen.getAllByText('Marie Dupont')).toHaveLength(1)
@@ -275,7 +300,7 @@ describe('Planning tabs', () => {
   it('shows the exceptional hours of each nanny', async () => {
     await openTab('Exceptional hours')
     expect(
-      await screen.findByText('No exceptional hours recorded yet.'),
+      await screen.findByText('No exceptional hours this month.'),
     ).toBeInTheDocument()
     expect(m.hours).toHaveBeenCalledWith('1', '10')
   })
@@ -283,14 +308,14 @@ describe('Planning tabs', () => {
   it('shows the exceptional presence of each nanny', async () => {
     await openTab('Exceptional presence')
     expect(
-      await screen.findByText('No exceptional presence recorded yet.'),
+      await screen.findByText('No exceptional presence this month.'),
     ).toBeInTheDocument()
     expect(m.presences).toHaveBeenCalledWith('1', '10')
   })
 
   it('keeps a single family selector, above the tabs', async () => {
     await openTab('Days off')
-    await screen.findByText('No days off recorded yet.')
+    await screen.findByText('No days off this month.')
     // Two would mean two elements sharing id="acting-family".
     expect(screen.getAllByLabelText('Acting as family')).toHaveLength(1)
   })
@@ -299,7 +324,7 @@ describe('Planning tabs', () => {
     const family2 = { ...family, id: '2', name: 'Grandparents' }
     m.families.mockResolvedValue([family, family2])
     const user = await openTab('Exceptional hours')
-    await screen.findByText('No exceptional hours recorded yet.')
+    await screen.findByText('No exceptional hours this month.')
 
     await user.selectOptions(screen.getByLabelText('Acting as family'), '2')
     await waitFor(() => expect(m.contracts).toHaveBeenCalledWith('2'))

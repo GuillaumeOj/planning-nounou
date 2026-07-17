@@ -7,7 +7,7 @@ import {
   type ExceptionalHours,
   type ExceptionalHoursInput,
   type ExceptionalKind,
-  getExceptionalHours,
+  exceptionalHoursQueryOptions,
   updateExceptionalHours,
 } from '@/src/api/declarations'
 import { extractErrorMessages } from '@/src/api/errors'
@@ -21,10 +21,12 @@ import { Input } from '@/src/components/ui/input'
 import { Label } from '@/src/components/ui/label'
 import { useI18n } from '@/src/i18n/I18nContext'
 import type { Language, TranslationKey } from '@/src/i18n/translations'
+import { overlapsMonth } from '@/src/lib/months'
 import { selectClass } from '@/src/lib/utils'
 
 interface HoursDraft {
   kind: ExceptionalKind
+  is_shared: boolean
   start_date: string
   start_time: string
   end_date: string
@@ -35,6 +37,7 @@ interface HoursDraft {
 
 const EMPTY_HOURS: HoursDraft = {
   kind: 'effective',
+  is_shared: false,
   start_date: '',
   start_time: '',
   end_date: '',
@@ -52,6 +55,7 @@ const KIND_KEYS: Record<ExceptionalKind, TranslationKey> = {
 function entryToDraft(entry: ExceptionalHours): HoursDraft {
   return {
     kind: entry.kind,
+    is_shared: entry.is_shared,
     start_date: entry.start_date,
     start_time: hhmm(entry.start_time),
     end_date: entry.end_date,
@@ -68,6 +72,7 @@ function hoursDraftToInput(draft: HoursDraft): ExceptionalHoursInput {
   const night = draft.kind === 'night_presence'
   return {
     kind: draft.kind,
+    is_shared: draft.is_shared,
     start_date: draft.start_date,
     start_time: draft.start_time,
     end_date: draft.end_date,
@@ -77,14 +82,28 @@ function hoursDraftToInput(draft: HoursDraft): ExceptionalHoursInput {
   }
 }
 
+// The same window, whoever filed it — how a family's shared entry is matched to
+// the other family's, so a prompt disappears once it has been answered.
+function sameWindow(a: ExceptionalHours, b: ExceptionalHours): boolean {
+  return (
+    a.start_date === b.start_date &&
+    a.start_time === b.start_time &&
+    a.end_date === b.end_date &&
+    a.end_time === b.end_time
+  )
+}
+
 function HoursFields({
   draft,
   onChange,
   lang,
+  sharedAllowed,
 }: {
   draft: HoursDraft
   onChange: (patch: Partial<HoursDraft>) => void
   lang: Language
+  // Only a shared-care contract can mark hours shared; a solo one pays them whole.
+  sharedAllowed: boolean
 }) {
   const { t } = useI18n()
 
@@ -107,6 +126,24 @@ function HoursFields({
           ))}
         </select>
       </div>
+      {sharedAllowed && (
+        <div className="flex flex-col gap-1">
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5 size-4"
+              checked={draft.is_shared}
+              onChange={(e) => onChange({ is_shared: e.target.checked })}
+            />
+            <span>
+              <span className="font-medium">{t('exceptional.shared')}</span>
+              <span className="block text-xs text-muted-foreground">
+                {t('exceptional.sharedHint')}
+              </span>
+            </span>
+          </label>
+        </div>
+      )}
       <DateField
         id="hours-start-date"
         label={t('exceptional.startDate')}
@@ -178,9 +215,11 @@ function HoursFields({
 export function ExceptionalHoursSection({
   familyId,
   contract,
+  month,
 }: {
   familyId: string
   contract: Contract
+  month: string
 }) {
   const { t, lang } = useI18n()
   const queryClient = useQueryClient()
@@ -188,10 +227,13 @@ export function ExceptionalHoursSection({
   const [editingId, setEditingId] = useState<string | 'new' | null>(null)
   const [errors, setErrors] = useState<string[]>([])
 
-  const { data: entries } = useQuery({
-    queryKey: ['exceptional-hours', contract.id],
-    queryFn: () => getExceptionalHours(familyId, contract.id),
-  })
+  // A contract with a second family can share hours; a solo one always pays them
+  // whole, so the shared checkbox and the "add yours" prompts are hidden there.
+  const isShared = contract.families.length > 1
+
+  const { data: entries } = useQuery(
+    exceptionalHoursQueryOptions(familyId, contract.id),
+  )
 
   const invalidate = () =>
     queryClient.invalidateQueries({
@@ -250,8 +292,42 @@ export function ExceptionalHoursSection({
       entry.kind === 'night_presence' && entry.interventions > 0
         ? ` · ${entry.interventions} ${t('exceptional.interventionsShort')}`
         : ''
-    return `${from} → ${to} · ${t(KIND_KEYS[entry.kind])}${woken}`
+    const shared = entry.is_shared ? ` · ${t('exceptional.shared')}` : ''
+    return `${from} → ${to} · ${t(KIND_KEYS[entry.kind])}${woken}${shared}`
   }
+
+  const monthMatch = (entry: ExceptionalHours) =>
+    overlapsMonth(entry.start_date, entry.end_date, month)
+
+  // The endpoint returns this family's own entries and every family's shared
+  // ones, so ownership tells the two apart. Own entries are editable; the
+  // other family's shared entries are read-only, and only surface as prompts.
+  const own = (entries ?? []).filter((entry) => entry.family === familyId)
+  const othersShared = (entries ?? []).filter(
+    (entry) => entry.family !== familyId,
+  )
+  const visibleOwn = own.filter(monthMatch)
+
+  // The other family logged shared care and this family has not matched it yet.
+  // Answering the prompt files an identical shared entry, so each declares its
+  // own contractual share of the same hours.
+  const prompts = othersShared.filter(
+    (other) =>
+      monthMatch(other) &&
+      !own.some((mine) => mine.is_shared && sameWindow(mine, other)),
+  )
+
+  const answerPrompt = (other: ExceptionalHours) =>
+    open('new', {
+      kind: other.kind,
+      is_shared: true,
+      start_date: other.start_date,
+      start_time: hhmm(other.start_time),
+      end_date: other.end_date,
+      end_time: hhmm(other.end_time),
+      interventions: String(other.interventions),
+      notes: '',
+    })
 
   return (
     <SectionCard
@@ -263,6 +339,7 @@ export function ExceptionalHoursSection({
             draft={draft}
             onChange={(p) => setDraft((d) => ({ ...d, ...p }))}
             lang={lang}
+            sharedAllowed={isShared}
           />
           <FormErrors messages={errors} />
           <div className="flex gap-2">
@@ -289,9 +366,38 @@ export function ExceptionalHoursSection({
         </Button>
       )}
 
-      {entries && entries.length > 0 ? (
+      {prompts.length > 0 && (
+        <div className="flex flex-col gap-2 rounded-md border border-primary/40 bg-primary/5 p-3">
+          <p className="text-sm font-medium">
+            {t('exceptional.sharedPromptTitle')}
+          </p>
+          <ul className="flex flex-col gap-2 text-sm">
+            {prompts.map((other) => (
+              <li
+                key={other.id}
+                className="flex flex-col items-start gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+              >
+                <span className="min-w-0 text-muted-foreground">
+                  {describe(other)}
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0"
+                  onClick={() => answerPrompt(other)}
+                >
+                  {t('exceptional.sharedPromptAdd')}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {visibleOwn.length > 0 ? (
         <ul className="flex flex-col divide-y text-sm">
-          {entries.map((entry) => (
+          {visibleOwn.map((entry) => (
             // describe() is a long sentence (two dates, two times, the kind);
             // beside two non-shrinking buttons it would collapse to a few words
             // per line.
@@ -323,7 +429,7 @@ export function ExceptionalHoursSection({
         </ul>
       ) : (
         <p className="text-sm text-muted-foreground">
-          {t('exceptional.hours.none')}
+          {t('exceptional.hours.noneThisMonth')}
         </p>
       )}
     </SectionCard>

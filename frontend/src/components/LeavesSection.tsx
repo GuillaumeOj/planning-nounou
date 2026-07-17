@@ -5,11 +5,11 @@ import { extractErrorMessages } from '@/src/api/errors'
 import {
   createLeave,
   deleteLeave,
-  getLeaves,
   type Leave,
   type LeaveInput,
   type LeavePortion,
   type LeaveType,
+  leavesQueryOptions,
   updateLeave,
 } from '@/src/api/leaves'
 import { ConfirmButton } from '@/src/components/ConfirmButton'
@@ -21,6 +21,7 @@ import { Input } from '@/src/components/ui/input'
 import { Label } from '@/src/components/ui/label'
 import { useI18n } from '@/src/i18n/I18nContext'
 import type { Language, TranslationKey } from '@/src/i18n/translations'
+import { overlapsMonth } from '@/src/lib/months'
 import { selectClass } from '@/src/lib/utils'
 
 interface LeaveDraft {
@@ -177,13 +178,16 @@ function LeaveFields({
 }
 
 // A nanny's days off for one contract: add / edit / remove leave records. Used
-// on the dedicated Days-off page, one card per shared contract.
+// on the planning page, one card per shared contract, scoped to the visible
+// month — a leave shows if any of it falls in that month.
 export function LeavesSection({
   familyId,
   contract,
+  month,
 }: {
   familyId: string
   contract: Contract
+  month: string
 }) {
   const { t, lang } = useI18n()
   const queryClient = useQueryClient()
@@ -191,10 +195,7 @@ export function LeavesSection({
   const [editingId, setEditingId] = useState<string | 'new' | null>(null)
   const [errors, setErrors] = useState<string[]>([])
 
-  const { data: leaves } = useQuery({
-    queryKey: ['contract-leaves', contract.id],
-    queryFn: () => getLeaves(familyId, contract.id),
-  })
+  const { data: leaves } = useQuery(leavesQueryOptions(familyId, contract.id))
 
   const invalidate = () =>
     queryClient.invalidateQueries({
@@ -252,6 +253,11 @@ export function LeavesSection({
     return `${range} · ${t(LEAVE_TYPE_KEYS[leave.leave_type])} · ${portion}`
   }
 
+  // Only this month's leaves; a leave running across the boundary shows in both.
+  const visible = (leaves ?? []).filter((leave) =>
+    overlapsMonth(leave.start_date, leave.end_date, month),
+  )
+
   return (
     <SectionCard
       title={`${contract.nanny.first_name} ${contract.nanny.last_name}`}
@@ -288,9 +294,9 @@ export function LeavesSection({
         </Button>
       )}
 
-      {leaves && leaves.length > 0 ? (
+      {visible.length > 0 ? (
         <ul className="flex flex-col divide-y text-sm">
-          {leaves.map((leave) => (
+          {visible.map((leave) => (
             // describe() is a long sentence (dates, type, portion); beside two
             // non-shrinking buttons it would collapse to a few words per line.
             <li
@@ -320,7 +326,9 @@ export function LeavesSection({
           ))}
         </ul>
       ) : (
-        <p className="text-sm text-muted-foreground">{t('leaves.none')}</p>
+        <p className="text-sm text-muted-foreground">
+          {t('leaves.noneThisMonth')}
+        </p>
       )}
     </SectionCard>
   )

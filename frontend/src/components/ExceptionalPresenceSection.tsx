@@ -6,8 +6,8 @@ import {
   deleteExceptionalPresence,
   type ExceptionalPresence,
   type ExceptionalPresenceInput,
+  exceptionalPresencesQueryOptions,
   getContractChildren,
-  getExceptionalPresences,
   updateExceptionalPresence,
 } from '@/src/api/declarations'
 import { extractErrorMessages } from '@/src/api/errors'
@@ -21,6 +21,7 @@ import { Input } from '@/src/components/ui/input'
 import { Label } from '@/src/components/ui/label'
 import { useI18n } from '@/src/i18n/I18nContext'
 import type { Language } from '@/src/i18n/translations'
+import { inMonth } from '@/src/lib/months'
 import { selectClass } from '@/src/lib/utils'
 
 interface PresenceDraft {
@@ -132,9 +133,11 @@ function PresenceFields({
 export function ExceptionalPresenceSection({
   familyId,
   contract,
+  month,
 }: {
   familyId: string
   contract: Contract
+  month: string
 }) {
   const { t, lang } = useI18n()
   const queryClient = useQueryClient()
@@ -142,10 +145,9 @@ export function ExceptionalPresenceSection({
   const [editingId, setEditingId] = useState<string | 'new' | null>(null)
   const [errors, setErrors] = useState<string[]>([])
 
-  const { data: entries } = useQuery({
-    queryKey: ['exceptional-presences', contract.id],
-    queryFn: () => getExceptionalPresences(familyId, contract.id),
-  })
+  const { data: entries } = useQuery(
+    exceptionalPresencesQueryOptions(familyId, contract.id),
+  )
 
   // The contract's children are the only ones that can be exceptionally present
   // on it, so they are the whole of the picker.
@@ -212,6 +214,9 @@ export function ExceptionalPresenceSection({
   const describe = (entry: ExceptionalPresence) =>
     `${formatDate(entry.date, lang)} · ${entry.first_name} · ${toDisplayTime(hhmm(entry.start_time), lang)} → ${toDisplayTime(hhmm(entry.end_time), lang)}`
 
+  // Only this month's exceptional presences.
+  const visible = (entries ?? []).filter((entry) => inMonth(entry.date, month))
+
   return (
     <SectionCard
       title={`${contract.nanny.first_name} ${contract.nanny.last_name}`}
@@ -255,9 +260,9 @@ export function ExceptionalPresenceSection({
         </Button>
       )}
 
-      {entries && entries.length > 0 ? (
+      {visible.length > 0 ? (
         <ul className="flex flex-col divide-y text-sm">
-          {entries.map((entry) => (
+          {visible.map((entry) => (
             <li
               key={entry.id}
               className="flex flex-col items-start gap-1 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
@@ -286,7 +291,7 @@ export function ExceptionalPresenceSection({
         </ul>
       ) : (
         <p className="text-sm text-muted-foreground">
-          {t('exceptional.presence.none')}
+          {t('exceptional.presence.noneThisMonth')}
         </p>
       )}
     </SectionCard>

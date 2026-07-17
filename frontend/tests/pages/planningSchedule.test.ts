@@ -46,6 +46,7 @@ function contract(overrides: Partial<Contract> = {}): Contract {
     nanny: { id: 'n1', first_name: 'Marie', last_name: 'Curie' },
     starting_date: '2026-06-01',
     ending_date: null,
+    split_method: 'equal',
     paid_leave_days: 0,
     notes: '',
     families: [],

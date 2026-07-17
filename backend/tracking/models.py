@@ -466,9 +466,12 @@ class Leave(UUIDModel):
     gone. Add them back when something actually segments the day — it is one
     column.
 
-    Only an **unpaid** leave deducts. Paid leave is already inside the
-    mensualised salary (52 weeks = 47 worked + 5 of paid leave), so deducting it
-    would take it off the nanny twice — see ``docs/shared-care-pay.md``.
+    An **unpaid** absence and a **sickness** absence both deduct — the hours are
+    not worked and the employer does not pay them (in sickness the nanny draws
+    IJSS, and any maintien de salaire is a separate indemnity, not declared
+    hours). *Paid* leave does not deduct: it is already inside the mensualised
+    salary (52 weeks = 47 worked + 5 of paid leave), so deducting it would take it
+    off the nanny twice — see ``docs/shared-care-pay.md``.
     """
 
     class LeaveType(models.TextChoices):
@@ -574,15 +577,22 @@ class ExceptionalHours(UUIDModel):
     :class:`ExceptionalPresence`, where she works exactly the same hours and only
     the split moves.
 
-    Filed by one family, and read by all of them — family A's declared hours
-    depend on whether B filed an overlapping entry, so both must see both. Where
-    two families' entries overlap in time, that overlap divides by the contract's
-    usual weight rule; the rest is wholly the filer's.
+    An entry is **solo** (the default) or **shared** (:attr:`is_shared`), and that
+    flag is the whole of one family's declaration no longer depending on the
+    other's:
 
-    Presence here is **who filed**, never the children's windows: those describe
-    the regular week, and an exceptional entry is by definition irregular. A
-    child windowed to 16:30–18:00 is "absent" at 19:00, so reading the windows
-    would bill their family's own late night to the other family.
+    * a *solo* entry is one family's own extra hour, and it pays the whole of it —
+      its declared hours cannot move because of anything the other family filed;
+    * a *shared* entry is care both families needed at once, and its filer declares
+      only its own contractual share of it, again without reading the other's rows.
+      Both families are expected to file their own (the app prompts the second),
+      and then the shares sum to the whole; if one forgets, the nanny is short
+      exactly that family's share and no other declaration is wrong.
+
+    So a shared entry is read by all the families (the prompt needs to see it) and
+    a solo one is the filer's alone. Neither reads the children's windows: those
+    describe the *regular* week, and an exceptional entry is by definition
+    irregular. See docs/shared-care-pay.md §3.1.
 
     Times are naive local `date` + `time`, deliberately: the project runs
     TIME_ZONE="UTC" with USE_TZ=True, so an aware 20:00 Paris would persist as
@@ -611,6 +621,10 @@ class ExceptionalHours(UUIDModel):
         "accounts.Family", on_delete=models.CASCADE, related_name="exceptional_hours"
     )
     kind = models.CharField(max_length=30, choices=Kind.choices, default=Kind.EFFECTIVE)
+    # Care both families needed at once (split by the contract's usual rule) rather
+    # than this family's own extra hour (which it pays whole). A shared entry is
+    # visible to the other family so the app can prompt it to file its own.
+    is_shared = models.BooleanField(default=False)
     start_date = models.DateField()
     start_time = models.TimeField()
     # end_date carries the night that runs past midnight; it is not always
@@ -653,19 +667,29 @@ class ExceptionalHours(UUIDModel):
         return f"{self.get_kind_display()} {self.start_date} {self.start_time}–{self.end_time}"  # ty: ignore[unresolved-attribute]
 
     def clean(self) -> None:
+        # One count for both shared-care checks below, rather than a query each.
+        share_count = self.contract.shares.count() if self.contract_id else 0
         if self.contract_id and self.family_id:
             if not self.contract.shares.filter(family_id=self.family_id).exists():
                 raise ValidationError({"family": _("This family does not share this contract.")})
-        if self.contract_id and self.kind in self.SHARED_CARE_FORBIDDEN_KINDS:
-            if self.contract.shares.count() > 1:
-                raise ValidationError(
-                    {
-                        "kind": _(
-                            "Responsible presence hours are excluded in a shared care "
-                            "arrangement (CCN 3239, art. 137.1). Record them as effective work."
-                        )
-                    }
-                )
+        if share_count > 1 and self.kind in self.SHARED_CARE_FORBIDDEN_KINDS:
+            raise ValidationError(
+                {
+                    "kind": _(
+                        "Responsible presence hours are excluded in a shared care "
+                        "arrangement (CCN 3239, art. 137.1). Record them as effective work."
+                    )
+                }
+            )
+        if self.is_shared and self.contract_id and share_count < 2:
+            raise ValidationError(
+                {
+                    "is_shared": _(
+                        "Only a shared-care contract has hours to share. Record these as "
+                        "your family's own."
+                    )
+                }
+            )
         if self.start_date and self.end_date and self.end_date < self.start_date:
             raise ValidationError(
                 {"end_date": _("The ending date cannot be before the starting date.")}
@@ -784,6 +808,13 @@ class MonthlyDeclaration(UUIDModel):
     hours_50 = models.DecimalField(
         max_digits=6, decimal_places=2, default=Decimal("0"), validators=NON_NEGATIVE
     )
+    # pajemploi's "salaire net": the declared hours priced, and nothing else.
+    net_salary = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal("0"), validators=NON_NEGATIVE
+    )
+    # net_salary plus the night indemnity and any worked-holiday majoration — the
+    # whole net wage due. The advantages below are their own pajemploi fields and
+    # are deliberately NOT folded in here.
     total_amount = models.DecimalField(
         max_digits=10, decimal_places=2, default=Decimal("0"), validators=NON_NEGATIVE
     )

@@ -61,6 +61,10 @@ const en = {
   'planning.tab.leaves': 'Days off',
   'planning.tab.hours': 'Exceptional hours',
   'planning.tab.presence': 'Exceptional presence',
+  'planning.event.title': 'On this day',
+  'planning.event.leave': 'Day off',
+  'planning.event.hours': 'Exceptional hours',
+  'planning.event.presence': 'Exceptional presence',
   'common.cancel': 'Cancel',
   'common.close': 'Close',
   'common.copy': 'Copy link',
@@ -147,6 +151,15 @@ const en = {
   'common.edited': 'edited',
   'contract.paidLeave': 'Paid-leave days per year',
   'contract.daysOff': 'days off/year',
+  'contract.split': 'How the hours are shared',
+  'contract.splitHint':
+    'Only matters once a second family shares the contract. You can change it later.',
+  'contract.split.equal': 'Equally (50/50)',
+  'contract.split.equal.hint':
+    'Each hour splits in half between the families whose children are present.',
+  'contract.split.by_children': 'By children present',
+  'contract.split.by_children.hint':
+    'Each hour is weighed by how many of a family’s children are there — a fairer split when the families have different numbers of children.',
   'terms.review': 'Review & save',
   'terms.addVersion': 'Add / change compensation',
   'terms.confirmDelete': 'Delete this compensation entry?',
@@ -159,7 +172,7 @@ const en = {
   'schedule.copyDay': 'Copy day',
   'schedule.copyDialogTitle': 'Copy this day to…',
   'schedule.copyDialogHint': 'Copy the time blocks of',
-  'leaves.none': 'No days off recorded yet.',
+  'leaves.noneThisMonth': 'No days off this month.',
   'leaves.add': 'Add days off',
   'leaves.save': 'Save days off',
   'leaves.type': 'Type',
@@ -182,6 +195,12 @@ const en = {
   'exceptional.kind.effective': 'Extra hours worked',
   'exceptional.kind.presence_responsable': 'Responsible presence',
   'exceptional.kind.night_presence': 'Night presence',
+  'exceptional.shared': 'Shared care',
+  'exceptional.sharedHint':
+    'Both families needed the nanny at once. You each declare your own share; leave this off for hours only your family needed (you pay those in full).',
+  'exceptional.sharedPromptTitle':
+    'The other family logged shared care — add yours so it is on your declaration too:',
+  'exceptional.sharedPromptAdd': 'Add mine',
   'exceptional.startDate': 'From',
   'exceptional.endDate': 'To',
   'exceptional.startTime': 'Start time',
@@ -193,11 +212,11 @@ const en = {
   'exceptional.notes': 'Notes',
   'exceptional.datesRequired': 'Give a start and end date.',
   'exceptional.timesRequired': 'Give a start and end time.',
-  'exceptional.hours.none': 'No exceptional hours recorded yet.',
+  'exceptional.hours.noneThisMonth': 'No exceptional hours this month.',
   'exceptional.hours.add': 'Add exceptional hours',
   'exceptional.hours.save': 'Save exceptional hours',
   'exceptional.hours.confirmDelete': 'Delete these exceptional hours?',
-  'exceptional.presence.none': 'No exceptional presence recorded yet.',
+  'exceptional.presence.noneThisMonth': 'No exceptional presence this month.',
   'exceptional.presence.add': 'Add an exceptional presence',
   'exceptional.presence.save': 'Save the exceptional presence',
   'exceptional.presence.confirmDelete': 'Delete this exceptional presence?',
@@ -243,7 +262,8 @@ const en = {
   'declaration.hours25': 'Hours at +25%',
   'declaration.hours50': 'Hours at +50%',
   'declaration.pay': 'Pay',
-  'declaration.totalAmount': 'Net salary',
+  'declaration.netSalary': 'Net salary',
+  'declaration.totalAmount': 'Total',
   'declaration.holidayMajoration': 'Public holiday majoration',
   'declaration.nightIndemnity': 'Night presence indemnity',
   'declaration.nightCount': 'Nights',
@@ -291,6 +311,10 @@ const en = {
     'Responsible presence is not allowed on a shared contract, so it was not priced.',
   'declaration.warning.split_without_children':
     'This contract splits the pay between families but lists no children, so there is nothing to split by.',
+  'declaration.warning.hours_reduced_for_absence':
+    'The hours are lower than usual because of a sickness or unpaid absence this month. This is expected — the nanny is not paid for hours she did not work — and the reduction is shared between the families. Paid leave, by contrast, changes nothing.',
+  'declaration.warning.overlapping_solo_exceptional':
+    'Two families recorded their own extra hours over the same time. Each is billed in full, so the nanny is paid for it twice. If this was care both families needed at once, mark it as shared care instead.',
   'declaration.warning.weekly_hours_over_maximum':
     'A week runs past the maximum the convention allows.',
   'declaration.warning.worked_holiday_not_majorated':
@@ -504,6 +528,10 @@ const fr: Record<TranslationKey, string> = {
   'planning.tab.leaves': 'Absences',
   'planning.tab.hours': 'Heures exceptionnelles',
   'planning.tab.presence': 'Présence exceptionnelle',
+  'planning.event.title': 'Ce jour-là',
+  'planning.event.leave': 'Absence',
+  'planning.event.hours': 'Heures exceptionnelles',
+  'planning.event.presence': 'Présence exceptionnelle',
   'common.cancel': 'Annuler',
   'common.close': 'Fermer',
   'common.copy': 'Copier le lien',
@@ -594,6 +622,15 @@ const fr: Record<TranslationKey, string> = {
   'common.edited': 'modifié',
   'contract.paidLeave': 'Jours de congés payés par an',
   'contract.daysOff': 'jours de congés/an',
+  'contract.split': 'Répartition des heures',
+  'contract.splitHint':
+    'N’a d’effet qu’une fois le contrat partagé avec une deuxième famille. Modifiable plus tard.',
+  'contract.split.equal': 'À parts égales (50/50)',
+  'contract.split.equal.hint':
+    'Chaque heure est partagée en deux entre les familles dont les enfants sont présents.',
+  'contract.split.by_children': 'Selon les enfants présents',
+  'contract.split.by_children.hint':
+    'Chaque heure est pondérée par le nombre d’enfants présents de chaque famille — plus juste quand les familles n’ont pas le même nombre d’enfants.',
   'terms.review': 'Vérifier et enregistrer',
   'terms.addVersion': 'Ajouter / modifier la rémunération',
   'terms.confirmDelete': 'Supprimer cette rémunération ?',
@@ -606,7 +643,7 @@ const fr: Record<TranslationKey, string> = {
   'schedule.copyDay': 'Copier le jour',
   'schedule.copyDialogTitle': 'Copier ce jour vers…',
   'schedule.copyDialogHint': 'Copier les créneaux de',
-  'leaves.none': 'Aucune absence enregistrée.',
+  'leaves.noneThisMonth': 'Aucune absence ce mois-ci.',
   'leaves.add': 'Ajouter une absence',
   'leaves.save': 'Enregistrer l’absence',
   'leaves.type': 'Type',
@@ -630,6 +667,12 @@ const fr: Record<TranslationKey, string> = {
   'exceptional.kind.effective': 'Travail effectif',
   'exceptional.kind.presence_responsable': 'Présence responsable',
   'exceptional.kind.night_presence': 'Présence de nuit',
+  'exceptional.shared': 'Garde partagée',
+  'exceptional.sharedHint':
+    'Les deux familles avaient besoin de la nounou en même temps. Chacune déclare sa part ; laissez décoché pour des heures dont seule votre famille avait besoin (vous les payez en entier).',
+  'exceptional.sharedPromptTitle':
+    'L’autre famille a déclaré une garde partagée — ajoutez la vôtre pour qu’elle figure aussi sur votre déclaration :',
+  'exceptional.sharedPromptAdd': 'Ajouter la mienne',
   'exceptional.startDate': 'Du',
   'exceptional.endDate': 'Au',
   'exceptional.startTime': 'Heure de début',
@@ -641,11 +684,12 @@ const fr: Record<TranslationKey, string> = {
   'exceptional.notes': 'Notes',
   'exceptional.datesRequired': 'Indiquez une date de début et de fin.',
   'exceptional.timesRequired': 'Indiquez une heure de début et de fin.',
-  'exceptional.hours.none': 'Aucune heure exceptionnelle enregistrée.',
+  'exceptional.hours.noneThisMonth': 'Aucune heure exceptionnelle ce mois-ci.',
   'exceptional.hours.add': 'Ajouter des heures exceptionnelles',
   'exceptional.hours.save': 'Enregistrer les heures exceptionnelles',
   'exceptional.hours.confirmDelete': 'Supprimer ces heures exceptionnelles ?',
-  'exceptional.presence.none': 'Aucune présence exceptionnelle enregistrée.',
+  'exceptional.presence.noneThisMonth':
+    'Aucune présence exceptionnelle ce mois-ci.',
   'exceptional.presence.add': 'Ajouter une présence exceptionnelle',
   'exceptional.presence.save': 'Enregistrer la présence exceptionnelle',
   'exceptional.presence.confirmDelete':
@@ -693,7 +737,8 @@ const fr: Record<TranslationKey, string> = {
   'declaration.hours25': 'Heures majorées à 25 %',
   'declaration.hours50': 'Heures majorées à 50 %',
   'declaration.pay': 'Rémunération',
-  'declaration.totalAmount': 'Salaire net',
+  'declaration.netSalary': 'Salaire net',
+  'declaration.totalAmount': 'Montant total',
   'declaration.holidayMajoration': 'Majoration jour férié',
   'declaration.nightIndemnity': 'Indemnité de présence de nuit',
   'declaration.nightCount': 'Nuits',
@@ -741,6 +786,10 @@ const fr: Record<TranslationKey, string> = {
     'La présence responsable est interdite en garde partagée : elle n’a pas été rémunérée.',
   'declaration.warning.split_without_children':
     'Ce contrat partage la rémunération entre les familles mais ne liste aucun enfant : il n’y a rien pour répartir.',
+  'declaration.warning.hours_reduced_for_absence':
+    'Les heures sont inférieures à d’habitude en raison d’une absence pour maladie ou sans solde ce mois-ci. C’est normal — la nounou n’est pas payée pour les heures non travaillées — et la réduction est partagée entre les familles. Les congés payés, eux, ne changent rien.',
+  'declaration.warning.overlapping_solo_exceptional':
+    'Deux familles ont déclaré leurs propres heures supplémentaires sur le même créneau. Chacune est facturée en entier, donc la nounou est payée deux fois. S’il s’agissait d’une garde dont les deux familles avaient besoin en même temps, indiquez-la comme garde partagée.',
   'declaration.warning.weekly_hours_over_maximum':
     'Une semaine dépasse le maximum autorisé par la convention.',
   'declaration.warning.worked_holiday_not_majorated':

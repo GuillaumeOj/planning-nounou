@@ -13,12 +13,19 @@ import {
 import { ExceptionalHoursSection } from '@/src/components/ExceptionalHoursSection'
 import { renderWithProviders } from '@/tests/utils'
 
-vi.mock('@/src/api/declarations', () => ({
-  getExceptionalHours: vi.fn(),
-  createExceptionalHours: vi.fn(),
-  updateExceptionalHours: vi.fn(),
-  deleteExceptionalHours: vi.fn(),
-}))
+vi.mock('@/src/api/declarations', () => {
+  const getExceptionalHours = vi.fn()
+  return {
+    getExceptionalHours,
+    createExceptionalHours: vi.fn(),
+    updateExceptionalHours: vi.fn(),
+    deleteExceptionalHours: vi.fn(),
+    exceptionalHoursQueryOptions: (familyId: string, contractId: string) => ({
+      queryKey: ['exceptional-hours', contractId],
+      queryFn: () => getExceptionalHours(familyId, contractId),
+    }),
+  }
+})
 
 const m = {
   get: vi.mocked(getExceptionalHours),
@@ -32,6 +39,7 @@ const contract = {
   nanny: { id: '5', first_name: 'Marie', last_name: 'Dupont' },
   starting_date: '2026-06-01',
   ending_date: null,
+  split_method: 'equal',
   paid_leave_days: 25,
   notes: '',
   families: [{ id: '1', name: 'Home', is_originator: true }],
@@ -44,6 +52,7 @@ function makeHours(o: Partial<ExceptionalHours> = {}): ExceptionalHours {
     id: 'H1',
     family: '1',
     kind: 'effective',
+    is_shared: false,
     start_date: '2026-07-06',
     start_time: '18:00:00',
     end_date: '2026-07-06',
@@ -64,7 +73,11 @@ function rejection(data: unknown): AxiosError {
 
 const render = () =>
   renderWithProviders(
-    <ExceptionalHoursSection familyId="1" contract={contract} />,
+    <ExceptionalHoursSection
+      familyId="1"
+      contract={contract}
+      month="2026-07"
+    />,
   )
 
 beforeEach(() => {
@@ -80,7 +93,7 @@ describe('ExceptionalHoursSection', () => {
     render()
     expect(await screen.findByText('Marie Dupont')).toBeInTheDocument()
     expect(
-      screen.getByText('No exceptional hours recorded yet.'),
+      screen.getByText('No exceptional hours this month.'),
     ).toBeInTheDocument()
   })
 

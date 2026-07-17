@@ -12,12 +12,19 @@ import {
 import { LeavesSection } from '@/src/components/LeavesSection'
 import { renderWithProviders } from '@/tests/utils'
 
-vi.mock('@/src/api/leaves', () => ({
-  getLeaves: vi.fn(),
-  createLeave: vi.fn(),
-  updateLeave: vi.fn(),
-  deleteLeave: vi.fn(),
-}))
+vi.mock('@/src/api/leaves', () => {
+  const getLeaves = vi.fn()
+  return {
+    getLeaves,
+    createLeave: vi.fn(),
+    updateLeave: vi.fn(),
+    deleteLeave: vi.fn(),
+    leavesQueryOptions: (familyId: string, contractId: string) => ({
+      queryKey: ['contract-leaves', contractId],
+      queryFn: () => getLeaves(familyId, contractId),
+    }),
+  }
+})
 
 const m = {
   get: vi.mocked(getLeaves),
@@ -31,6 +38,7 @@ const contract = {
   nanny: { id: '5', first_name: 'Marie', last_name: 'Dupont' },
   starting_date: '2026-06-01',
   ending_date: null,
+  split_method: 'equal',
   paid_leave_days: 25,
   notes: '',
   families: [{ id: '1', name: 'Home', is_originator: true }],
@@ -52,7 +60,9 @@ function makeLeave(o: Partial<Leave> = {}): Leave {
 }
 
 const render = () =>
-  renderWithProviders(<LeavesSection familyId="1" contract={contract} />)
+  renderWithProviders(
+    <LeavesSection familyId="1" contract={contract} month="2026-07" />,
+  )
 
 beforeEach(() => {
   m.get.mockResolvedValue([])
@@ -66,7 +76,7 @@ describe('LeavesSection', () => {
   it('shows the nanny name and an empty state', async () => {
     render()
     expect(await screen.findByText('Marie Dupont')).toBeInTheDocument()
-    expect(screen.getByText('No days off recorded yet.')).toBeInTheDocument()
+    expect(screen.getByText('No days off this month.')).toBeInTheDocument()
   })
 
   it('lists a multi-day paid leave and an hourly unpaid leave', async () => {

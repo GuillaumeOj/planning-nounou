@@ -42,7 +42,8 @@ function makeDeclaration(
     normal_hours: '120.00',
     hours_25: '4.00',
     hours_50: '0.00',
-    total_amount: '1234.56',
+    net_salary: '1234.56',
+    total_amount: '1244.56',
     transport_amount: '0.00',
     benefits_in_kind_amount: '0.00',
     kilometers: '0.00',
@@ -93,8 +94,12 @@ describe('DeclarationSection', () => {
     expect(screen.getByText('120.00')).toBeInTheDocument()
     expect(screen.getByText('Hours at +25%')).toBeInTheDocument()
     expect(screen.getByText('4.00')).toBeInTheDocument()
-    // Formatted as money, not as the raw decimal string the API sends.
+    // Net salary and total are separate pajemploi fields; both are formatted as
+    // money, not the raw decimal string the API sends.
+    expect(screen.getByText('Net salary')).toBeInTheDocument()
     expect(screen.getByText('€1,234.56')).toBeInTheDocument()
+    expect(screen.getByText('Total')).toBeInTheDocument()
+    expect(screen.getByText('€1,244.56')).toBeInTheDocument()
   })
 
   it('names the nanny the declaration is for', async () => {

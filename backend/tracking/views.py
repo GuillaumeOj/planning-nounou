@@ -1,6 +1,7 @@
 from datetime import date, datetime
 from typing import cast
 
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.dateparse import parse_date
@@ -381,20 +382,30 @@ class ExceptionalHoursViewSet(
     mixins.DestroyModelMixin,
     viewsets.GenericViewSet,
 ):
-    """Hours worked beyond the planning. Your family's only.
+    """Hours worked beyond the planning. Your family's own, plus shared care.
 
-    An evening B kept the nanny late is B's business with her. It still lengthens
-    the nanny's week, and so can push A into overtime — compute_month reads every
-    family's rows to work that out. It just does it server-side.
+    An evening B kept the nanny late for its own child is B's business with her —
+    A never sees it. But an evening *both* families needed her is shared: B files
+    it, and A must see it to be prompted to file its own half, so shared entries
+    cross the family line on read. Writes never do — a family only ever edits or
+    deletes its own rows, whatever it can see.
+
+    Either way the hours still lengthen the nanny's week and can push a family into
+    overtime; compute_month reads every family's rows to work that out server-side.
     """
 
     serializer_class = ExceptionalHoursSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return self.scoped_to_family(
-            self.get_contract(manage=self._manage()).exceptional_hours.select_related("family")
-        )
+        rows = self.get_contract(manage=self._manage()).exceptional_hours.select_related("family")
+        if self.action in self.write_actions:
+            # Edits and deletes are own-rows-only, whatever is visible on read.
+            return self.scoped_to_family(rows)
+        # Reads: this family's own, and every family's shared entries — the latter
+        # are what the "the other family logged shared care, add yours" prompt is
+        # built from. A solo entry of another family stays a 404.
+        return rows.filter(Q(family=self.get_acting_family()) | Q(is_shared=True))
 
     def get_serializer_context(self) -> dict:
         manage = self._manage()
