@@ -65,10 +65,30 @@ are paid by three different mechanisms:
 | Kind | Mechanism |
 | --- | --- |
 | Extra effective work (early morning, late afternoon) | Adds to the weekly total → may cross into +25% / +50% |
-| **Présence de nuit** (20:00–06:30) | Flat **indemnity**, floor of ¼ of the contractual rate. **Not hours.** |
-| **Présence responsable** | Counts as **⅔** of an effective hour |
+| **Présence de nuit** (20:00–06:30) | Flat **indemnity per night**, floor of ¼ of the contractual rate. **Not hours.** |
+| **Présence responsable** | Counts as **⅔** of an effective hour — **but forbidden in garde partagée**, see below |
 
 Hence an exceptional-hours entry carries a **type**, never just a duration.
+
+> [!CAUTION]
+> **Présence responsable does not exist in a garde partagée.** [Art. 137.1][ccn-137-1],
+> first line: « **Les heures de présence responsable de jour sont exclues dans le cadre
+> de la garde partagée.** »
+>
+> URSSAF's page lists it under "garde d'enfants à domicile" without this caveat, because
+> that page describes the *job*; the exclusion is a *garde partagée* rule and lives in
+> the convention. Both are true of different situations — so the rule is a **gate on
+> shared contracts, not a deletion**: a solo contract may use it. Every hour booked
+> through it on a shared contract pays ⅔ of what is owed.
+>
+> Where it *is* allowed, note two things art. 137.1 also says: conversion happens
+> **before** the weekly count (« prises en compte **après leur conversion** »), and it
+> « ne se présume pas » — it must be written into the contract.
+
+**Présence de nuit is priced per night, not per hour.** The model contract quotes
+« ……… € brut **par nuit** ». It also requires the nanny to **sleep on site** in a
+separate room ([art. 137.2][ccn-137-2]) — a 20:00–23:00 babysit is *travail effectif*,
+not présence de nuit, and is the more expensive of the two.
 
 ### Mensualisation
 
@@ -76,12 +96,28 @@ Regular care must be mensualised: the monthly salary is a fixed amount that does
 follow the calendar month's actual day count.
 
 ```
-monthly_hours = weekly_hours × weeks_per_year ÷ 12
+monthly_hours = weekly_hours × 52 ÷ 12
 ```
 
-`weeks_per_year` is 52 for an *année complète* (47 worked weeks + 5 weeks of paid
-leave). An *année incomplète* uses its own count. **The codebase had nowhere to store
-this** — it is a new field.
+[Art. 146.1][ccn-146-1], verbatim: « salaire horaire brut x nombre d'heures de travail
+hebdomadaire x **52 semaines** / 12 mois. » 52 = 47 worked weeks + 5 of paid leave.
+
+> [!CAUTION]
+> **52 is not a variable, and there is no *année incomplète* here.** An earlier version
+> of this document said "an année incomplète uses its own count" and a `weeks_per_year`
+> field was built on it. That is the **assistant maternel** rule — precisely the
+> generalisation the Scope note above forbids, made by the same document that forbids it.
+>
+> For a garde d'enfants à domicile the split is **régulière vs irrégulière**, not
+> complète vs incomplète:
+> * **régulière** → [art. 146.1][ccn-146-1], mensualised, **always × 52**.
+> * **irrégulière** → [art. 146.2][ccn-146-2]: « le salaire est calculé […] en fonction
+>   du nombre d'heures de travail effectif décomptées dans le mois » — **au réel, no
+>   mensualisation at all**.
+>
+> Pajemploi's own form says the same thing from the other end: *"Si la garde est
+> mensualisée : nombre d'heures mensualisées. Si la garde est occasionnelle : nombre
+> d'heures réellement effectuées."* Two modes, not a spectrum.
 
 Contractual overtime is mensualised the same way and keeps its band. A 45h/week
 contract is *structurally* 40h normal + 5h at 25%, every week:
@@ -198,19 +234,35 @@ Known rough edge: **excluding a single weekday means listing windows for the oth
 four**, because "no windows" already means "always present". The UI should offer an
 "apply to all days except…" affordance rather than making anyone type four windows.
 
-### A note on the official framing
+### The split is contractual, not geographic
 
-URSSAF describes garde partagée as **location-based**:
+The governing text is [art. 144.2][ccn-144-2]:
 
-> **En cas de garde partagée**, les deux employeurs devront s'entendre sur la
-> planification des heures de garde. Cette répartition sera indiquée sur les contrats
-> de travail, ainsi que le lieu de garde. **Chaque famille rémunère les heures
-> effectuées à son domicile** selon les modalités définies au contrat de travail.
+> En cas de garde partagée, chaque particulier employeur rémunère **les heures de travail
+> du salarié** selon **la répartition prévue aux termes des contrats de travail** et des
+> éventuels avenants conclus par chacun des particuliers employeurs avec le salarié.
 
-Our model splits *simultaneous* hours at one home instead. That is the pragmatic
-answer to the single-rate limitation above, and it is what the families actually
-agreed to — but the official framing differs, which is worth knowing if the question
-ever comes up.
+Read the object: « **les heures de travail du salarié** » — a *single pool*, the nanny's
+own working time — divided by a *répartition* the contracts define. Location is not
+mentioned. **This model is not a workaround; it is the mechanism the convention
+describes**, and this app is the tool for expressing that répartition.
+
+An earlier version of this document worried that URSSAF frames garde partagée as
+location-based, quoting *"Chaque famille rémunère les heures effectuées à son domicile"*.
+That sentence is from a plain-language **summary of the job**, and its own tail defers to
+the contract — *"selon les modalités définies au contrat de travail"*. It describes the
+common alternating-homes case; it does not prescribe it. Where the summary and the
+convention differ, the convention governs.
+
+So: **care happening more often at one family's home does not oblige them to pay more.**
+The families agree a répartition and write it down.
+
+> [!IMPORTANT]
+> **Both contracts must record the *shared* schedule**, not each family's slice.
+> Art. 144.2 divides « les heures de travail du salarié » — so the contracts have to say
+> what those hours are. If each contract states only that family's 22.5h, then the
+> répartition has nothing to divide and declaring overtime contradicts the contract's own
+> weekly duration. This is also the condition on which "band before split" rests.
 
 ## 3. The monthly declaration
 
@@ -226,9 +278,22 @@ Assembled as:
 
 1. **Base** — the nanny's weekly hours **banded first** (§1), *then* each band split
    per family (§2), then mensualised.
-2. **Minus unpaid absences** — an unpaid `Leave` deducts **the hours actually
-   scheduled for that weekday** (a 4h Wednesday costs less than a 10h Monday), at
-   the family's share of those hours.
+2. **Minus unpaid absences** — prorated by the « heures réelles » formula the convention
+   prescribes ([art. 152.1][ccn-152-1]), *not* by subtracting raw hours:
+
+   > salaire mensualisé × **nombre d'heures réellement effectuées dans le mois** ÷ nombre
+   > d'heures qui auraient dû être réellement travaillées dans le mois considéré si le
+   > salarié n'avait pas été absent
+
+   An earlier version subtracted the hours scheduled that weekday straight off the base.
+   That is not the prescribed method and it breaks in short months: February has 20
+   working days against a base built on an average of 21.7, so a nanny absent *every day
+   of February* still had 13.33 h declared for her. The ratio cannot do that — absent all
+   month, the numerator is zero. Both operands are already in `compute_month`.
+
+   Related, [art. 142][ccn-152-1]: an absence **not provided for in the contract** does
+   not suspend the relationship and « la rémunération du salarié est maintenue ». A family
+   cannot unilaterally decide its own holiday is unpaid.
 3. **Plus exceptional hours** — typed per §1, attributed per §3.1 below.
 4. **Advantages** — `transport_fee` and `benefits_in_kind` are one monthly figure for
    one nanny, so they are **split by each family's share of the month's hours**; the
@@ -280,20 +345,45 @@ exactly one), plus a warning that the rate moved. Sub-periods are weighted by
 `days_in_sub_period ÷ days_in_month`, which sums to exactly 1 — so **a mid-month avenant
 changes the price, never the total hours**.
 
-### 3.2 Two things that look like bugs and are not
-
-Both of these will, sooner or later, be "fixed" by someone acting in good faith. They
-are load-bearing.
-
-**Bank holidays must not touch the base.** Mensualisation already smooths them — the
-whole point of a fixed `× 52 ÷ 12` is that the calendar month does not matter. May has
-more jours fériés than March and the salary is identical; that is the design, not an
-oversight. `BankHoliday`'s docstring says the *planning* hides working blocks on a
-non-workable holiday, and reusing that fact for *pay* would deduct them twice.
+### 3.2 One thing that looks like a bug and is not
 
 **Paid leave deducts nothing.** 52 weeks = 47 worked + 5 of paid leave. The leave is
 already inside the mensualised base. "She was off all week and got paid the same" is
-mensualisation working exactly as intended. Only *unpaid* leave deducts.
+mensualisation working exactly as intended. Only *unpaid* leave deducts. Confirmed for
+this exact population by [URSSAF][urssaf-cp]:
+
+> **Rémunération mensualisée sur 52 semaines (assistants maternels agréés et gardes
+> d'enfants à domicile)** — Les congés sont rémunérés lorsqu'ils sont pris. Le salaire
+> mensualisé est versé tous les mois, y compris pendant les périodes de congés payés.
+
+### 3.3 An *unchômé* bank holiday is paid extra, and we owe it
+
+An earlier version of this document asserted, in bold and pre-defended against future
+correction, that "bank holidays must not touch the base". **That was half wrong, and the
+half that was wrong is the expensive half.** It is recorded here rather than quietly
+deleted, because a confidently-worded error is harder to remove than a plain one and
+this document's tone is what protected it.
+
+**Chômé — correct, nothing to deduct.** Mensualisation smooths it: a fixed `× 52 ÷ 12`
+exists so the calendar month does not matter. May has more jours fériés than March and
+the salary is identical. `BankHoliday`'s docstring describes a *planning* fact — the
+grid hides working blocks on a non-workable holiday — and reusing it for *pay* would
+deduct them twice. Note the entitlement is conditional ([art. 47.2][ccn-47-2]): it
+requires the nanny to have worked the last working day before and the first after.
+
+**Travaillé — we pay a majoration, and currently do not.**
+
+> [!WARNING]
+> [Art. 47.2][ccn-47-2]: « En contrepartie du travail un jour férié ordinaire, le
+> salarié perçoit, au titre des heures effectuées, une rémunération majorée à hauteur de
+> **dix pour cent (10 %)** du salaire dû. »
+>
+> [Art. 47.1][ccn-47-1]: « [Lorsque le] 1er mai est un jour travaillé par le salarié. En
+> contrepartie, ce dernier bénéficie une rémunération majorée à hauteur de **cent pour
+> cent (100 %)**. »
+
+`BankHoliday.is_workable` already marks exactly these days. A worked 1 May is owed
+**double**.
 
 ### Gaps this feature has to close
 
@@ -319,5 +409,52 @@ summer and 19:00Z in winter, so a night-presence test against 20:00 would be **w
 twice a year**, and a 00:30 entry would land on the previous UTC date and shift the
 month it is declared in.
 
+## 4. What pajemploi actually asks for
+
+Worth stating, because the form is the acceptance test for everything above. Quoting its
+own field help:
+
+> **Nombre d'heures au taux normal** — « Saisissez le nombre d'heures au taux normal à
+> déclarer dans le mois. Si la garde est mensualisée : nombre d'heures mensualisées. Si la
+> garde est occasionnelle : nombre d'heures réellement effectuées. »
+
+> **Salaire net pour le mois** — « Additionnez le nombre d'heures normales (mensualisées ou
+> réellement effectuées) x taux horaire net + le nombre d'heures supplémentaires à 25% x le
+> taux horaire normal majoré à 25%. »
+
+So the declared net salary **includes** the overtime, and the 25% and 50% hour counts go in
+their own separate fields. Five numbers: normal hours, hours at 25%, hours at 50%, the net
+salary, and the advantages.
+
+Everything in this codebase is **net**, because that is what pajemploi asks for. The
+convention, however, defines majorations, floors and indemnities in **brut** — so any
+comparison against a floor is a brut question wearing net clothes. `net × 1.25` is a close
+enough approximation of `(brut × 1.25) → net` to use, but a *floor* check computed in net
+is not the same test the convention specifies.
+
+## Provenance of the quotes here
+
+Legifrance renders the CCN through JavaScript and cannot be fetched, so the convention is
+cited from the CGT's verbatim reproduction of IDCC 3239. Every quote in this document was
+fetched and read, not taken second-hand.
+
+`urssaf.fr` hangs our fetcher; `curl` with a browser User-Agent retrieves it fine.
+
+**URSSAF's pages summarise the job; the convention states the rules.** Twice now the
+summary has omitted a garde partagée rule that changes the money — présence responsable
+(§1) and the split (§2). When they differ, the convention governs.
+
+The machine-readable versions of these citations live in `backend/tracking/sources.py`,
+so the same quote can back a docstring, an API warning, and a "why?" link in the UI.
+
 [urssaf-contrat]: https://www.urssaf.fr/accueil/particulier/particulier-employeur/embaucher-un-salarie/contrat-travail-salarie-domicile.html#ancre-le-contenu-du-contrat-de-travail
+[urssaf-cp]: https://www.urssaf.fr/accueil/particulier/particulier-employeur/gerer-les-absences/gestion-conges-payes.html
 [cdtn-hs]: https://code.travail.gouv.fr/contribution/3239-heures-supplementaires
+[ccn-47-1]: https://convention-collective-idcc3239.cgt.fr/socle-commun/article-47-1-1er-mai/
+[ccn-47-2]: https://convention-collective-idcc3239.cgt.fr/socle-commun/article-47-2-jours-feries-ordinaires/
+[ccn-137-1]: https://convention-collective-idcc3239.cgt.fr/socle-salarie-du-particulier-employeur/article-137-1-heures-de-presence-responsable-de-jour/
+[ccn-137-2]: https://convention-collective-idcc3239.cgt.fr/socle-salarie-du-particulier-employeur/article-137-2-heures-de-presence-de-nuit/
+[ccn-144-2]: https://convention-collective-idcc3239.cgt.fr/socle-salarie-du-particulier-employeur/article-144-2-dispositions-specifiques-liees-a-la-garde-partagee/
+[ccn-146-1]: https://convention-collective-idcc3239.cgt.fr/socle-salarie-du-particulier-employeur/article-146-1-modalites-de-calcul-du-salaire-mensualise-en-cas-de-duree-du-travail-reguliere/
+[ccn-146-2]: https://convention-collective-idcc3239.cgt.fr/socle-salarie-du-particulier-employeur/article-146-2-modalites-de-calcul-du-salaire-en-cas-de-duree-du-travail-irreguliere/
+[ccn-152-1]: https://convention-collective-idcc3239.cgt.fr/socle-salarie-du-particulier-employeur/article-152-1-regime-des-absences-du-salarie-du-particulier-employeur/
