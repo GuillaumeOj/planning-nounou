@@ -335,6 +335,28 @@ describe('DeclarationSection other families', () => {
     ).toHaveLength(1)
   })
 
+  // Anything without a kilometres control still has to show its mileage, or the
+  // figure would exist on the backend and appear nowhere.
+  it('shows the other family’s mileage, draft or not', async () => {
+    m.declarations.mockResolvedValue([
+      makeDeclaration(),
+      makeDeclaration({
+        id: 'dec-2',
+        family: OTHER_FAMILY,
+        family_name: 'Martin',
+        kilometers: '42.00',
+        mileage_amount: '18.90',
+      }),
+    ])
+    render()
+
+    expect(await screen.findByText('Martin')).toBeInTheDocument()
+    expect(screen.getByText('Mileage')).toBeInTheDocument()
+    expect(screen.getByText('€18.90')).toBeInTheDocument()
+    // Shown, never editable: the backend refuses the write anyway.
+    expect(screen.getAllByLabelText('Kilometres driven')).toHaveLength(1)
+  })
+
   it('marks which one is yours', async () => {
     m.declarations.mockResolvedValue([
       makeDeclaration(),

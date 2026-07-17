@@ -1,4 +1,5 @@
 import type { Contract, ContractSchedule } from '@/src/api/contracts'
+import { hhmm } from '@/src/components/TimeField'
 
 // One nanny working a single time block on a given day.
 export interface WorkedEntry {
@@ -44,11 +45,6 @@ export function nannyColorMap(
     slots[id] = index
   }
   return slots
-}
-
-// "08:00:00" -> "08:00". API serializes times with seconds.
-export function hhmm(time: string): string {
-  return time.slice(0, 5)
 }
 
 // Backend ScheduleBlock.weekday is Monday=0 … Sunday=6 (Python date.weekday()).

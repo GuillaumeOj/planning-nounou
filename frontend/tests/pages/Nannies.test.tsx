@@ -30,7 +30,6 @@ import {
   getContractChildren,
 } from '@/src/api/declarations'
 import { getFamilies } from '@/src/api/family'
-import { duplicateDayBlocks } from '@/src/lib/weekdays'
 import Nannies from '@/src/pages/Nannies'
 import { renderWithProviders } from '@/tests/utils'
 
@@ -154,28 +153,6 @@ beforeEach(() => {
   m.children.mockResolvedValue([])
 })
 afterEach(() => vi.clearAllMocks())
-
-describe('duplicateDayBlocks', () => {
-  it('copies a day onto target days, replacing them', () => {
-    const blocks = [
-      { weekday: 0, start_time: '09:00', end_time: '12:00' },
-      { weekday: 2, start_time: '08:00', end_time: '10:00' },
-    ]
-    const result = duplicateDayBlocks(blocks, 0, [1, 2])
-    expect(result).toContainEqual({
-      weekday: 1,
-      start_time: '09:00',
-      end_time: '12:00',
-    })
-    expect(result).toContainEqual({
-      weekday: 2,
-      start_time: '09:00',
-      end_time: '12:00',
-    })
-    // The original Wednesday block was replaced.
-    expect(result.filter((b) => b.weekday === 2)).toHaveLength(1)
-  })
-})
 
 describe('Nannies page', () => {
   it('prompts to create a family when there are none', async () => {

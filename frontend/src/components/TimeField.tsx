@@ -19,6 +19,12 @@ export function toStoredTime(text: string, lang: Language): string {
   return isValid(parsed) ? format(parsed, 'HH:mm') : ''
 }
 
+// "08:00:00" -> "08:00". The API serializes times with seconds; every field and
+// every input payload in the app speaks HH:MM.
+export function hhmm(time: string): string {
+  return time.slice(0, 5)
+}
+
 export function toDisplayTime(value: string, lang: Language): string {
   if (!value) return ''
   const parsed = parse(value, 'HH:mm', new Date())

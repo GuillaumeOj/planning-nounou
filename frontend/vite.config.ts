@@ -61,13 +61,11 @@ export default defineConfig({
       provider: 'v8',
       include: ['src/**/*.{ts,tsx}'],
       // Bootstrap/entry, vendored shadcn primitives, and pure type files carry no
-      // first-party testable logic.
-      exclude: [
-        'src/main.tsx',
-        'src/vite-env.d.ts',
-        'src/components/ui/**',
-        'src/lib/**',
-      ],
+      // first-party testable logic. src/lib is NOT excluded: it used to be nothing
+      // but `cn` and a class string, but it now holds real logic (day-window
+      // copying, money/hours formatting) that was gated while it lived in a page
+      // and would silently stop being gated by the move alone.
+      exclude: ['src/main.tsx', 'src/vite-env.d.ts', 'src/components/ui/**'],
       thresholds: {
         lines: 90,
         functions: 90,

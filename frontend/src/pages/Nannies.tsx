@@ -35,10 +35,10 @@ import { type Family, getFamilies } from '@/src/api/family'
 import { ConfirmButton } from '@/src/components/ConfirmButton'
 import { ContractChildrenSection } from '@/src/components/ContractChildrenSection'
 import { DateField, formatDate } from '@/src/components/DateField'
+import { DayWindowFields } from '@/src/components/DayWindowFields'
 import { FormErrors } from '@/src/components/FormErrors'
 import { Modal } from '@/src/components/Modal'
 import { SectionCard } from '@/src/components/SectionCard'
-import { TimeField } from '@/src/components/TimeField'
 import { Button } from '@/src/components/ui/button'
 import { Card, CardContent } from '@/src/components/ui/card'
 import { Input } from '@/src/components/ui/input'
@@ -46,11 +46,7 @@ import { Label } from '@/src/components/ui/label'
 import { useI18n } from '@/src/i18n/I18nContext'
 import type { Language, TranslationKey } from '@/src/i18n/translations'
 import { selectClass } from '@/src/lib/utils'
-import {
-  type DayWindow,
-  duplicateDayBlocks,
-  WEEKDAY_KEYS,
-} from '@/src/lib/weekdays'
+import type { DayWindow } from '@/src/lib/weekdays'
 
 // --- Static reference content -----------------------------------------------
 
@@ -252,40 +248,6 @@ function ScheduleFields({
   lang: Language
 }) {
   const { t } = useI18n()
-  // The day being copied from (its "Copy day" button was clicked), or null.
-  const [copyFrom, setCopyFrom] = useState<number | null>(null)
-  const [copyTo, setCopyTo] = useState<number[]>([])
-
-  // Keep blocks ordered by weekday so the editor always reads Monday→Sunday.
-  const sortByDay = (blocks: BlockDraft[]) =>
-    [...blocks].sort((a, b) => a.weekday - b.weekday)
-  const setBlocks = (blocks: BlockDraft[]) =>
-    onChange({ blocks: sortByDay(blocks) })
-  const addBlock = () =>
-    setBlocks([
-      ...draft.blocks,
-      { weekday: 0, start_time: '09:00', end_time: '17:00' },
-    ])
-  const removeBlock = (index: number) =>
-    setBlocks(draft.blocks.filter((_, i) => i !== index))
-  const updateBlock = (index: number, patch: Partial<BlockDraft>) =>
-    setBlocks(
-      draft.blocks.map((b, i) => (i === index ? { ...b, ...patch } : b)),
-    )
-
-  const openCopy = (day: number) => {
-    setCopyFrom(day)
-    setCopyTo([])
-  }
-  const toggleCopyTo = (day: number) =>
-    setCopyTo((prev) =>
-      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day],
-    )
-  const applyCopy = () => {
-    if (copyFrom !== null)
-      setBlocks(duplicateDayBlocks(draft.blocks, copyFrom, copyTo))
-    setCopyFrom(null)
-  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -296,117 +258,14 @@ function ScheduleFields({
         onChange={(v) => onChange({ effective_from: v })}
         lang={lang}
       />
-      {draft.blocks.map((block, index) => (
-        // Five controls never fit one phone row: wrapping alone would squeeze
-        // the time inputs to their min-content width, so stack them in a grid
-        // (day, then from/to side by side, then the actions) and only fall back
-        // to the single wrapping row once there is room for it.
-        <div
-          // biome-ignore lint/suspicious/noArrayIndexKey: draft rows have no id
-          key={index}
-          className="grid grid-cols-2 items-end gap-2 sm:flex sm:flex-wrap"
-        >
-          <div className="col-span-2 flex flex-col gap-1">
-            <Label htmlFor={`block-day-${index}`}>{t('schedule.day')}</Label>
-            <select
-              id={`block-day-${index}`}
-              className={selectClass}
-              value={block.weekday}
-              onChange={(e) =>
-                updateBlock(index, { weekday: Number(e.target.value) })
-              }
-            >
-              {WEEKDAY_KEYS.map((key, day) => (
-                <option key={key} value={day}>
-                  {t(key)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <TimeField
-            id={`block-start-${index}`}
-            label={t('schedule.from')}
-            value={block.start_time}
-            onChange={(v) => updateBlock(index, { start_time: v })}
-            lang={lang}
-          />
-          <TimeField
-            id={`block-end-${index}`}
-            label={t('schedule.to')}
-            value={block.end_time}
-            onChange={(v) => updateBlock(index, { end_time: v })}
-            lang={lang}
-          />
-          <div className="col-span-2 flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => openCopy(block.weekday)}
-            >
-              {t('schedule.copyDay')}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => removeBlock(index)}
-            >
-              {t('schedule.removeBlock')}
-            </Button>
-          </div>
-        </div>
-      ))}
-      <Button
-        type="button"
-        variant="outline"
-        onClick={addBlock}
-        className="self-start"
-      >
-        {t('schedule.addBlock')}
-      </Button>
-
-      {copyFrom !== null && (
-        <Modal
-          title={t('schedule.copyDialogTitle')}
-          onClose={() => setCopyFrom(null)}
-        >
-          <p className="text-sm text-muted-foreground">
-            {t('schedule.copyDialogHint')} {t(WEEKDAY_KEYS[copyFrom])}
-          </p>
-          <div className="flex flex-wrap gap-3 text-sm">
-            {WEEKDAY_KEYS.map((key, day) =>
-              day === copyFrom ? null : (
-                <label key={key} className="flex items-center gap-1.5 py-1">
-                  <input
-                    type="checkbox"
-                    className="size-4"
-                    checked={copyTo.includes(day)}
-                    onChange={() => toggleCopyTo(day)}
-                  />
-                  {t(key)}
-                </label>
-              ),
-            )}
-          </div>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              onClick={applyCopy}
-              disabled={copyTo.length === 0}
-            >
-              {t('schedule.apply')}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setCopyFrom(null)}
-            >
-              {t('common.cancel')}
-            </Button>
-          </div>
-        </Modal>
-      )}
+      <DayWindowFields
+        windows={draft.blocks}
+        onChange={(blocks) => onChange({ blocks })}
+        lang={lang}
+        idPrefix="block"
+        addLabel={t('schedule.addBlock')}
+        removeLabel={t('schedule.removeBlock')}
+      />
     </div>
   )
 }
@@ -917,13 +776,14 @@ function SharingSection({
 
 // --- Onboarding wizard ------------------------------------------------------
 
+// The order of the wizard, and the only place it is written down.
 const WIZARD_STEPS: TranslationKey[] = [
-  'wizard.step1',
-  'wizard.step2',
-  'wizard.step3',
-  'wizard.step4',
-  'wizard.step5',
-  'wizard.step6',
+  'wizard.nanny',
+  'wizard.compensation',
+  'wizard.hours',
+  'wizard.children',
+  'wizard.daysOff',
+  'wizard.share',
 ]
 
 function ContractWizard({
@@ -1009,7 +869,7 @@ function ContractWizard({
   const next = () => {
     setErrors([])
     if (step === 0 && !canLeaveStep1) {
-      setErrors([t('wizard.step1Error')])
+      setErrors([t('wizard.nannyError')])
       return
     }
     setStep((s) => s + 1)

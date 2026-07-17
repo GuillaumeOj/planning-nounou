@@ -18,7 +18,7 @@ import { Button } from '@/src/components/ui/button'
 import { Input } from '@/src/components/ui/input'
 import { Label } from '@/src/components/ui/label'
 import { useI18n } from '@/src/i18n/I18nContext'
-import type { Language, TranslationKey } from '@/src/i18n/translations'
+import type { TranslationKey } from '@/src/i18n/translations'
 import { cn, formatHours, formatMoney } from '@/src/lib/utils'
 
 // Each code the compute raises, spelled out. A code with no entry here falls
@@ -46,32 +46,18 @@ const WARNING_KEYS: Record<string, TranslationKey> = {
 
 const isZero = (decimal: string) => Number(decimal) === 0
 
+// Rows that only earn their space when they carry a figure. Reads left to right
+// — condition, then the rows it admits — where the bare spread ternary put an
+// empty array between a reader and the row they came for.
+const when = (condition: boolean, ...rows: Figure[]): Figure[] =>
+  condition ? rows : []
+
 // A labelled figure. `strong` marks the one line a parent is really after — the
 // net salary — so it carries the weight the others don't.
 interface Figure {
   label: string
   value: string
   strong?: boolean
-}
-
-function Figures({ rows }: { rows: Figure[] }) {
-  return (
-    <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1.5 text-sm">
-      {rows.map((row) => (
-        <Fragment key={row.label}>
-          <dt className="text-muted-foreground">{row.label}</dt>
-          <dd
-            className={cn(
-              'text-right tabular-nums',
-              row.strong ? 'font-semibold' : 'font-medium',
-            )}
-          >
-            {row.value}
-          </dd>
-        </Fragment>
-      ))}
-    </dl>
-  )
 }
 
 function FigureGroup({ title, rows }: { title: string; rows: Figure[] }) {
@@ -81,7 +67,21 @@ function FigureGroup({ title, rows }: { title: string; rows: Figure[] }) {
       <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
         {title}
       </h4>
-      <Figures rows={rows} />
+      <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1.5 text-sm">
+        {rows.map((row) => (
+          <Fragment key={row.label}>
+            <dt className="text-muted-foreground">{row.label}</dt>
+            <dd
+              className={cn(
+                'text-right tabular-nums',
+                row.strong ? 'font-semibold' : 'font-medium',
+              )}
+            >
+              {row.value}
+            </dd>
+          </Fragment>
+        ))}
+      </dl>
     </div>
   )
 }
@@ -139,14 +139,8 @@ function Warnings({ warnings }: { warnings: DeclarationWarning[] }) {
 // Only shown when the rates moved mid-month, which is the one case where
 // total != hours × rate and a parent would otherwise be unable to reproduce the
 // figure. A single period is the norm and says nothing worth the space.
-function RatePeriods({
-  declaration,
-  lang,
-}: {
-  declaration: MonthlyDeclaration
-  lang: Language
-}) {
-  const { t } = useI18n()
+function RatePeriods({ declaration }: { declaration: MonthlyDeclaration }) {
+  const { t, lang } = useI18n()
   if (declaration.rate_periods.length < 2) return null
 
   return (
@@ -199,7 +193,11 @@ function Kilometers({
       // Take the backend's normalisation ('42' comes back '42.00') rather than
       // leaving the field showing what was typed.
       setKilometers(updated.kilometers)
-      await queryClient.invalidateQueries({ queryKey: ['declarations'] })
+      // Only this contract's rows moved, and reading them recomputes and writes
+      // every non-frozen row on the backend — so do not sweep the other cards in.
+      await queryClient.invalidateQueries({
+        queryKey: ['declarations', contractId],
+      })
     },
     onError: (error) =>
       setErrors(extractErrorMessages(error, t('declaration.saveError'))),
@@ -265,12 +263,18 @@ function DeclarationCard({
 
   const isOwn = declaration.family === familyId
   const isFiled = declaration.status === 'filed'
+  // The one place that decides whether the kilometres control is showing. The
+  // mileage row below is its complement, so the two cannot drift apart and
+  // leave a declaration — the other family's draft — showing neither.
+  const editsKilometers = isOwn && !isFiled
 
   const fileMutation = useMutation({
     mutationFn: () => fileDeclaration(familyId, contractId, declaration.id),
     onSuccess: async () => {
       setErrors([])
-      await queryClient.invalidateQueries({ queryKey: ['declarations'] })
+      await queryClient.invalidateQueries({
+        queryKey: ['declarations', contractId],
+      })
     },
     onError: (error) =>
       setErrors(extractErrorMessages(error, t('declaration.fileError'))),
@@ -300,55 +304,38 @@ function DeclarationCard({
       value: formatMoney(declaration.total_amount, lang),
       strong: true,
     },
-    ...(isZero(declaration.holiday_majoration)
-      ? []
-      : [
-          {
-            label: t('declaration.holidayMajoration'),
-            value: formatMoney(declaration.holiday_majoration, lang),
-          },
-        ]),
-    ...(declaration.night_count === 0
-      ? []
-      : [
-          {
-            label: t('declaration.nightCount'),
-            value: String(declaration.night_count),
-          },
-          {
-            label: t('declaration.nightIndemnity'),
-            value: formatMoney(declaration.night_indemnity, lang),
-          },
-        ]),
+    ...when(!isZero(declaration.holiday_majoration), {
+      label: t('declaration.holidayMajoration'),
+      value: formatMoney(declaration.holiday_majoration, lang),
+    }),
+    ...when(
+      declaration.night_count > 0,
+      {
+        label: t('declaration.nightCount'),
+        value: String(declaration.night_count),
+      },
+      {
+        label: t('declaration.nightIndemnity'),
+        value: formatMoney(declaration.night_indemnity, lang),
+      },
+    ),
   ]
 
   const extras: Figure[] = [
-    ...(isZero(declaration.transport_amount)
-      ? []
-      : [
-          {
-            label: t('declaration.transportAmount'),
-            value: formatMoney(declaration.transport_amount, lang),
-          },
-        ]),
-    ...(isZero(declaration.benefits_in_kind_amount)
-      ? []
-      : [
-          {
-            label: t('declaration.benefitsInKind'),
-            value: formatMoney(declaration.benefits_in_kind_amount, lang),
-          },
-        ]),
-    // A filed declaration has no kilometres control, so its mileage would
-    // otherwise go unsaid.
-    ...(isFiled && !isZero(declaration.mileage_amount)
-      ? [
-          {
-            label: t('declaration.mileageAmount'),
-            value: formatMoney(declaration.mileage_amount, lang),
-          },
-        ]
-      : []),
+    ...when(!isZero(declaration.transport_amount), {
+      label: t('declaration.transportAmount'),
+      value: formatMoney(declaration.transport_amount, lang),
+    }),
+    ...when(!isZero(declaration.benefits_in_kind_amount), {
+      label: t('declaration.benefitsInKind'),
+      value: formatMoney(declaration.benefits_in_kind_amount, lang),
+    }),
+    // Whatever has no kilometres control still has to show its mileage: a filed
+    // declaration, and the other family's, whether draft or filed.
+    ...when(!editsKilometers && !isZero(declaration.mileage_amount), {
+      label: t('declaration.mileageAmount'),
+      value: formatMoney(declaration.mileage_amount, lang),
+    }),
   ]
 
   const rates: Figure[] = [
@@ -356,22 +343,14 @@ function DeclarationCard({
       label: t('declaration.netHourlyRate'),
       value: `${formatMoney(declaration.net_hourly_rate, lang)}${t('declaration.perHour')}`,
     },
-    ...(isZero(declaration.night_presence_rate)
-      ? []
-      : [
-          {
-            label: t('declaration.nightPresenceRate'),
-            value: `${formatMoney(declaration.night_presence_rate, lang)}${t('declaration.perHour')}`,
-          },
-        ]),
-    ...(isZero(declaration.mileage_rate)
-      ? []
-      : [
-          {
-            label: t('declaration.mileageRate'),
-            value: `${formatMoney(declaration.mileage_rate, lang)}${t('declaration.perKm')}`,
-          },
-        ]),
+    ...when(!isZero(declaration.night_presence_rate), {
+      label: t('declaration.nightPresenceRate'),
+      value: `${formatMoney(declaration.night_presence_rate, lang)}${t('declaration.perHour')}`,
+    }),
+    ...when(!isZero(declaration.mileage_rate), {
+      label: t('declaration.mileageRate'),
+      value: `${formatMoney(declaration.mileage_rate, lang)}${t('declaration.perKm')}`,
+    }),
   ]
 
   return (
@@ -409,7 +388,7 @@ function DeclarationCard({
       <FigureGroup title={t('declaration.pay')} rows={pay} />
       <FigureGroup title={t('declaration.extras')} rows={extras} />
 
-      {isOwn && !isFiled && (
+      {editsKilometers && (
         <Kilometers
           familyId={familyId}
           contractId={contractId}
@@ -418,7 +397,7 @@ function DeclarationCard({
       )}
 
       <FigureGroup title={t('declaration.rates')} rows={rates} />
-      <RatePeriods declaration={declaration} lang={lang} />
+      <RatePeriods declaration={declaration} />
       <Warnings warnings={declaration.warnings} />
       <FormErrors messages={errors} />
 

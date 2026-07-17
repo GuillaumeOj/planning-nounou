@@ -12,27 +12,21 @@ import {
 } from '@/src/api/declarations'
 import { extractErrorMessages } from '@/src/api/errors'
 import { ConfirmButton } from '@/src/components/ConfirmButton'
+import { DayWindowFields } from '@/src/components/DayWindowFields'
 import { FormErrors } from '@/src/components/FormErrors'
 import { SectionCard } from '@/src/components/SectionCard'
-import { TimeField, toDisplayTime } from '@/src/components/TimeField'
+import { hhmm, toDisplayTime } from '@/src/components/TimeField'
 import { Button } from '@/src/components/ui/button'
 import { Label } from '@/src/components/ui/label'
 import { useI18n } from '@/src/i18n/I18nContext'
 import type { Language, TranslationKey } from '@/src/i18n/translations'
 import { selectClass } from '@/src/lib/utils'
-import {
-  type DayWindow,
-  duplicateDayBlocks,
-  WEEKDAY_KEYS,
-} from '@/src/lib/weekdays'
-
-// The API hands back 'HH:MM:SS'; the fields speak 'HH:MM'.
-const hhmm = (time: string) => time.slice(0, 5)
+import { type DayWindow, sortByDay, WEEKDAY_KEYS } from '@/src/lib/weekdays'
 
 // What a new window opens as. The nanny's own day is the natural span, but her
 // schedule varies by day and version, so a neutral working day is the honest
 // default — the parent narrows it.
-const DEFAULT_WINDOW = { start_time: '09:00', end_time: '17:00' }
+const DEFAULT_WINDOW = { weekday: 0, start_time: '09:00', end_time: '17:00' }
 
 interface ChildDraft {
   child: string
@@ -52,177 +46,22 @@ function entryToDraft(entry: ContractChild): ChildDraft {
   }
 }
 
-// Windows sorted Monday→Sunday, so the editor and the summary always read in
-// day order however they were added.
-const sortByDay = (windows: DayWindow[]) =>
-  [...windows].sort((a, b) => a.weekday - b.weekday)
-
-// Says a child's presence in one line. The empty case is the common one and the
-// one worth spelling out: no windows does NOT mean "never", it means "whenever
-// the nanny works" — a parent reading "—" would assume the opposite.
+// Says a child's presence in one line, including the empty case — no windows
+// does NOT mean "never", it means "whenever the nanny works", and a reader given
+// a blank would assume the opposite. ContractChildWindow is already a DayWindow
+// bar an optional id, so the server rows sort as they arrive.
 function describePresence(
   windows: ContractChildWindow[],
   t: (key: TranslationKey) => string,
   lang: Language,
 ): string {
-  if (windows.length === 0) return ''
-  return sortByDay(
-    windows.map((w) => ({
-      weekday: w.weekday,
-      start_time: hhmm(w.start_time),
-      end_time: hhmm(w.end_time),
-    })),
-  )
+  if (windows.length === 0) return t('contractChild.wholeTime')
+  return sortByDay(windows)
     .map(
       (w) =>
-        `${t(WEEKDAY_KEYS[w.weekday])} ${toDisplayTime(w.start_time, lang)}–${toDisplayTime(w.end_time, lang)}`,
+        `${t(WEEKDAY_KEYS[w.weekday])} ${toDisplayTime(hhmm(w.start_time), lang)}–${toDisplayTime(hhmm(w.end_time), lang)}`,
     )
     .join(' · ')
-}
-
-// The windows editor. Mirrors the schedule block editor next door, down to the
-// day-copy: a child away on Wednesday is four windows, and typing the same times
-// four times is how a parent gets one of them wrong.
-function WindowFields({
-  windows,
-  onChange,
-  lang,
-}: {
-  windows: DayWindow[]
-  onChange: (windows: DayWindow[]) => void
-  lang: Language
-}) {
-  const { t } = useI18n()
-  const [copyFrom, setCopyFrom] = useState<number | null>(null)
-  const [copyTo, setCopyTo] = useState<number[]>([])
-
-  const setWindows = (next: DayWindow[]) => onChange(sortByDay(next))
-  const addWindow = () =>
-    setWindows([...windows, { weekday: 0, ...DEFAULT_WINDOW }])
-  const removeWindow = (index: number) =>
-    setWindows(windows.filter((_, i) => i !== index))
-  const updateWindow = (index: number, patch: Partial<DayWindow>) =>
-    setWindows(windows.map((w, i) => (i === index ? { ...w, ...patch } : w)))
-
-  const toggleCopyTo = (day: number) =>
-    setCopyTo((prev) =>
-      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day],
-    )
-  const applyCopy = () => {
-    if (copyFrom !== null)
-      setWindows(duplicateDayBlocks(windows, copyFrom, copyTo))
-    setCopyFrom(null)
-  }
-
-  return (
-    <div className="flex flex-col gap-3">
-      {windows.map((window, index) => (
-        <div
-          // biome-ignore lint/suspicious/noArrayIndexKey: draft rows have no id
-          key={index}
-          className="grid grid-cols-2 items-end gap-2 sm:flex sm:flex-wrap"
-        >
-          <div className="col-span-2 flex flex-col gap-1">
-            <Label htmlFor={`window-day-${index}`}>{t('schedule.day')}</Label>
-            <select
-              id={`window-day-${index}`}
-              className={selectClass}
-              value={window.weekday}
-              onChange={(e) =>
-                updateWindow(index, { weekday: Number(e.target.value) })
-              }
-            >
-              {WEEKDAY_KEYS.map((key, day) => (
-                <option key={key} value={day}>
-                  {t(key)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <TimeField
-            id={`window-start-${index}`}
-            label={t('schedule.from')}
-            value={window.start_time}
-            onChange={(v) => updateWindow(index, { start_time: v })}
-            lang={lang}
-          />
-          <TimeField
-            id={`window-end-${index}`}
-            label={t('schedule.to')}
-            value={window.end_time}
-            onChange={(v) => updateWindow(index, { end_time: v })}
-            lang={lang}
-          />
-          <div className="col-span-2 flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setCopyFrom(window.weekday)
-                setCopyTo([])
-              }}
-            >
-              {t('schedule.copyDay')}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => removeWindow(index)}
-            >
-              {t('nanny.delete')}
-            </Button>
-          </div>
-        </div>
-      ))}
-
-      {copyFrom !== null && (
-        <div className="flex flex-col gap-2 rounded-md border p-3">
-          <p className="text-sm">
-            {t('schedule.copyTo')} {t(WEEKDAY_KEYS[copyFrom])}
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {WEEKDAY_KEYS.map((key, day) =>
-              day === copyFrom ? null : (
-                <label key={key} className="flex items-center gap-1.5 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={copyTo.includes(day)}
-                    onChange={() => toggleCopyTo(day)}
-                  />
-                  {t(key)}
-                </label>
-              ),
-            )}
-          </div>
-          <div className="flex gap-2">
-            <Button type="button" size="sm" onClick={applyCopy}>
-              {t('confirm.apply')}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setCopyFrom(null)}
-            >
-              {t('common.cancel')}
-            </Button>
-          </div>
-        </div>
-      )}
-
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="self-start"
-        onClick={addWindow}
-      >
-        {t('contractChild.addWindow')}
-      </Button>
-    </div>
-  )
 }
 
 function ChildFields({
@@ -281,9 +120,7 @@ function ChildFields({
             type="radio"
             name="presence-mode"
             checked={!whole}
-            onChange={() =>
-              onChange({ windows: [{ weekday: 0, ...DEFAULT_WINDOW }] })
-            }
+            onChange={() => onChange({ windows: [{ ...DEFAULT_WINDOW }] })}
           />
           {t('contractChild.someDays')}
         </label>
@@ -293,10 +130,13 @@ function ChildFields({
       </fieldset>
 
       {!whole && (
-        <WindowFields
+        <DayWindowFields
           windows={draft.windows}
           onChange={(windows) => onChange({ windows })}
           lang={lang}
+          idPrefix="window"
+          addLabel={t('contractChild.addWindow')}
+          removeLabel={t('schedule.removeBlock')}
         />
       )}
     </div>
@@ -444,9 +284,7 @@ export function ContractChildrenSection({
               >
                 <span className="flex min-w-0 flex-col">
                   <span className="font-medium">{entry.first_name}</span>
-                  <span className="text-muted-foreground">
-                    {presence || t('contractChild.wholeTime')}
-                  </span>
+                  <span className="text-muted-foreground">{presence}</span>
                 </span>
                 {isOwn && (
                   <span className="flex shrink-0 gap-1">

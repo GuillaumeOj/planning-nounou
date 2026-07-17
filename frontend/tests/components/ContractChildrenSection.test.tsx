@@ -289,9 +289,11 @@ describe('ContractChildrenSection windows', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Copy day' }))
     await userEvent.click(screen.getByRole('checkbox', { name: 'Tuesday' }))
-    // The form has a Cancel of its own; this is the copy panel's.
-    const panel = screen.getByText('to Monday').closest('div') as HTMLElement
-    await userEvent.click(within(panel).getByRole('button', { name: 'Cancel' }))
+    // The form has a Cancel of its own; this is the copy dialog's.
+    const dialog = screen.getByRole('dialog')
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Cancel' }),
+    )
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() =>
@@ -312,7 +314,7 @@ describe('ContractChildrenSection windows', () => {
     for (const day of ['Tuesday', 'Thursday', 'Friday']) {
       await userEvent.click(screen.getByRole('checkbox', { name: day }))
     }
-    await userEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Apply' }))
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => expect(m.create).toHaveBeenCalled())
@@ -328,7 +330,7 @@ describe('ContractChildrenSection windows', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Add a day' }))
     expect(screen.getAllByLabelText('Day')).toHaveLength(2)
 
-    await userEvent.click(screen.getAllByRole('button', { name: 'Delete' })[0])
+    await userEvent.click(screen.getAllByRole('button', { name: 'Remove' })[0])
     expect(screen.getAllByLabelText('Day')).toHaveLength(1)
   })
 })

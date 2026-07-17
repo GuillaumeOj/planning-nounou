@@ -21,6 +21,12 @@ export interface DayWindow {
   end_time: string
 }
 
+// Monday→Sunday. The editors read in day order however the rows were added, and
+// a summary built from them says the week in the order a parent thinks it.
+export function sortByDay<T extends DayWindow>(windows: T[]): T[] {
+  return [...windows].sort((a, b) => a.weekday - b.weekday)
+}
+
 // Copy every block of `from` onto each `toDays`, replacing those days. Generic
 // so a caller keeps whatever extra fields its own rows carry.
 export function duplicateDayBlocks<T extends DayWindow>(

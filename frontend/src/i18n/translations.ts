@@ -273,8 +273,6 @@ const en = {
   'declaration.confirmFileDescription':
     'Filing records these figures as sent to pajemploi and freezes them. Nothing may rewrite a filed declaration afterwards.',
   'declaration.checkBeforeFiling': 'Check these before filing',
-  'declaration.sourceQuote': 'What the convention says',
-  'declaration.sourceLink': 'Read the article',
   // One per code the compute raises. The bare code would make a parent take our
   // word for a figure they are about to file; each is paired with the article
   // behind it, which the backend sends alongside.
@@ -312,12 +310,15 @@ const en = {
   'consequence.belowMin':
     'This net hourly rate is below the recommended minimum.',
   'wizard.title': 'Add a nanny',
-  'wizard.step1': 'Nanny',
-  'wizard.step2': 'Compensation',
-  'wizard.step3': 'Working hours',
-  'wizard.step4': 'Children',
-  'wizard.step5': 'Days off',
-  'wizard.step6': 'Share',
+  // Named for what the step is, not where it sits. WIZARD_STEPS already carries
+  // the order; a digit in the key would be a second, unenforced copy of it —
+  // and inserting a step would silently hand an existing key new text.
+  'wizard.nanny': 'Nanny',
+  'wizard.compensation': 'Compensation',
+  'wizard.hours': 'Working hours',
+  'wizard.children': 'Children',
+  'wizard.daysOff': 'Days off',
+  'wizard.share': 'Share',
   'wizard.childrenOptional':
     'Which of your children does this nanny look after?',
   // The wizard takes the common case only. Narrowing a child to certain days is
@@ -332,7 +333,7 @@ const en = {
   'wizard.existingNanny': 'Use a nanny you already work with',
   'wizard.pickNanny': 'Choose a nanny',
   'wizard.shareOptional': 'Invite another family by email (optional)',
-  'wizard.step1Error': 'Enter the nanny and a starting date.',
+  'wizard.nannyError': 'Enter the nanny and a starting date.',
   'status.checking': 'checking…',
   'status.unreachable': 'unreachable',
   'status.unknown': 'unknown',
@@ -723,8 +724,6 @@ const fr: Record<TranslationKey, string> = {
   'declaration.confirmFileDescription':
     'Déclarer enregistre ces montants comme envoyés à pajemploi et les fige. Plus rien ne pourra les modifier ensuite.',
   'declaration.checkBeforeFiling': 'À vérifier avant de déclarer',
-  'declaration.sourceQuote': 'Ce que dit la convention',
-  'declaration.sourceLink': 'Lire l’article',
   // Une par code levé par le calcul. Le code seul obligerait un parent à nous
   // croire sur un chiffre qu’il s’apprête à déclarer ; chacune est accompagnée
   // de l’article correspondant, que le backend renvoie avec.
@@ -762,12 +761,12 @@ const fr: Record<TranslationKey, string> = {
   'consequence.belowMin':
     'Ce salaire net horaire est inférieur au minimum recommandé.',
   'wizard.title': 'Ajouter une nounou',
-  'wizard.step1': 'Nounou',
-  'wizard.step2': 'Rémunération',
-  'wizard.step3': 'Horaires',
-  'wizard.step4': 'Enfants',
-  'wizard.step5': 'Congés',
-  'wizard.step6': 'Partage',
+  'wizard.nanny': 'Nounou',
+  'wizard.compensation': 'Rémunération',
+  'wizard.hours': 'Horaires',
+  'wizard.children': 'Enfants',
+  'wizard.daysOff': 'Congés',
+  'wizard.share': 'Partage',
   'wizard.childrenOptional': 'Quels enfants cette nounou garde-t-elle ?',
   // L’assistant ne gère que le cas courant. Restreindre un enfant à certains
   // jours est le détail même du contrat, et sa place est là où il y a de la
@@ -781,7 +780,7 @@ const fr: Record<TranslationKey, string> = {
   'wizard.existingNanny': 'Utiliser une nounou avec qui vous travaillez déjà',
   'wizard.pickNanny': 'Choisir une nounou',
   'wizard.shareOptional': 'Inviter une autre famille par e-mail (facultatif)',
-  'wizard.step1Error': 'Indiquez la nounou et une date de début.',
+  'wizard.nannyError': 'Indiquez la nounou et une date de début.',
   'status.checking': 'vérification…',
   'status.unreachable': 'injoignable',
   'status.unknown': 'inconnu',

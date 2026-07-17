@@ -15,7 +15,7 @@ import { ConfirmButton } from '@/src/components/ConfirmButton'
 import { DateField, formatDate } from '@/src/components/DateField'
 import { FormErrors } from '@/src/components/FormErrors'
 import { SectionCard } from '@/src/components/SectionCard'
-import { TimeField, toDisplayTime } from '@/src/components/TimeField'
+import { hhmm, TimeField, toDisplayTime } from '@/src/components/TimeField'
 import { Button } from '@/src/components/ui/button'
 import { Input } from '@/src/components/ui/input'
 import { Label } from '@/src/components/ui/label'
@@ -48,10 +48,6 @@ const KIND_KEYS: Record<ExceptionalKind, TranslationKey> = {
   presence_responsable: 'exceptional.kind.presence_responsable',
   night_presence: 'exceptional.kind.night_presence',
 }
-
-// The API hands back 'HH:MM:SS'; the fields and the API's own input both speak
-// 'HH:MM'.
-const hhmm = (time: string) => time.slice(0, 5)
 
 function entryToDraft(entry: ExceptionalHours): HoursDraft {
   return {
