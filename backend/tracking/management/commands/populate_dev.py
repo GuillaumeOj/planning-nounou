@@ -28,6 +28,8 @@ from django.db import transaction
 from django.utils import timezone
 
 from accounts.models import Child, Family, FamilyMembership, User
+from tracking.declarations import first_of_month
+from tracking.declarations_repo import declarations_for, file_declaration
 from tracking.models import (
     BankHoliday,
     Contract,
@@ -255,7 +257,25 @@ class Command(BaseCommand):
         self._create_schedules(rng, contract)
         self._create_leaves(rng, contract, owner)
         self._create_exceptional_hours(rng, contract, families, owner)
+        self._file_past_declarations(contract, owner)
         return contract
+
+    def _file_past_declarations(self, contract: Contract, owner: User) -> None:
+        """File a couple of past months, so the filed states are seen in dev.
+
+        The month one back is still inside its edit grace window — filed, yet
+        editable in place — while the older one has locked. Both matter: the
+        planning and declarations pages read very differently for the two, and the
+        home page summarises the recent months off exactly these rows.
+        """
+        today = timezone.localdate()
+        contract_month = contract.starting_date.replace(day=1)
+        for months_back in (1, 4):
+            month = first_of_month(today, -months_back)
+            if month < contract_month:
+                continue
+            for row in declarations_for(contract, month):
+                file_declaration(row, owner)
 
     def _create_contract_children(
         self, rng: random.Random, contract: Contract, families: list[Family]

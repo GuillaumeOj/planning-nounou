@@ -4,11 +4,13 @@ from decimal import Decimal
 import pytest
 from django.core.exceptions import ValidationError
 from django.db.utils import IntegrityError
+from django.utils import timezone
 
 from tracking.models import (
     ContractSchedule,
     ContractTerms,
     MinimumWage,
+    MonthlyDeclaration,
     Nanny,
     ScheduleBlock,
 )
@@ -90,3 +92,38 @@ def test_schedule_block_clean_rejects_end_before_start(contract):
     )
     with pytest.raises(ValidationError):
         block.clean()
+
+
+# --- the declaration edit window ---------------------------------------------
+
+
+def _declaration(month, status=MonthlyDeclaration.Status.DRAFT):
+    # Unsaved: editable_until/is_editable are pure functions of month and status.
+    return MonthlyDeclaration(month=month, status=status)
+
+
+def test_editable_until_is_the_end_of_the_month_two_months_later():
+    assert _declaration(datetime.date(2026, 1, 1)).editable_until == datetime.date(2026, 3, 31)
+
+
+def test_editable_until_wraps_the_year():
+    assert _declaration(datetime.date(2026, 11, 1)).editable_until == datetime.date(2027, 1, 31)
+
+
+def test_a_draft_is_always_editable_and_never_frozen():
+    old_draft = _declaration(datetime.date(2000, 1, 1))
+    assert old_draft.is_editable
+    assert not old_draft.is_frozen
+
+
+def test_a_filed_recent_month_stays_editable_in_place():
+    this_month = timezone.localdate().replace(day=1)
+    filed = _declaration(this_month, status=MonthlyDeclaration.Status.FILED)
+    assert filed.is_editable
+    assert not filed.is_frozen
+
+
+def test_a_filed_old_month_is_frozen():
+    filed = _declaration(datetime.date(2000, 1, 1), status=MonthlyDeclaration.Status.FILED)
+    assert filed.is_frozen
+    assert not filed.is_editable

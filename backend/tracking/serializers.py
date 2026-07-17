@@ -361,6 +361,22 @@ class ContractSerializer(serializers.ModelSerializer):
         return super().update(instance, validated_data)
 
 
+class PaidLeaveBalanceSerializer(serializers.Serializer):
+    """A contract's congés-payés standing for the current reference period.
+
+    Not a model: the balance is computed on the fly by :mod:`tracking.paid_leave`.
+    Days are decimals (a half-day is 0.5) and ``remaining`` may be negative when
+    leave is booked ahead of what has accrued so far.
+    """
+
+    period_start = serializers.DateField(read_only=True)
+    period_end = serializers.DateField(read_only=True)
+    total_days = serializers.DecimalField(max_digits=5, decimal_places=2, read_only=True)
+    accrued = serializers.DecimalField(max_digits=5, decimal_places=2, read_only=True)
+    taken = serializers.DecimalField(max_digits=5, decimal_places=2, read_only=True)
+    remaining = serializers.DecimalField(max_digits=5, decimal_places=2, read_only=True)
+
+
 class ContractInvitationSerializer(serializers.ModelSerializer):
     """Create/list invitations to share a contract. Token is exposed to the
     managing family so they can build the invite link (no email backend yet)."""
@@ -610,6 +626,11 @@ class MonthlyDeclarationSerializer(serializers.ModelSerializer):
 
     warnings = serializers.SerializerMethodField()
     family_name = serializers.CharField(source="family.name", read_only=True)
+    # Model properties, not columns: a filed row stays editable in place until the
+    # end of its grace window, after which it locks. The UI shows the kilometres
+    # control and the deadline off these rather than off status alone.
+    is_editable = serializers.BooleanField(read_only=True)
+    editable_until = serializers.DateField(read_only=True)
 
     class Meta:
         model = MonthlyDeclaration
@@ -638,6 +659,8 @@ class MonthlyDeclarationSerializer(serializers.ModelSerializer):
             "warnings",
             "computed_at",
             "filed_at",
+            "is_editable",
+            "editable_until",
         )
         read_only_fields = tuple(f for f in fields if f != "kilometers")
 

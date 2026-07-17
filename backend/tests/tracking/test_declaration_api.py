@@ -20,8 +20,10 @@ from decimal import Decimal
 
 import pytest
 from django.urls import reverse
+from django.utils import timezone
 
 from accounts.models import Child
+from tracking.declarations import first_of_month
 from tracking.models import (
     ContractChild,
     ContractSchedule,
@@ -379,7 +381,7 @@ def test_the_computed_numbers_cannot_be_typed(client, owner, family, wired):
     assert Decimal(resp.data["normal_hours"]) != Decimal("999")
 
 
-def test_filing_freezes_the_declaration(client, owner, family, wired):
+def test_filing_records_the_declaration(client, owner, family, wired):
     client.force_authenticate(user=owner)
     row = client.get(declarations_url(family, wired), {"month": "2026-07"}).data[0]
     resp = client.post(file_url(family, wired, row["id"]))
@@ -387,20 +389,43 @@ def test_filing_freezes_the_declaration(client, owner, family, wired):
     assert resp.data["status"] == "filed"
     assert resp.data["filed_at"] is not None
 
-    # Now change what the number was built from; the filed row must not move.
-    ContractTerms.objects.create(
-        contract=wired, effective_from=date(2026, 7, 2), net_hourly_rate=Decimal("99.00")
-    )
-    again = client.get(declarations_url(family, wired), {"month": "2026-07"}).data[0]
-    assert again["total_amount"] == resp.data["total_amount"]
 
-
-def test_a_filed_declaration_refuses_to_be_edited(client, owner, family, wired):
+def test_a_recent_filed_declaration_stays_editable_in_place(client, owner, family, wired):
+    """The grace window: a mistake is usually caught a payslip or two later, so a
+    just-filed month can still be corrected — kilometres and all — until it locks."""
     client.force_authenticate(user=owner)
-    row = client.get(declarations_url(family, wired), {"month": "2026-07"}).data[0]
-    client.post(file_url(family, wired, row["id"]))
+    this_month = timezone.localdate().strftime("%Y-%m")
+    row = client.get(declarations_url(family, wired), {"month": this_month}).data[0]
+    filed = client.post(file_url(family, wired, row["id"]))
+    assert filed.data["status"] == "filed"
+    assert filed.data["is_editable"] is True
+
     url = reverse("tracking:contract-declaration", args=[family.id, wired.id, row["id"]])
+    resp = client.patch(url, {"kilometers": "120"}, format="json")
+    assert resp.status_code == 200
+    # Still filed, but the edit took: this is "editable in place", not a reopen.
+    assert resp.data["status"] == "filed"
+    assert Decimal(resp.data["kilometers"]) == Decimal("120")
+
+
+def test_a_filed_declaration_freezes_once_its_grace_window_ends(client, owner, family, wired):
+    """Past the window a filed row is the record of what was sent, and locks — the
+    edit is refused and the stored figures never move again."""
+    old_month = first_of_month(timezone.localdate(), -(MonthlyDeclaration.EDIT_GRACE_MONTHS + 1))
+    row = MonthlyDeclaration.objects.create(
+        contract=wired,
+        family=family,
+        month=old_month,
+        status=MonthlyDeclaration.Status.FILED,
+        filed_at=timezone.now(),
+        kilometers=Decimal("0"),
+    )
+    assert row.is_frozen
+    client.force_authenticate(user=owner)
+    url = reverse("tracking:contract-declaration", args=[family.id, wired.id, row.id])
     assert client.patch(url, {"kilometers": "500"}, format="json").status_code == 400
+    row.refresh_from_db()
+    assert row.kilometers == Decimal("0")
 
 
 def test_a_family_cannot_file_the_other_familys_declaration(

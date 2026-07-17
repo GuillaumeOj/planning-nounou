@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import calendar
 import uuid
 from datetime import date, time
 from decimal import Decimal
@@ -774,11 +775,14 @@ class MonthlyDeclaration(UUIDModel):
     One row per (contract, family, month) — each family files its own, because
     pajemploi knows nothing of the other employer.
 
-    A DRAFT is recomputed from live data whenever it is read. Filing freezes it:
-    a FILED row is the record of what was actually declared and must never move
-    again, whatever happens to the terms, the schedule or the children's windows
-    afterwards. That freeze is what lets the presence models stay flat rather
-    than effective-dated.
+    A DRAFT is recomputed from live data whenever it is read. Filing records it
+    as sent — but a mistake is usually spotted a payslip or two later, so a FILED
+    row stays **editable in place for a grace window**: until the end of the month
+    :attr:`EDIT_GRACE_MONTHS` after the one it covers, it recomputes and accepts
+    edits like a draft. Past that window it truly freezes: the record of what was
+    declared must never move again, whatever happens to the terms, the schedule or
+    the children's windows afterwards. That final freeze is what lets the presence
+    models stay flat rather than effective-dated.
 
     ``rate_periods`` carries the per-period detail behind the totals. Almost
     every month has exactly one, and then the flat rate fields say everything;
@@ -789,6 +793,11 @@ class MonthlyDeclaration(UUIDModel):
     class Status(models.TextChoices):
         DRAFT = "draft", _("Draft")
         FILED = "filed", _("Filed")
+
+    #: A filed declaration stays editable until the end of the month this many
+    #: months after the one it covers — long enough to fix a figure once URSSAF
+    #: or a payslip surfaces the mistake, without leaving old months open forever.
+    EDIT_GRACE_MONTHS: ClassVar[int] = 2
 
     contract = models.ForeignKey(Contract, on_delete=models.CASCADE, related_name="declarations")
     family = models.ForeignKey(
@@ -889,9 +898,27 @@ class MonthlyDeclaration(UUIDModel):
         return f"{self.family} — {self.month:%B %Y} ({self.status})"
 
     @property
+    def editable_until(self) -> date:
+        """Last day a filed declaration may still be changed: the end of the month
+        ``EDIT_GRACE_MONTHS`` after the one it covers."""
+        from .declarations import first_of_month
+
+        first = first_of_month(self.month, self.EDIT_GRACE_MONTHS)
+        last_day = calendar.monthrange(first.year, first.month)[1]
+        return first.replace(day=last_day)
+
+    @property
+    def is_editable(self) -> bool:
+        """A draft is always editable; a filed row only until its grace window ends."""
+        if self.status != self.Status.FILED:
+            return True
+        return timezone.localdate() <= self.editable_until
+
+    @property
     def is_frozen(self) -> bool:
-        """A filed declaration is a record; recomputing must leave it alone."""
-        return self.status == self.Status.FILED
+        """A filed declaration past its grace window is a record; recomputing must
+        leave it alone. Within the window it recomputes and accepts edits."""
+        return not self.is_editable
 
     def clean(self) -> None:
         if self.month and self.month.day != 1:

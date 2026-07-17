@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { TriangleAlert } from 'lucide-react'
-import { Fragment, useState } from 'react'
+import { useState } from 'react'
 import type { Contract } from '@/src/api/contracts'
 import {
   type DeclarationWarning,
@@ -12,6 +12,8 @@ import {
 import { extractErrorMessages } from '@/src/api/errors'
 import { ConfirmButton } from '@/src/components/ConfirmButton'
 import { formatDate } from '@/src/components/DateField'
+import { DeclarationStatusBadge } from '@/src/components/DeclarationStatusBadge'
+import { type Figure, FigureGroup } from '@/src/components/FigureGroup'
 import { FormErrors } from '@/src/components/FormErrors'
 import { SectionCard } from '@/src/components/SectionCard'
 import { Button } from '@/src/components/ui/button'
@@ -19,7 +21,7 @@ import { Input } from '@/src/components/ui/input'
 import { Label } from '@/src/components/ui/label'
 import { useI18n } from '@/src/i18n/I18nContext'
 import type { TranslationKey } from '@/src/i18n/translations'
-import { cn, formatHours, formatMoney } from '@/src/lib/utils'
+import { formatHours, formatMoney } from '@/src/lib/utils'
 
 // Each code the compute raises, spelled out. A code with no entry here falls
 // back to the raw string rather than rendering blank: a warning a parent cannot
@@ -54,40 +56,6 @@ const isZero = (decimal: string) => Number(decimal) === 0
 // empty array between a reader and the row they came for.
 const when = (condition: boolean, ...rows: Figure[]): Figure[] =>
   condition ? rows : []
-
-// A labelled figure. `strong` marks the one line a parent is really after — the
-// net salary — so it carries the weight the others don't.
-interface Figure {
-  label: string
-  value: string
-  strong?: boolean
-}
-
-function FigureGroup({ title, rows }: { title: string; rows: Figure[] }) {
-  if (rows.length === 0) return null
-  return (
-    <div className="flex flex-col gap-2">
-      <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        {title}
-      </h4>
-      <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1.5 text-sm">
-        {rows.map((row) => (
-          <Fragment key={row.label}>
-            <dt className="text-muted-foreground">{row.label}</dt>
-            <dd
-              className={cn(
-                'text-right tabular-nums',
-                row.strong ? 'font-semibold' : 'font-medium',
-              )}
-            >
-              {row.value}
-            </dd>
-          </Fragment>
-        ))}
-      </dl>
-    </div>
-  )
-}
 
 // The article behind a warning, quoted verbatim. This is the point of showing a
 // warning at all: a parent about to type a figure into pajemploi can check it
@@ -267,9 +235,11 @@ function DeclarationCard({
   const isFiled = declaration.status === 'filed'
   // The one place that decides whether the kilometres control is showing. The
   // mileage row below is its complement, so a figure can never end up with
-  // neither. Every row the endpoint returns is the acting family's, so being
-  // yours is no longer part of the question.
-  const editsKilometers = !isFiled
+  // neither. A filed month stays editable in place through its grace window, so
+  // this follows `is_editable` rather than status: a just-filed month can still be
+  // corrected, an old one is locked. Every row the endpoint returns is the acting
+  // family's, so being yours is no longer part of the question.
+  const editsKilometers = declaration.is_editable
 
   const fileMutation = useMutation({
     mutationFn: () => fileDeclaration(familyId, contractId, declaration.id),
@@ -367,18 +337,7 @@ function DeclarationCard({
     <div className="flex flex-col gap-4 rounded-md border border-primary/40 bg-primary/5 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="font-medium">{declaration.family_name}</h3>
-        <span
-          className={cn(
-            'rounded-full px-2 py-0.5 text-xs font-medium',
-            isFiled
-              ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
-              : 'bg-muted text-muted-foreground',
-          )}
-        >
-          {isFiled
-            ? t('declaration.status.filed')
-            : t('declaration.status.draft')}
-        </span>
+        <DeclarationStatusBadge status={declaration.status} />
       </div>
 
       <FigureGroup title={t('declaration.hours')} rows={hours} />
@@ -399,12 +358,23 @@ function DeclarationCard({
       <FormErrors messages={errors} />
 
       {isFiled ? (
-        declaration.filed_at && (
-          <p className="text-xs text-muted-foreground">
-            {t('declaration.filedOn')}{' '}
-            {formatDate(declaration.filed_at.slice(0, 10), lang)}
-          </p>
-        )
+        <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+          {declaration.filed_at && (
+            <p>
+              {t('declaration.filedOn')}{' '}
+              {formatDate(declaration.filed_at.slice(0, 10), lang)}
+            </p>
+          )}
+          {/* Still inside the grace window: say until when a mistake can still be
+              fixed, so the editable kilometres field above does not look like a
+              filed figure that shouldn't move. */}
+          {declaration.is_editable && (
+            <p>
+              {t('declaration.editableUntil')}{' '}
+              {formatDate(declaration.editable_until, lang)}
+            </p>
+          )}
+        </div>
       ) : (
         <div className="self-start">
           <ConfirmButton

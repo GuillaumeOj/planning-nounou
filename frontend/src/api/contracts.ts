@@ -118,11 +118,42 @@ export async function getMinimumWage(on?: string): Promise<MinimumWage> {
   return data
 }
 
+// The nanny's congés-payés standing for the current reference period (1 June–31
+// May). Days are DRF decimal strings; `remaining` can be negative when leave is
+// booked ahead of what has accrued. Computed on the backend, never stored.
+export interface PaidLeaveBalance {
+  period_start: string
+  period_end: string
+  total_days: string
+  accrued: string
+  taken: string
+  remaining: string
+}
+
 const base = (familyId: string) => `/families/${familyId}/contracts/`
 
 export async function getContracts(familyId: string): Promise<Contract[]> {
   const { data } = await api.get<Contract[]>(base(familyId))
   return data
+}
+
+export async function getPaidLeaveBalance(
+  familyId: string,
+  contractId: string,
+): Promise<PaidLeaveBalance> {
+  const { data } = await api.get<PaidLeaveBalance>(
+    `${base(familyId)}${contractId}/paid-leave/`,
+  )
+  return data
+}
+
+// Query key + fetcher in one place, so the home dashboard and anything else that
+// wants the balance share a cache entry rather than hand-matching the key.
+export function paidLeaveQueryOptions(familyId: string, contractId: string) {
+  return {
+    queryKey: ['paid-leave', contractId] as const,
+    queryFn: () => getPaidLeaveBalance(familyId, contractId),
+  }
 }
 
 export async function createContract(

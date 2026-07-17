@@ -34,6 +34,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from . import declarations as dec
+from . import paid_leave as pl
 from .models import (
     BankHoliday,
     ContractChild,
@@ -173,6 +174,66 @@ def load_contract_month(
     )
 
 
+def paid_leave_balance(contract: Contract, on: date | None = None) -> pl.PaidLeaveBalance:
+    """One contract's congés-payés balance for the reference period around ``on``.
+
+    Loads only what the balance needs — the schedules (to know which days are
+    worked), the paid leaves overlapping the period, and the non-workable holidays
+    inside it — and hands them to the pure :mod:`tracking.paid_leave` domain.
+    """
+    on = on or timezone.localdate()
+    period_start, period_end = pl.reference_period(on)
+
+    schedules = tuple(
+        dec.Schedule(
+            effective_from=schedule.effective_from,
+            blocks=tuple(
+                dec.Block(weekday=b.weekday, start=b.start_time, end=b.end_time)
+                for b in schedule.blocks.all()
+            ),
+        )
+        # __lte, never __gte: the period's opening schedule is usually older than it.
+        for schedule in ContractSchedule.objects.filter(
+            contract=contract, effective_from__lte=period_end
+        )
+        .order_by("effective_from", "id")
+        .prefetch_related("blocks")
+    )
+
+    leaves = tuple(
+        dec.LeaveSpan(
+            leave_type=leave.leave_type,
+            start_date=leave.start_date,
+            end_date=leave.end_date,
+            portion=leave.portion,
+            hours=leave.hours,
+        )
+        # Overlap, not a single-month filter: a leave running in from before the
+        # period, or out past its end, still spends its days inside it.
+        for leave in Leave.objects.filter(
+            contract=contract,
+            leave_type=Leave.LeaveType.PAID,
+            start_date__lte=period_end,
+            end_date__gte=period_start,
+        )
+    )
+
+    holidays = tuple(
+        dec.Holiday(day=h.date, is_workable=h.is_workable, is_solidarity=h.is_solidarity)
+        for h in BankHoliday.objects.filter(date__range=(period_start, period_end))
+    )
+
+    return pl.compute_balance(
+        paid_leave_days=contract.paid_leave_days,
+        contract_start=contract.starting_date,
+        contract_end=contract.ending_date,
+        schedules=schedules,
+        leaves=leaves,
+        holidays=holidays,
+        on=on,
+    )
+
+
 def _kilometers_on_file(contract: Contract, month: date) -> dict[UUID, Decimal]:
     """Kilometres already entered for this month, so recomputing keeps them."""
     return {
@@ -238,8 +299,13 @@ def _apply(row: MonthlyDeclaration, result: dec.FamilyResult) -> None:
 
 
 def file_declaration(row: MonthlyDeclaration, user) -> MonthlyDeclaration:
-    """Freeze a declaration as sent. Idempotent; a filed row never recomputes."""
-    if row.is_frozen:
+    """Record a declaration as sent. Idempotent; already-filed rows stand.
+
+    Filing does not lock the row on its own — a filed declaration stays editable
+    in place through its grace window (see MonthlyDeclaration). Re-filing an
+    already-filed row would only re-stamp ``filed_at``, so it is a no-op.
+    """
+    if row.status == MonthlyDeclaration.Status.FILED:
         return row
     row.status = MonthlyDeclaration.Status.FILED
     row.filed_at = timezone.now()

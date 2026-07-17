@@ -1,48 +1,280 @@
-import { useQuery } from '@tanstack/react-query'
-import { getHealth } from '@/src/api/client'
+import { useQueries, useQuery } from '@tanstack/react-query'
+import { format, startOfMonth, subMonths } from 'date-fns'
+import { useMemo, useState } from 'react'
+import {
+  type Contract,
+  getContracts,
+  type PaidLeaveBalance,
+  paidLeaveQueryOptions,
+} from '@/src/api/contracts'
+import { getDeclarations } from '@/src/api/declarations'
+import { getFamilies } from '@/src/api/family'
 import { useAuth } from '@/src/auth/AuthContext'
-import { Badge } from '@/src/components/ui/badge'
-import { Card, CardContent } from '@/src/components/ui/card'
+import { formatDate } from '@/src/components/DateField'
+import { DeclarationStatusBadge } from '@/src/components/DeclarationStatusBadge'
+import { type Figure, FigureGroup } from '@/src/components/FigureGroup'
+import { SectionCard } from '@/src/components/SectionCard'
+import { Label } from '@/src/components/ui/label'
 import { useI18n } from '@/src/i18n/I18nContext'
+import { toMonthParam } from '@/src/lib/months'
+import {
+  formatDays,
+  formatMoney,
+  localeFor,
+  selectClass,
+} from '@/src/lib/utils'
+
+// The dashboard: the family's contracts, each with the nanny's paid-leave
+// standing and a run of the recent months' declarations. It picks the acting
+// family (like the planning and the declarations pages) and shows what came back
+// — the figures are all priced on the backend.
+
+// The current month and the three before it, most recent first: what a parent
+// glances at to see the last few months are declared and this one is in hand.
+const RECENT_MONTHS = 4
+
+// The nanny's congés-payés standing for the current reference period: the agreed
+// total, what has accrued so far, what has been taken, and what is left.
+function PaidLeave({ balance }: { balance: PaidLeaveBalance }) {
+  const { t, lang } = useI18n()
+  const days = t('home.paidLeave.days')
+  // The unit rides on each value so the shared FigureGroup renders the row as-is.
+  const figure = (key: keyof PaidLeaveBalance) =>
+    `${formatDays(balance[key], lang)} ${days}`
+  const rows: Figure[] = [
+    { label: t('home.paidLeave.total'), value: figure('total_days') },
+    { label: t('home.paidLeave.accrued'), value: figure('accrued') },
+    { label: t('home.paidLeave.taken'), value: figure('taken') },
+    {
+      label: t('home.paidLeave.remaining'),
+      value: figure('remaining'),
+      strong: true,
+    },
+  ]
+  return (
+    <FigureGroup
+      title={t('home.paidLeave.title')}
+      rows={rows}
+      aside={
+        <span className="text-xs text-muted-foreground">
+          {formatDate(balance.period_start, lang)} →{' '}
+          {formatDate(balance.period_end, lang)}
+        </span>
+      }
+    />
+  )
+}
+
+// The recent months' declarations for the acting family: net salary and status
+// per month, so a parent sees at a glance which are filed and which still need
+// doing. The list endpoint recomputes each draft as it reads.
+function RecentDeclarations({
+  familyId,
+  contract,
+  months,
+}: {
+  familyId: string
+  contract: Contract
+  months: Date[]
+}) {
+  const { t, lang } = useI18n()
+  const locale = localeFor(lang)
+
+  // Only the months the contract was actually live for: a month before it
+  // started — or after it ended — has nothing to declare, so it is dropped rather
+  // than shown as an empty "Nothing" row. "YYYY-MM" compares lexicographically.
+  const visibleMonths = months.filter((month) => {
+    const param = toMonthParam(month)
+    return (
+      param >= contract.starting_date.slice(0, 7) &&
+      (contract.ending_date === null ||
+        param <= contract.ending_date.slice(0, 7))
+    )
+  })
+
+  const queries = useQueries({
+    queries: visibleMonths.map((month) => ({
+      // Same key as the declarations page, so the two share a cache entry.
+      queryKey: ['declarations', contract.id, toMonthParam(month)],
+      queryFn: () =>
+        getDeclarations(familyId, contract.id, toMonthParam(month)),
+    })),
+  })
+
+  return (
+    <div className="flex flex-col gap-2">
+      <h4 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {t('home.declarations.title')}
+      </h4>
+      <ul className="flex flex-col divide-y text-sm">
+        {visibleMonths.length === 0 && (
+          <li className="py-2 text-xs text-muted-foreground">
+            {t('home.declarations.nothing')}
+          </li>
+        )}
+        {visibleMonths.map((month, index) => {
+          const query = queries[index]
+          // The endpoint returns only the acting family's row for the month.
+          const declaration = query?.data?.[0]
+          return (
+            <li
+              key={toMonthParam(month)}
+              className="flex items-center justify-between gap-3 py-2"
+            >
+              <span className="capitalize text-muted-foreground">
+                {format(month, 'LLLL yyyy', { locale })}
+              </span>
+              {query?.isLoading ? (
+                <span className="text-xs text-muted-foreground">
+                  {t('home.declarations.loading')}
+                </span>
+              ) : declaration ? (
+                <span className="flex items-center gap-2">
+                  <span className="tabular-nums font-medium">
+                    {formatMoney(declaration.net_salary, lang)}
+                  </span>
+                  <DeclarationStatusBadge status={declaration.status} />
+                </span>
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  {t('home.declarations.nothing')}
+                </span>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
+}
+
+function ContractCard({
+  familyId,
+  contract,
+  months,
+}: {
+  familyId: string
+  contract: Contract
+  months: Date[]
+}) {
+  const { t } = useI18n()
+  const { data: balance } = useQuery(
+    paidLeaveQueryOptions(familyId, contract.id),
+  )
+
+  return (
+    <SectionCard
+      title={`${contract.nanny.first_name} ${contract.nanny.last_name}`}
+    >
+      {balance ? (
+        <PaidLeave balance={balance} />
+      ) : (
+        <p className="text-sm text-muted-foreground">{t('home.loading')}</p>
+      )}
+      <RecentDeclarations
+        familyId={familyId}
+        contract={contract}
+        months={months}
+      />
+    </SectionCard>
+  )
+}
 
 export default function Home() {
   const { user } = useAuth()
   const { t } = useI18n()
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['health'],
-    queryFn: getHealth,
+  const [familyId, setFamilyId] = useState<string | null>(null)
+
+  const { data: families } = useQuery({
+    queryKey: ['families'],
+    queryFn: getFamilies,
   })
 
-  const backendStatus = isLoading
-    ? t('status.checking')
-    : isError
-      ? t('status.unreachable')
-      : (data?.status ?? t('status.unknown'))
-  const badgeClass = isLoading
-    ? 'bg-muted text-muted-foreground'
-    : isError
-      ? 'bg-destructive/15 text-destructive'
-      : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+  const activeFamilyId = useMemo(() => {
+    if (familyId !== null) return familyId
+    return families && families.length > 0 ? families[0].id : null
+  }, [familyId, families])
+
+  const {
+    data: contracts,
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ['contracts', activeFamilyId],
+    queryFn: () => getContracts(activeFamilyId as string),
+    enabled: activeFamilyId !== null,
+  })
+
+  // The current month and the three before it, computed once.
+  const months = useMemo(() => {
+    const current = startOfMonth(new Date())
+    return Array.from({ length: RECENT_MONTHS }, (_, i) =>
+      subMonths(current, i),
+    )
+  }, [])
+
+  const contractList = contracts ?? []
 
   return (
     <main className="flex flex-1 flex-col gap-6 p-4 sm:p-10">
-      <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-        {t('home.title')}
-      </h1>
-      <Card className="max-w-lg">
-        <CardContent className="flex flex-col gap-3">
-          <p className="break-words">
-            {t('home.signedInAs')}{' '}
-            <strong className="text-foreground">{user?.email}</strong>
-          </p>
-          <p className="flex flex-wrap items-center gap-2 text-muted-foreground">
-            {t('home.backend')}{' '}
-            <Badge className={`border-transparent ${badgeClass}`}>
-              {backendStatus}
-            </Badge>
-          </p>
-        </CardContent>
-      </Card>
+      <div className="flex flex-col gap-1">
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+          {t('home.title')}
+        </h1>
+        <p className="break-words text-sm text-muted-foreground">
+          {t('home.signedInAs')}{' '}
+          <strong className="text-foreground">{user?.email}</strong>
+        </p>
+      </div>
+
+      {!families || families.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          {t('contract.noFamilies')}
+        </p>
+      ) : (
+        <>
+          {families.length > 1 && (
+            <div className="flex w-full max-w-xs flex-col gap-2">
+              <Label htmlFor="acting-family">
+                {t('contract.selectFamily')}
+              </Label>
+              <select
+                id="acting-family"
+                className={selectClass}
+                value={activeFamilyId ?? ''}
+                onChange={(e) => setFamilyId(e.target.value)}
+              >
+                {families.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground">{t('home.loading')}</p>
+          ) : isError ? (
+            <p className="text-sm text-destructive">{t('home.loadError')}</p>
+          ) : activeFamilyId === null || contractList.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {t('home.noContracts')}
+            </p>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {contractList.map((contract) => (
+                <ContractCard
+                  key={contract.id}
+                  familyId={activeFamilyId}
+                  contract={contract}
+                  months={months}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </main>
   )
 }

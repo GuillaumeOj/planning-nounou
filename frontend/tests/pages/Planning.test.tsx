@@ -8,6 +8,9 @@ import {
   getContracts,
 } from '@/src/api/contracts'
 import {
+  type ContractChild,
+  type ExceptionalHours,
+  type ExceptionalPresence,
   getContractChildren,
   getExceptionalHours,
   getExceptionalPresences,
@@ -433,5 +436,132 @@ describe('Planning page on a phone', () => {
       await screen.findByRole('button', { name: /August 1st/, pressed: true }),
     ).toBeInTheDocument()
     expect(await screen.findByText('Marie Dupont')).toBeInTheDocument()
+  })
+
+  // A day off is the nanny's own — both families see it — but exceptional hours
+  // are private and an exceptional presence belongs to whichever family's child
+  // it is. On a shared contract the acting family ('1') must not see the
+  // co-employer's ('2') on the calendar. Today, Wed 15 July, is selected, so the
+  // phone panel lists that day's events inline.
+  it("hides the co-employer's exceptional presence", async () => {
+    m.contracts.mockResolvedValue([makeContract()])
+    // Both children windowed to Monday only, so neither rides the Wednesday
+    // block — only their presence *event* can put them on the selected day.
+    const mondayOnly = [{ weekday: 0, start_time: '08:00', end_time: '12:00' }]
+    m.children.mockResolvedValue([
+      {
+        id: 'cc1',
+        child: 'c1',
+        first_name: 'Léa',
+        family_id: '1',
+        windows: mondayOnly,
+      },
+      {
+        id: 'cc2',
+        child: 'c2',
+        first_name: 'Tom',
+        family_id: '2',
+        windows: mondayOnly,
+      },
+    ] as ContractChild[])
+    m.presences.mockResolvedValue([
+      {
+        id: 'p1',
+        child: 'c1',
+        first_name: 'Léa',
+        date: '2026-07-15',
+        start_time: '15:00',
+        end_time: '17:00',
+        notes: '',
+      },
+      {
+        id: 'p2',
+        child: 'c2',
+        first_name: 'Tom',
+        date: '2026-07-15',
+        start_time: '15:00',
+        end_time: '17:00',
+        notes: '',
+      },
+    ] as ExceptionalPresence[])
+    renderWithProviders(<Planning />)
+
+    expect(await screen.findByText(/Léa/)).toBeInTheDocument()
+    expect(screen.queryByText(/Tom/)).not.toBeInTheDocument()
+  })
+
+  it("hides the co-employer's exceptional hours", async () => {
+    m.contracts.mockResolvedValue([makeContract()])
+    m.hours.mockResolvedValue([
+      {
+        id: 'h1',
+        family: '1',
+        kind: 'effective',
+        is_shared: false,
+        start_date: '2026-07-15',
+        start_time: '18:30',
+        end_date: '2026-07-15',
+        end_time: '20:00',
+        interventions: 0,
+        notes: '',
+      },
+      {
+        id: 'h2',
+        family: '2',
+        kind: 'effective',
+        is_shared: true,
+        start_date: '2026-07-15',
+        start_time: '21:45',
+        end_date: '2026-07-15',
+        end_time: '22:30',
+        interventions: 0,
+        notes: '',
+      },
+    ] as ExceptionalHours[])
+    renderWithProviders(<Planning />)
+
+    // The acting family's own entry (18:30 → 6:30 PM) shows; the shared entry the
+    // co-employer filed (21:45 → 9:45 PM) does not.
+    expect(await screen.findByText(/6:30/)).toBeInTheDocument()
+    expect(screen.queryByText(/9:45/)).not.toBeInTheDocument()
+  })
+
+  // The reported case: a shared window is filed once per family (each declares
+  // its own share), so the endpoint hands back both copies of the *same* window.
+  // The acting family ('1') must see one mark, not one per family.
+  it('marks a shared window once, not once per family', async () => {
+    m.contracts.mockResolvedValue([makeContract()])
+    m.hours.mockResolvedValue([
+      {
+        id: 'h1',
+        family: '2',
+        kind: 'effective',
+        is_shared: true,
+        start_date: '2026-07-15',
+        start_time: '17:30',
+        end_date: '2026-07-15',
+        end_time: '18:00',
+        interventions: 0,
+        notes: 'Extra hours of work',
+      },
+      {
+        id: 'h2',
+        family: '1',
+        kind: 'effective',
+        is_shared: true,
+        start_date: '2026-07-15',
+        start_time: '17:30',
+        end_date: '2026-07-15',
+        end_time: '18:00',
+        interventions: 0,
+        notes: '',
+      },
+    ] as ExceptionalHours[])
+    renderWithProviders(<Planning />)
+
+    // 17:30 → 5:30 PM. Both copies read identically, so a missing filter would
+    // surface two nodes; keeping the acting family's own leaves exactly one.
+    await screen.findByText(/5:30/)
+    expect(screen.getAllByText(/5:30/)).toHaveLength(1)
   })
 })

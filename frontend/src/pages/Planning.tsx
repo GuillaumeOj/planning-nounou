@@ -19,12 +19,14 @@ import {
   getContracts,
 } from '@/src/api/contracts'
 import {
+  type ContractChild,
   exceptionalHoursQueryOptions,
   exceptionalPresencesQueryOptions,
+  getContractChildren,
 } from '@/src/api/declarations'
 import { getFamilies } from '@/src/api/family'
 import { type BankHoliday, getBankHolidays } from '@/src/api/holidays'
-import { leavesQueryOptions } from '@/src/api/leaves'
+import { type LeaveType, leavesQueryOptions } from '@/src/api/leaves'
 import { formatDate } from '@/src/components/DateField'
 import { ExceptionalHoursSection } from '@/src/components/ExceptionalHoursSection'
 import { ExceptionalPresenceSection } from '@/src/components/ExceptionalPresenceSection'
@@ -45,6 +47,7 @@ import {
 } from '@/src/components/ui/tabs'
 import { MOBILE_QUERY, useMediaQuery } from '@/src/hooks/useMediaQuery'
 import { useI18n } from '@/src/i18n/I18nContext'
+import type { TranslationKey } from '@/src/i18n/translations'
 import { toMonthParam } from '@/src/lib/months'
 import { cn, localeFor, selectClass } from '@/src/lib/utils'
 import {
@@ -98,6 +101,14 @@ const NANNY_COLORS = [
     dot: 'bg-orange-500',
   },
 ] as const
+
+// The day-off type spelled out on the calendar mark, so "Marie · Paid leave · …"
+// reads what kind of absence it is, not a bare "Day off".
+const LEAVE_TYPE_KEYS: Record<LeaveType, TranslationKey> = {
+  paid: 'leaves.type.paid',
+  unpaid: 'leaves.type.unpaid',
+  sickness: 'leaves.type.sickness',
+}
 
 // A special event on a day — a leave, exceptional hours, or an exceptional
 // presence — surfaced as a mark on the calendar and spelled out on click. Kept
@@ -270,6 +281,23 @@ export default function Planning() {
       enabled: eventsEnabled,
     })),
   })
+  // The children each contract covers, so a worked day can name who was there.
+  // Shares the ['contract-children', id] cache entry with the presence section.
+  const childrenQueries = useQueries({
+    queries: contractList.map((contract) => ({
+      queryKey: ['contract-children', contract.id],
+      queryFn: () => getContractChildren(eventsFamilyId, contract.id),
+      enabled: eventsEnabled,
+    })),
+  })
+
+  const childrenByContract: Record<string, ContractChild[]> =
+    Object.fromEntries(
+      contractList.map((contract, index) => [
+        contract.id,
+        childrenQueries[index]?.data ?? [],
+      ]),
+    )
 
   // Days shown in the grid: whole weeks (Monday-first) spanning the month.
   const days = useMemo(() => {
@@ -310,6 +338,7 @@ export default function Planning() {
       contractList,
       schedulesByContract,
       nonWorkableHolidays,
+      childrenByContract,
     ),
   )
   const hasEntries = entriesByDay.some((entries) => entries.length > 0)
@@ -338,6 +367,10 @@ export default function Planning() {
   contractList.forEach((contract, index) => {
     const who = contract.nanny.first_name
     for (const leave of leaveQueries[index]?.data ?? []) {
+      // The kind of day off and its comment, not a bare "Day off": a parent
+      // clicking the mark wants to know it was sickness, and read the note.
+      const kindLabel = t(LEAVE_TYPE_KEYS[leave.leave_type])
+      const note = leave.notes ? ` · ${leave.notes}` : ''
       for (const day of eachDayOfInterval({
         start: new Date(`${leave.start_date}T00:00:00`),
         end: new Date(`${leave.end_date}T00:00:00`),
@@ -345,11 +378,16 @@ export default function Planning() {
         addEvent(toISODate(day), {
           key: `leave-${leave.id}-${toISODate(day)}`,
           kind: 'leave',
-          text: `${who} · ${t('planning.event.leave')}`,
+          text: `${who} · ${kindLabel}${note}`,
         })
       }
     }
     for (const entry of hoursQueries[index]?.data ?? []) {
+      // Exceptional hours are private to the family that filed them. The endpoint
+      // also returns the co-employer's *shared* entries (so the hours tab can
+      // prompt "add yours"), but the calendar shows only the acting family's own —
+      // a mark here is the acting family's own record of the month.
+      if (entry.family !== activeFamilyId) continue
       const span =
         entry.start_date === entry.end_date
           ? toDisplayTime(hhmm(entry.start_time), lang)
@@ -360,7 +398,16 @@ export default function Planning() {
         text: `${who} · ${t('planning.event.hours')} · ${span}`,
       })
     }
+    // A presence belongs to the family whose child it is; the calendar shows only
+    // the acting family's own children, not the co-employer's.
+    const familyOfChild = new Map(
+      (childrenByContract[contract.id] ?? []).map((c) => [
+        c.child,
+        c.family_id,
+      ]),
+    )
     for (const presence of presenceQueries[index]?.data ?? []) {
+      if (familyOfChild.get(presence.child) !== activeFamilyId) continue
       addEvent(presence.date, {
         key: `presence-${presence.id}`,
         kind: 'presence',
@@ -627,6 +674,11 @@ export default function Planning() {
                           <div className="tabular-nums">
                             {entry.start}–{entry.end}
                           </div>
+                          {entry.childNames.length > 0 && (
+                            <div className="truncate opacity-80">
+                              {entry.childNames.join(', ')}
+                            </div>
+                          )}
                         </div>
                       ))}
                       <DayEventsMark
@@ -662,8 +714,15 @@ export default function Planning() {
                           NANNY_COLORS[nannyColorIndex[entry.nannyId]].tint,
                         )}
                       >
-                        <span className="min-w-0 truncate font-medium">
-                          {entry.nannyName}
+                        <span className="flex min-w-0 flex-col">
+                          <span className="truncate font-medium">
+                            {entry.nannyName}
+                          </span>
+                          {entry.childNames.length > 0 && (
+                            <span className="truncate text-xs opacity-80">
+                              {entry.childNames.join(', ')}
+                            </span>
+                          )}
                         </span>
                         <span className="shrink-0 tabular-nums">
                           {entry.start}–{entry.end}

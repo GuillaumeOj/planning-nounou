@@ -402,6 +402,13 @@ def month_bounds(month: date) -> tuple[date, date]:
     return first, last
 
 
+def first_of_month(anchor: date, offset_months: int = 0) -> date:
+    """The first day of the month `offset_months` from `anchor`'s. Offset may be negative."""
+    total = anchor.year * MONTHS_PER_YEAR + (anchor.month - 1) + offset_months
+    year, month_index = divmod(total, MONTHS_PER_YEAR)
+    return date(year, month_index + 1, 1)
+
+
 def days_between(start: date, end: date) -> Iterable[date]:
     day = start
     while day <= end:

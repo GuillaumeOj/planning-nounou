@@ -58,6 +58,9 @@ function makeDeclaration(
     warnings: [],
     computed_at: '2026-07-01T10:00:00Z',
     filed_at: null,
+    // A draft is always editable; filed tests that want a locked row say so.
+    is_editable: true,
+    editable_until: '2026-08-31',
     ...o,
   }
 }
@@ -298,11 +301,12 @@ describe('DeclarationSection filing', () => {
     ).toBeInTheDocument()
   })
 
-  // Filing freezes the figures forever, so nothing on a filed card may write.
-  it('a filed declaration offers neither kilometres nor filing', async () => {
+  // Past its grace window a filed declaration is locked, so nothing on it writes.
+  it('a locked filed declaration offers neither kilometres nor filing', async () => {
     m.declarations.mockResolvedValue([
       makeDeclaration({
         status: 'filed',
+        is_editable: false,
         filed_at: '2026-07-03T09:30:00Z',
         kilometers: '42.00',
         mileage_amount: '18.90',
@@ -319,6 +323,28 @@ describe('DeclarationSection filing', () => {
     expect(screen.getByText('Mileage')).toBeInTheDocument()
     expect(screen.getByText('€18.90')).toBeInTheDocument()
     expect(screen.getByText(/Filed on/)).toBeInTheDocument()
+  })
+
+  // Within the grace window a filed month stays correctable in place: the
+  // kilometres control is still there, though the file button is gone (it is
+  // already filed), and a note says until when it can still change.
+  it('a filed declaration in its grace window stays editable', async () => {
+    m.declarations.mockResolvedValue([
+      makeDeclaration({
+        status: 'filed',
+        is_editable: true,
+        filed_at: '2026-07-03T09:30:00Z',
+        editable_until: '2026-09-30',
+      }),
+    ])
+    render()
+
+    expect(await screen.findByText('Filed')).toBeInTheDocument()
+    expect(screen.getByLabelText('Kilometres driven')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'File this month' }),
+    ).not.toBeInTheDocument()
+    expect(screen.getByText(/Editable until/)).toBeInTheDocument()
   })
 
   it('marks a draft as a draft', async () => {

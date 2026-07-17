@@ -17,7 +17,7 @@ from rest_framework.serializers import BaseSerializer
 from accounts.models import Family, User
 from accounts.views import FamilyScopedMixin
 
-from .declarations_repo import declarations_for, file_declaration
+from .declarations_repo import declarations_for, file_declaration, paid_leave_balance
 from .models import (
     BankHoliday,
     Contract,
@@ -39,6 +39,7 @@ from .serializers import (
     LeaveSerializer,
     MonthlyDeclarationSerializer,
     MyContractInvitationSerializer,
+    PaidLeaveBalanceSerializer,
 )
 
 
@@ -131,6 +132,23 @@ class ContractViewSet(FamilyScopedMixin, viewsets.ModelViewSet):
         family = self.get_family(manage=True)
         contract = serializer.save()
         ContractShare.objects.create(contract=contract, family=family, is_originator=True)
+
+    @action(detail=True, methods=["get"], url_path="paid-leave")
+    def paid_leave(self, request: Request, **kwargs) -> Response:
+        """The nanny's congés-payés balance for the current reference period.
+
+        A read: any family sharing the contract may see it. The figures come from
+        the pure paid-leave domain, computed on the fly rather than stored.
+
+        Fetches a plain family-scoped row rather than ``get_object()``: the CRUD
+        queryset's current-snapshot annotations and terms/schedule prefetches are
+        all work ``paid_leave_balance`` re-queries for itself and never reads here.
+        """
+        contract = get_object_or_404(
+            Contract.objects.filter(families=self.get_family()), pk=self.kwargs["pk"]
+        )
+        balance = paid_leave_balance(contract)
+        return Response(PaidLeaveBalanceSerializer(balance).data)
 
 
 class ContractTermsViewSet(

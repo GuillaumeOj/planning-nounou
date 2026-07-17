@@ -326,6 +326,12 @@ export interface MonthlyDeclaration {
   warnings: DeclarationWarning[]
   computed_at: string
   filed_at: string | null
+  // A filed declaration stays editable in place until `editable_until` (the end
+  // of the month two months after the one it covers); after that it locks. A
+  // draft is always editable. The UI shows the kilometres control and the
+  // deadline off these rather than off `status` alone.
+  is_editable: boolean
+  editable_until: string
 }
 
 const declarationsBase = (familyId: string, contractId: string) =>

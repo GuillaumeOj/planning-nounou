@@ -11,9 +11,11 @@ from decimal import Decimal
 import pytest
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
+from django.utils import timezone
 
 from accounts.models import Child
 from tracking import declarations_repo as repo
+from tracking.declarations import first_of_month
 from tracking.models import (
     BankHoliday,
     ContractChild,
@@ -213,23 +215,44 @@ def test_a_draft_follows_the_live_data(wired):
     assert "rates_changed_mid_month" in again.warnings
 
 
-def test_a_filed_declaration_never_moves_again(wired, owner):
+def test_a_recent_filed_declaration_follows_live_data(wired, owner):
+    """Within its grace window a filed month is still editable in place, so a
+    correction to the terms flows into it exactly as it would into a draft."""
     row = repo.declarations_for(wired, JULY)[0]
     repo.file_declaration(row, owner)
     filed_total = row.total_amount
 
-    # Change everything the number was built from.
     ContractTerms.objects.create(
         contract=wired, effective_from=date(2026, 7, 2), net_hourly_rate=Decimal("99.00")
+    )
+    again = repo.declarations_for(wired, JULY)[0]
+    assert again.status == MonthlyDeclaration.Status.FILED
+    assert again.total_amount != filed_total  # the raise moved it
+
+
+def test_a_locked_filed_declaration_never_moves_again(wired, owner):
+    """Past the window a filed row is the record of what was sent — frozen, whatever
+    happens to the terms, the schedule or the leaves afterwards."""
+    old_month = first_of_month(timezone.localdate(), -(MonthlyDeclaration.EDIT_GRACE_MONTHS + 1))
+    row = repo.declarations_for(wired, old_month)[0]
+    repo.file_declaration(row, owner)
+    assert row.is_frozen
+    filed_total = row.total_amount
+
+    # Change everything the number was built from.
+    ContractTerms.objects.create(
+        contract=wired,
+        effective_from=old_month + timedelta(days=1),
+        net_hourly_rate=Decimal("99.00"),
     )
     Leave.objects.create(
         contract=wired,
         leave_type=Leave.LeaveType.UNPAID,
-        start_date=date(2026, 7, 1),
-        end_date=date(2026, 7, 31),
+        start_date=old_month,
+        end_date=old_month + timedelta(days=27),
     )
 
-    again = repo.declarations_for(wired, JULY)[0]
+    again = repo.declarations_for(wired, old_month)[0]
     assert again.status == MonthlyDeclaration.Status.FILED
     assert again.total_amount == filed_total
     assert again.filed_by == owner

@@ -36,6 +36,16 @@ export function formatHours(hours: string, lang: Language) {
   }).format(value)
 }
 
+// Leave is counted in half-days, so a balance reads best with at most one
+// decimal: "12.5", not "12.50". Like the others, this is display-only — the exact
+// figure is the backend's. A negative remaining (leave booked ahead of accrual)
+// formats with its sign, which is the point of showing it.
+export function formatDays(days: string, lang: Language) {
+  const value = Number(days)
+  if (Number.isNaN(value)) return days
+  return new Intl.NumberFormat(lang, { maximumFractionDigits: 1 }).format(value)
+}
+
 // Shared styling for the app's native <select>s, matching the Input primitive.
 // The 16px base font size is deliberate: iOS Safari zooms the viewport when a
 // focused control's text is smaller, so only desktop drops to text-sm.

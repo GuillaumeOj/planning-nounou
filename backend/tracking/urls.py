@@ -11,6 +11,7 @@ contract_list = views.ContractViewSet.as_view({"get": "list", "post": "create"})
 contract_detail = views.ContractViewSet.as_view(
     {"get": "retrieve", "put": "update", "patch": "partial_update", "delete": "destroy"}
 )
+contract_paid_leave = views.ContractViewSet.as_view({"get": "paid_leave"})
 terms_list = views.ContractTermsViewSet.as_view({"get": "list", "post": "create"})
 terms_detail = views.ContractTermsViewSet.as_view(
     {"get": "retrieve", "put": "update", "patch": "partial_update", "delete": "destroy"}
@@ -56,6 +57,12 @@ urlpatterns = [
         "families/<uuid:family_pk>/contracts/<uuid:pk>/",
         contract_detail,
         name="family-contract",
+    ),
+    # The nanny's paid-leave balance for the current reference period.
+    path(
+        "families/<uuid:family_pk>/contracts/<uuid:pk>/paid-leave/",
+        contract_paid_leave,
+        name="contract-paid-leave",
     ),
     # Versioned compensation for a contract.
     path(
