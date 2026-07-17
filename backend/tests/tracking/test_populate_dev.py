@@ -105,13 +105,28 @@ def test_terms_and_schedules_keep_their_history():
 
 def test_demo_data_is_valid_against_the_models():
     """The command writes with .create(), which skips clean() — so check the
-    dataset would survive the validation the API applies."""
+    dataset would survive the validation the API applies.
+
+    This matters more than it looks for the pay models: their clean() is what
+    enforces the rules the convention turns on (a child's family must share the
+    contract; présence responsable is excluded from a garde partagée; a night must
+    fall at night). populate_dev goes around all of it, so this is the only thing
+    standing between a plausible-looking demo dataset and an illegal one.
+    """
     call_command("populate_dev", verbosity=0)
 
     for leave in Leave.objects.all():
         leave.full_clean(exclude=["created_by"])
     for block in ScheduleBlock.objects.all():
         block.full_clean(exclude=["schedule"])
+    for link in ContractChild.objects.all():
+        link.full_clean()
+    for window in ContractChildWindow.objects.all():
+        window.full_clean(exclude=["contract_child"])
+    for entry in ExceptionalHours.objects.all():
+        entry.full_clean(exclude=["created_by"])
+    for presence in ExceptionalPresence.objects.all():
+        presence.full_clean(exclude=["created_by"])
 
 
 def test_tops_up_the_global_reference_data():
@@ -240,3 +255,20 @@ def test_presence_responsable_never_lands_on_a_shared_contract():
         kind=ExceptionalHours.Kind.PRESENCE_RESPONSABLE
     ).annotate(families=models.Count("contract__shares"))
     assert not forbidden.filter(families__gt=1).exists()
+
+
+def test_both_worked_holiday_shapes_are_visible():
+    """A worked jour férié earns 10%; the journée de solidarité is worked and
+    earns nothing. Both are is_workable, which is the whole reason the second flag
+    exists — so the demo data has to show both, or the distinction is only ever
+    met in production."""
+    call_command("populate_dev", verbosity=0)
+
+    worked = BankHoliday.objects.filter(is_workable=True, is_solidarity=False)
+    assert worked.exists(), "no worked holiday earning a majoration"
+    assert not worked.filter(date__month=5, date__day=1).exists(), (
+        "1 May earns 100% — not a quiet default for the demo data"
+    )
+    assert BankHoliday.objects.filter(is_workable=True, is_solidarity=True).exists(), (
+        "no journée de solidarité"
+    )

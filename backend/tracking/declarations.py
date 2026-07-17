@@ -82,6 +82,13 @@ NIGHT_INTERVENTIONS_DISTURBED = 2
 #: so both raise a warning rather than a wrong number.
 NIGHT_INTERVENTIONS_FULL_RATE = 4
 
+#: A *worked* jour férié ordinaire: art. 47.2 owes 10% on the hours done.
+#: A chômé one owes nothing extra — it is already inside the mensualised base.
+ORDINARY_HOLIDAY_MAJORATION = Decimal("0.10")
+#: Art. 47.1: a worked 1 May is owed 100% on top. The only date with its own rule.
+MAY_FIRST_MAJORATION = Decimal("1.00")
+MAY_FIRST = (5, 1)
+
 MONTHS_PER_YEAR = 12
 #: art. 146.1 mensualises a regular week on x 52, flat: 47 worked weeks + 5 of
 #: paid leave. Not a variable — an *irregular* schedule is not mensualised at all
@@ -188,6 +195,16 @@ class ExceptionalEntry:
 
 
 @dataclass(frozen=True, slots=True)
+class Holiday:
+    """A jour férié, and whether the nanny worked it."""
+
+    day: date
+    is_workable: bool = False
+    #: Worked, but owed rather than bought — no majoration. See BankHoliday.
+    is_solidarity: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class PresenceOverride:
     """A child present on one date outside their usual window."""
 
@@ -291,6 +308,7 @@ class ContractMonth:
     leaves: tuple[LeaveSpan, ...] = ()
     exceptional: tuple[ExceptionalEntry, ...] = ()
     overrides: tuple[PresenceOverride, ...] = ()
+    holidays: tuple[Holiday, ...] = ()
     kilometers: Mapping[UUID, Decimal] | None = None
 
 
@@ -302,6 +320,7 @@ class FamilyResult:
     hours_50: Decimal
     night_count: int
     night_indemnity: Decimal
+    holiday_majoration: Decimal
     transport_amount: Decimal
     benefits_in_kind_amount: Decimal
     kilometers: Decimal
@@ -751,6 +770,66 @@ def attendance_ratio(planned: Fraction, worked: Fraction) -> Fraction:
     if planned <= 0:
         return Fraction(1)
     return min(Fraction(1), worked / planned)
+
+
+# --- jours fériés ------------------------------------------------------------
+
+
+def holiday_majoration_ratio(holiday: Holiday) -> Decimal:
+    """What a worked holiday owes on top of the hours, as a fraction of them."""
+    if not holiday.is_workable or holiday.is_solidarity:
+        return Decimal("0")
+    if (holiday.day.month, holiday.day.day) == MAY_FIRST:
+        return MAY_FIRST_MAJORATION
+    return ORDINARY_HOLIDAY_MAJORATION
+
+
+def holiday_majorations(
+    data: ContractMonth, banded: Mapping[date, WeekBands]
+) -> dict[UUID, Decimal]:
+    """What each family owes on top for the holidays the nanny actually worked.
+
+    A *chômé* holiday returns nothing, and that is not an oversight: the
+    mensualised salary already pays it (art. 47.2 maintains the pay, subject to
+    the nanny having worked the days either side), and a fixed × 52 ÷ 12 exists
+    precisely so a month's shape does not matter. May has more jours fériés than
+    March and the base is identical.
+
+    A *worked* one is different. Art. 47.2 owes 10% of the salary due on the hours
+    done; art. 47.1 owes 100% on 1 May. It is a supplement on the amount, not
+    extra hours — the hours were already declared — so it rides alongside the
+    night indemnity rather than through the bands.
+
+    The journée de solidarité is worked and owes nothing: those hours are owed,
+    not bought. It is is_workable like any other worked holiday, which is why
+    BankHoliday tells them apart.
+    """
+    first, last = month_bounds(data.month)
+    out: defaultdict[UUID, Decimal] = defaultdict(Decimal)
+
+    for holiday in data.holidays:
+        if not (first <= holiday.day <= last):
+            continue
+        if holiday.day < data.starting_date or (
+            data.ending_date and holiday.day > data.ending_date
+        ):
+            continue
+        ratio = holiday_majoration_ratio(holiday)
+        if not ratio:
+            continue
+        week = banded.get(holiday.day)
+        if week is None:
+            continue
+        terms = in_force(data.terms, holiday.day)
+        if terms is None:
+            continue
+        # Only the hours the schedule actually places on that weekday; a holiday
+        # on a day she never works owes nothing to majorate.
+        for family_id, bands in week.by_weekday.get(holiday.day.weekday(), {}).items():
+            out[family_id] += _quantize(
+                to_hours(bands.total) * terms.net_hourly_rate * ratio, MONEY_QUANTUM
+            )
+    return dict(out)
 
 
 # --- exceptional presence ----------------------------------------------------
@@ -1204,6 +1283,7 @@ def compute_month(data: ContractMonth) -> dict[UUID, FamilyResult]:
     current = in_force(data.terms, last) or (data.terms[-1] if data.terms else None)
     nights, nights_by_family, night_warnings = _night_indemnity(data, children, current)
     warnings += night_warnings
+    holidays = holiday_majorations(data, banded_by_date)
 
     totals: dict[UUID, Bands] = {}
     for family_id in data.family_ids:
@@ -1241,6 +1321,7 @@ def compute_month(data: ContractMonth) -> dict[UUID, FamilyResult]:
         km = kilometers.get(family_id, Decimal("0"))
         mileage_rate = current.mileage_rate if current else Decimal("0")
         night = nights.get(family_id, Decimal("0"))
+        holiday = holidays.get(family_id, Decimal("0"))
         # Priced per sub-period, each at its own rate, so a mid-month avenant is
         # charged for the days it actually applied to. With one period — nearly
         # always — this is exactly hours x rate, which is what pajemploi asks the
@@ -1254,11 +1335,12 @@ def compute_month(data: ContractMonth) -> dict[UUID, FamilyResult]:
             hours_50=hours_50,
             night_count=nights_by_family.get(family_id, 0),
             night_indemnity=night,
+            holiday_majoration=holiday,
             transport_amount=transport[index],
             benefits_in_kind_amount=in_kind[index],
             kilometers=km,
             mileage_amount=_quantize(km * mileage_rate, MONEY_QUANTUM),
-            total_amount=_quantize(salary + night, MONEY_QUANTUM),
+            total_amount=_quantize(salary + night + holiday, MONEY_QUANTUM),
             net_hourly_rate=rate,
             night_presence_rate=current.night_presence_rate if current else Decimal("0"),
             mileage_rate=mileage_rate,

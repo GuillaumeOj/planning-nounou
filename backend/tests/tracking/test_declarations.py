@@ -908,3 +908,79 @@ def test_an_override_outside_the_month_changes_nothing():
         d.compute_month(away_data)[FAMILY_A].normal_hours
         == d.compute_month(plain_data)[FAMILY_A].normal_hours
     )
+
+
+# --- jours fériés ------------------------------------------------------------
+
+
+def bastille_day(**kw):
+    # 14 July 2026 is a Tuesday, so the schedule places 10h on it.
+    return d.Holiday(day=date(2026, 7, 14), **kw)
+
+
+def test_a_chomé_holiday_owes_nothing_because_the_base_already_pays_it():
+    # Mensualisation is a fixed x 52 / 12 precisely so a month's shape does not
+    # matter. May has more feries than March; the base is identical.
+    plain = d.compute_month(month())[FAMILY_A]
+    holiday = d.compute_month(month(holidays=(bastille_day(),)))[FAMILY_A]
+    assert holiday.total_amount == plain.total_amount
+    assert holiday.holiday_majoration == Decimal("0")
+
+
+def test_a_worked_holiday_owes_ten_percent_on_the_hours_done():
+    # art. 47.2. The schedule puts 10h on that Tuesday, at 12.00 -> 12.00 extra.
+    result = d.compute_month(month(holidays=(bastille_day(is_workable=True),)))[FAMILY_A]
+    assert result.holiday_majoration == Decimal("12.00")
+
+
+def test_a_worked_first_of_may_owes_a_hundred_percent():
+    # art. 47.1. 1 May 2026 is a Friday: 10h x 12.00 x 100% = 120.00.
+    may = d.ContractMonth(
+        month=date(2026, 5, 1),
+        starting_date=date(2026, 1, 5),
+        ending_date=None,
+        split_method="equal",
+        family_ids=(FAMILY_A,),
+        children=(),
+        schedules=(schedule(*[block(i) for i in range(5)]),),
+        terms=(terms(),),
+        holidays=(d.Holiday(day=date(2026, 5, 1), is_workable=True),),
+    )
+    assert d.compute_month(may)[FAMILY_A].holiday_majoration == Decimal("120.00")
+
+
+def test_the_journee_de_solidarite_is_worked_and_owes_nothing():
+    # Those hours are owed, not bought. It is is_workable like any other worked
+    # holiday, so without the flag it would collect art. 47.2's 10%.
+    result = d.compute_month(month(holidays=(bastille_day(is_workable=True, is_solidarity=True),)))[
+        FAMILY_A
+    ]
+    assert result.holiday_majoration == Decimal("0")
+
+
+def test_a_holiday_on_a_day_she_never_works_owes_nothing():
+    # 15 August 2026 is a Saturday.
+    result = d.compute_month(month(holidays=(d.Holiday(day=date(2026, 8, 15), is_workable=True),)))[
+        FAMILY_A
+    ]
+    assert result.holiday_majoration == Decimal("0")
+
+
+def test_a_worked_holiday_is_shared_like_the_day_it_falls_on():
+    a, b = child(FAMILY_A), child(FAMILY_B)
+    results = d.compute_month(
+        month(
+            children=(a, b),
+            families=(FAMILY_A, FAMILY_B),
+            holidays=(bastille_day(is_workable=True),),
+        )
+    )
+    # One nanny, one worked holiday: the majoration divides, it does not double.
+    assert sum(r.holiday_majoration for r in results.values()) == Decimal("12.00")
+    assert results[FAMILY_A].holiday_majoration == results[FAMILY_B].holiday_majoration
+
+
+def test_the_majoration_reaches_the_total():
+    plain = d.compute_month(month())[FAMILY_A]
+    worked = d.compute_month(month(holidays=(bastille_day(is_workable=True),)))[FAMILY_A]
+    assert worked.total_amount - plain.total_amount == Decimal("12.00")

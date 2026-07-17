@@ -534,16 +534,23 @@ class BankHoliday(UUIDModel):
 
     Non-workable by default: the planning hides the nannies' working blocks on a
     non-workable holiday and shows the holiday name instead. ``is_workable=True``
-    marks a holiday that is still worked (e.g. the journée de solidarité).
+    marks a holiday that is still worked.
 
-    Note this is a *planning* fact, not a pay one. A bank holiday must not touch
-    the mensualised salary: a fixed × 52 ÷ 12 exists precisely so that the shape
-    of a given calendar month does not matter. See ``docs/shared-care-pay.md``.
+    A *chômé* holiday must not touch the mensualised salary — a fixed × 52 ÷ 12
+    exists precisely so the shape of a calendar month does not matter, and it is
+    already paid (art. 47.2, subject to the nanny having worked the days either
+    side). A *worked* one is another matter: art. 47.2 owes a 10% majoration on
+    the hours, and art. 47.1 owes 100% on 1 May. See ``docs/shared-care-pay.md``.
     """
 
     name = models.CharField(max_length=100)
     date = models.DateField(unique=True)
     is_workable = models.BooleanField(default=False)
+    # The journée de solidarité is worked and earns no majoration — the hours are
+    # owed, not bought. It is is_workable like any other worked holiday, so
+    # without this flag it would collect art. 47.2's 10% and quietly invent money.
+    # Not a national date: the parties choose it, so it is set by hand.
+    is_solidarity = models.BooleanField(default=False)
 
     class Meta:
         ordering: ClassVar[list[str]] = ["date"]
@@ -806,6 +813,13 @@ class MonthlyDeclaration(UUIDModel):
     # --- présence de nuit: an indemnity, not hours ------------------------
     night_count = models.PositiveSmallIntegerField(default=0)
     night_indemnity = models.DecimalField(
+        max_digits=8, decimal_places=2, default=Decimal("0"), validators=NON_NEGATIVE
+    )
+
+    # A worked jour férié owes 10% on top of the hours (100% on 1 May). The hours
+    # themselves are already in the counts above, so this is a supplement, not a
+    # fourth band.
+    holiday_majoration = models.DecimalField(
         max_digits=8, decimal_places=2, default=Decimal("0"), validators=NON_NEGATIVE
     )
 

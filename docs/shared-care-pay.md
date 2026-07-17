@@ -403,8 +403,16 @@ requires the nanny to have worked the last working day before and the first afte
 > contrepartie, ce dernier bénéficie une rémunération majorée à hauteur de **cent pour
 > cent (100 %)**. »
 
-`BankHoliday.is_workable` already marks exactly these days. A worked 1 May is owed
-**double**.
+`BankHoliday.is_workable` already marked exactly these days, so the majoration rides on
+it — as a supplement on the amount, not a fourth band, since the hours were already
+declared.
+
+One trap it forced open: the **journée de solidarité** is `is_workable` like any other
+worked holiday, and owes *nothing* — those hours are owed, not bought. One boolean
+cannot say both, so `BankHoliday.is_solidarity` now tells them apart. Without it, marking
+Pentecôte as worked would have quietly collected art. 47.2's 10%.
+
+A worked 1 May is owed **double**.
 
 ### Gaps this feature has to close
 

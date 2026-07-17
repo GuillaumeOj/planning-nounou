@@ -29,6 +29,7 @@ from django.utils import timezone
 
 from accounts.models import Child, Family, FamilyMembership, User
 from tracking.models import (
+    BankHoliday,
     Contract,
     ContractChild,
     ContractChildWindow,
@@ -120,6 +121,8 @@ class Command(BaseCommand):
             ]
             contracts = self._create_contracts(rng, families, nannies)
             self._seed_reference_data()
+            # After seeding: it needs the holidays to exist before it can mark them.
+            self._mark_worked_holidays(rng)
 
         self._report(removed, families, nannies, contracts, password)
 
@@ -462,6 +465,32 @@ class Command(BaseCommand):
         )
 
     # --- global reference data --------------------------------------------
+
+    def _mark_worked_holidays(self, rng: random.Random) -> None:
+        """Both worked-holiday shapes, so neither is only ever seen in production.
+
+        A jour férié ordinaire that was worked earns 10%; the journée de solidarité
+        is worked and earns nothing. They are both `is_workable`, which is exactly
+        why the second flag exists — and why the demo data should show both.
+        """
+        today = timezone.localdate()
+        ordinary = (
+            BankHoliday.objects.filter(date__year=today.year, is_workable=False)
+            .exclude(date__month=5, date__day=1)
+            .exclude(name__icontains="Pentec")
+            .order_by("date")
+            .first()
+        )
+        if ordinary is not None:
+            ordinary.is_workable = True
+            ordinary.save(update_fields=["is_workable"])
+        solidarity = BankHoliday.objects.filter(
+            date__year=today.year, name__icontains="Pentec"
+        ).first()
+        if solidarity is not None:
+            solidarity.is_workable = True
+            solidarity.is_solidarity = True
+            solidarity.save(update_fields=["is_workable", "is_solidarity"])
 
     def _seed_reference_data(self) -> None:
         """Bank holidays and minimum wage are global and admin-managed, so they
