@@ -293,15 +293,14 @@ UNWORKED_HOLIDAY = Source(
 #: can read the convention rather than take our word for a number.
 WARNING_SOURCES: dict[str, Source] = {
     "rates_changed_mid_month": MENSUALISATION,
+    "hours_reduced_for_absence": UNPAID_ABSENCE,
+    "overlapping_solo_exceptional": SHARED_CARE_SPLIT,
     "night_presence_rate_below_floor": NIGHT_INDEMNITY_FLOOR,
     "night_presence_longer_than_12h": NIGHT_INDEMNITY_FLOOR,
-    "night_presence_outside_window": NIGHT_PRESENCE,
     "night_presence_should_be_requalified": NIGHT_INDEMNITY_TIERS,
     "night_interventions_need_manual_pricing": NIGHT_INDEMNITY_TIERS,
     "presence_responsable_in_shared_care": PRESENCE_RESPONSABLE_SHARED_CARE,
     "split_without_children": SHARED_CARE_SPLIT,
-    "weekly_hours_over_maximum": MAXIMUM_WEEK,
-    "worked_holiday_not_majorated": WORKED_HOLIDAY,
 }
 
 

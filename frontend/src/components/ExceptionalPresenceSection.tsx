@@ -145,7 +145,7 @@ export function ExceptionalPresenceSection({
   const [editingId, setEditingId] = useState<string | 'new' | null>(null)
   const [errors, setErrors] = useState<string[]>([])
 
-  const { data: entries } = useQuery(
+  const { data: entries, isError } = useQuery(
     exceptionalPresencesQueryOptions(familyId, contract.id),
   )
 
@@ -260,7 +260,11 @@ export function ExceptionalPresenceSection({
         </Button>
       )}
 
-      {visible.length > 0 ? (
+      {isError ? (
+        // A failed load lists nothing; without this it reads as "none this
+        // month" and invites a duplicate entry.
+        <p className="text-sm text-destructive">{t('exceptional.loadError')}</p>
+      ) : visible.length > 0 ? (
         <ul className="flex flex-col divide-y text-sm">
           {visible.map((entry) => (
             <li

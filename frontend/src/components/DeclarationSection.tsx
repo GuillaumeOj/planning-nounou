@@ -57,6 +57,19 @@ const isZero = (decimal: string) => Number(decimal) === 0
 const when = (condition: boolean, ...rows: Figure[]): Figure[] =>
   condition ? rows : []
 
+// A citation URL is backend-controlled today, but an href is never the place to
+// trust a string blindly: only an http(s) URL becomes a link, so a javascript:
+// or data: value (should the source ever become influenced) renders as inert
+// text rather than a clickable payload.
+function isSafeHttpUrl(url: string): boolean {
+  try {
+    const { protocol } = new URL(url)
+    return protocol === 'https:' || protocol === 'http:'
+  } catch {
+    return false
+  }
+}
+
 // The article behind a warning, quoted verbatim. This is the point of showing a
 // warning at all: a parent about to type a figure into pajemploi can check it
 // against the convention rather than take our word.
@@ -73,14 +86,18 @@ function WarningItem({ warning }: { warning: DeclarationWarning }) {
             “{warning.source.quote}”
           </blockquote>
           <figcaption className="text-xs">
-            <a
-              href={warning.source.url}
-              target="_blank"
-              rel="noreferrer"
-              className="underline underline-offset-2 hover:text-foreground"
-            >
-              {warning.source.ref}
-            </a>
+            {isSafeHttpUrl(warning.source.url) ? (
+              <a
+                href={warning.source.url}
+                target="_blank"
+                rel="noreferrer"
+                className="underline underline-offset-2 hover:text-foreground"
+              >
+                {warning.source.ref}
+              </a>
+            ) : (
+              <span>{warning.source.ref}</span>
+            )}
           </figcaption>
         </figure>
       )}
@@ -414,7 +431,12 @@ export function DeclarationSection({
     isLoading,
     isError,
   } = useQuery({
-    queryKey: ['declarations', contract.id, month],
+    // familyId is part of the key, not just the fetch: the endpoint returns only
+    // the acting family's row, so a user who manages both families of a shared
+    // contract must not be served the first family's figures under the second.
+    // The invalidations above key on ['declarations', contractId] alone, which
+    // still prefix-matches this and sweeps every family/month for the contract.
+    queryKey: ['declarations', contract.id, familyId, month],
     queryFn: () => getDeclarations(familyId, contract.id, month),
   })
 

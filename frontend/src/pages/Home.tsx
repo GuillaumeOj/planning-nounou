@@ -95,7 +95,10 @@ function RecentDeclarations({
   const queries = useQueries({
     queries: visibleMonths.map((month) => ({
       // Same key as the declarations page, so the two share a cache entry.
-      queryKey: ['declarations', contract.id, toMonthParam(month)],
+      // familyId is part of it because the endpoint returns only the acting
+      // family's row — a user managing both families of a shared contract must
+      // not read one family's figures under the other.
+      queryKey: ['declarations', contract.id, familyId, toMonthParam(month)],
       queryFn: () =>
         getDeclarations(familyId, contract.id, toMonthParam(month)),
     })),
@@ -158,7 +161,7 @@ function ContractCard({
   months: Date[]
 }) {
   const { t } = useI18n()
-  const { data: balance } = useQuery(
+  const { data: balance, isError } = useQuery(
     paidLeaveQueryOptions(familyId, contract.id),
   )
 
@@ -168,6 +171,9 @@ function ContractCard({
     >
       {balance ? (
         <PaidLeave balance={balance} />
+      ) : isError ? (
+        // Without this branch a failed balance shows a permanent "loading".
+        <p className="text-sm text-destructive">{t('home.balanceError')}</p>
       ) : (
         <p className="text-sm text-muted-foreground">{t('home.loading')}</p>
       )}

@@ -17,6 +17,7 @@ from tracking.models import (
     ExceptionalPresence,
     Leave,
     MinimumWage,
+    MonthlyDeclaration,
     Nanny,
     ScheduleBlock,
 )
@@ -175,10 +176,23 @@ def test_rerunning_resets_rather_than_piles_up():
         (ContractChildWindow, "contract_child__contract__created_by__email__endswith"),
         (ExceptionalHours, "contract__created_by__email__endswith"),
         (ExceptionalPresence, "contract__created_by__email__endswith"),
+        (MonthlyDeclaration, "contract__created_by__email__endswith"),
     ):
         assert model.objects.count() == model.objects.filter(**{path: demo}).count(), (
             f"{model.__name__} survived the flush"
         )
+
+
+def test_files_a_recent_editable_and_an_older_locked_declaration():
+    """Both filed states must be seen in dev — the declarations and home pages
+    read very differently for the two: a recent month still inside its edit grace
+    window (filed, yet editable in place) and an older one that has locked."""
+    call_command("populate_dev", verbosity=0)
+
+    filed = list(MonthlyDeclaration.objects.filter(status=MonthlyDeclaration.Status.FILED))
+    assert filed, "no declaration was ever filed"
+    assert any(row.is_editable for row in filed), "no filed-but-still-editable month"
+    assert any(not row.is_editable for row in filed), "no locked (frozen) month"
 
 
 def test_leaves_hand_made_local_data_alone(owner, family, contract):

@@ -37,6 +37,7 @@ from . import declarations as dec
 from . import paid_leave as pl
 from .models import (
     BankHoliday,
+    Contract,
     ContractChild,
     ContractSchedule,
     ContractTerms,
@@ -50,8 +51,6 @@ if TYPE_CHECKING:
     from datetime import date
     from decimal import Decimal
     from uuid import UUID
-
-    from .models import Contract
 
 
 def load_contract_month(
@@ -253,6 +252,13 @@ def declarations_for(contract: Contract, month: date) -> list[MonthlyDeclaration
     presence models stay flat instead of effective-dated.
     """
     first, _ = dec.month_bounds(month)
+    # Serialise concurrent recomputes of the same contract. A list read computes
+    # and writes *both* families' rows, so two families opening the month at the
+    # same time would each find no row for the other and each INSERT it, tripping
+    # uniq_declaration_per_family_month with a 500. Locking the contract row makes
+    # the second recompute wait for the first to commit, then find the rows it
+    # wrote. Cheap — one contract, a handful of families, a couple of times a day.
+    Contract.objects.select_for_update().filter(pk=contract.pk).first()
     existing = {
         row.family_id: row
         for row in MonthlyDeclaration.objects.filter(contract=contract, month=first)
@@ -269,33 +275,51 @@ def declarations_for(contract: Contract, month: date) -> list[MonthlyDeclaration
         result = results.get(family_id)
         if result is None:
             continue
-        if row is None:
+        is_new = row is None
+        if is_new:
             row = MonthlyDeclaration(contract=contract, family_id=family_id, month=first)
-        _apply(row, result)
-        row.save()
+        changed = _apply(row, result)
+        # A new row must be written; an existing one only when its numbers actually
+        # moved. Merely opening the home dashboard reads several months across every
+        # contract, and each read recomputes; without this it would also rewrite
+        # every unchanged draft (and bump its computed_at) on every load.
+        if is_new or changed:
+            row.save()
         rows.append(row)
     return rows
 
 
-def _apply(row: MonthlyDeclaration, result: dec.FamilyResult) -> None:
-    """Copy a computed month onto its row. Snapshots the rates, not just the hours."""
-    row.normal_hours = result.normal_hours
-    row.hours_25 = result.hours_25
-    row.hours_50 = result.hours_50
-    row.net_salary = result.net_salary
-    row.total_amount = result.total_amount
-    row.transport_amount = result.transport_amount
-    row.benefits_in_kind_amount = result.benefits_in_kind_amount
-    row.kilometers = result.kilometers
-    row.mileage_amount = result.mileage_amount
-    row.night_count = result.night_count
-    row.night_indemnity = result.night_indemnity
-    row.holiday_majoration = result.holiday_majoration
-    row.net_hourly_rate = result.net_hourly_rate
-    row.night_presence_rate = result.night_presence_rate
-    row.mileage_rate = result.mileage_rate
-    row.rate_periods = list(result.rate_periods)
-    row.warnings = list(result.warnings)
+def _apply(row: MonthlyDeclaration, result: dec.FamilyResult) -> bool:
+    """Copy a computed month onto its row. Snapshots the rates, not just the hours.
+
+    Returns whether anything actually changed, so an unchanged draft is left
+    untouched rather than rewritten on every read.
+    """
+    values = {
+        "normal_hours": result.normal_hours,
+        "hours_25": result.hours_25,
+        "hours_50": result.hours_50,
+        "net_salary": result.net_salary,
+        "total_amount": result.total_amount,
+        "transport_amount": result.transport_amount,
+        "benefits_in_kind_amount": result.benefits_in_kind_amount,
+        "kilometers": result.kilometers,
+        "mileage_amount": result.mileage_amount,
+        "night_count": result.night_count,
+        "night_indemnity": result.night_indemnity,
+        "holiday_majoration": result.holiday_majoration,
+        "net_hourly_rate": result.net_hourly_rate,
+        "night_presence_rate": result.night_presence_rate,
+        "mileage_rate": result.mileage_rate,
+        "rate_periods": list(result.rate_periods),
+        "warnings": list(result.warnings),
+    }
+    # Decimal compares numerically, so a stored 174.00 equals a fresh 174 — a
+    # rescale alone will not count as a change.
+    changed = any(getattr(row, field) != value for field, value in values.items())
+    for field, value in values.items():
+        setattr(row, field, value)
+    return changed
 
 
 def file_declaration(row: MonthlyDeclaration, user) -> MonthlyDeclaration:

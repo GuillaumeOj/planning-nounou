@@ -313,6 +313,20 @@ def test_a_second_month_is_its_own_row(wired):
     assert MonthlyDeclaration.objects.filter(contract=wired).count() == 2
 
 
+def test_recomputing_unchanged_data_does_not_rewrite_the_row(wired):
+    """The home dashboard reads several months across every contract, each read
+    recomputing. When nothing has moved, the row must be left untouched — not
+    re-saved with a fresh computed_at — so opening the dashboard does not rewrite
+    months of unchanged drafts."""
+    first = repo.declarations_for(wired, JULY)[0]
+    stamp = first.computed_at
+
+    again = repo.declarations_for(wired, JULY)[0]
+    again.refresh_from_db()
+    assert again.pk == first.pk
+    assert again.computed_at == stamp, "an unchanged draft was rewritten on read"
+
+
 def test_windows_grouped_by_weekday_keep_every_window(wired):
     link = ContractChild.objects.get(contract=wired)
     for weekday in (0, 0, 2):

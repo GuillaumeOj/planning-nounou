@@ -231,7 +231,7 @@ export function ExceptionalHoursSection({
   // whole, so the shared checkbox and the "add yours" prompts are hidden there.
   const isShared = contract.families.length > 1
 
-  const { data: entries } = useQuery(
+  const { data: entries, isError } = useQuery(
     exceptionalHoursQueryOptions(familyId, contract.id),
   )
 
@@ -395,7 +395,11 @@ export function ExceptionalHoursSection({
         </div>
       )}
 
-      {visibleOwn.length > 0 ? (
+      {isError ? (
+        // A failed load renders nothing to list; without this it reads as "none
+        // this month", and a parent re-adds an entry that already exists.
+        <p className="text-sm text-destructive">{t('exceptional.loadError')}</p>
+      ) : visibleOwn.length > 0 ? (
         <ul className="flex flex-col divide-y text-sm">
           {visibleOwn.map((entry) => (
             // describe() is a long sentence (two dates, two times, the kind);

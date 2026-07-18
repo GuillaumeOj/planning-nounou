@@ -143,7 +143,12 @@ export function exceptionalHoursQueryOptions(
   contractId: string,
 ) {
   return {
-    queryKey: ['exceptional-hours', contractId] as const,
+    // familyId is part of the key: the read returns this family's own entries
+    // plus every family's *shared* ones, and the section classifies them by
+    // `entry.family === familyId`. A user acting for both families of a shared
+    // contract must not read one family's own/prompt split under the other.
+    // Invalidations key on ['exceptional-hours', contractId] and still prefix-match.
+    queryKey: ['exceptional-hours', contractId, familyId] as const,
     queryFn: () => getExceptionalHours(familyId, contractId),
   }
 }

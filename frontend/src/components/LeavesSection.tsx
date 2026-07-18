@@ -195,7 +195,9 @@ export function LeavesSection({
   const [editingId, setEditingId] = useState<string | 'new' | null>(null)
   const [errors, setErrors] = useState<string[]>([])
 
-  const { data: leaves } = useQuery(leavesQueryOptions(familyId, contract.id))
+  const { data: leaves, isError } = useQuery(
+    leavesQueryOptions(familyId, contract.id),
+  )
 
   const invalidate = () =>
     queryClient.invalidateQueries({
@@ -294,7 +296,11 @@ export function LeavesSection({
         </Button>
       )}
 
-      {visible.length > 0 ? (
+      {isError ? (
+        // A failed load lists nothing; without this it reads as "no days off"
+        // and a parent re-adds a leave that already exists.
+        <p className="text-sm text-destructive">{t('leaves.loadError')}</p>
+      ) : visible.length > 0 ? (
         <ul className="flex flex-col divide-y text-sm">
           {visible.map((leave) => (
             // describe() is a long sentence (dates, type, portion); beside two

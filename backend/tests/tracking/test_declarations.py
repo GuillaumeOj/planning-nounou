@@ -1250,3 +1250,19 @@ def test_a_correction_on_a_late_week_day_reaches_the_overtime_band():
     # Still a transfer: the nanny's day is no longer for it.
     assert (corrections[FAMILY_A] + corrections[FAMILY_B]).total == 0
     assert corrections[FAMILY_A].at_25 == -corrections[FAMILY_B].at_25
+
+
+def test_every_emitted_warning_has_a_source_and_no_source_is_dead():
+    """The warnings compute_month raises and the citations it can resolve must be
+    the same set: a warning without a source shows a bare code to a parent about
+    to file, and a source no warning emits is a citation for a rule we never
+    flag. Both drift silently, so pin them together."""
+    import re
+    from pathlib import Path
+
+    from tracking.sources import WARNING_SOURCES
+
+    module_source = Path(d.__file__).read_text()
+    emitted = set(re.findall(r'warnings\.append\(\s*"([a-z0-9_]+)"', module_source))
+    assert emitted, "the regex found no warnings — has the append shape changed?"
+    assert emitted == set(WARNING_SOURCES)
