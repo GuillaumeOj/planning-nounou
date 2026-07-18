@@ -23,7 +23,7 @@ export default defineConfig({
   server: {
     // Vite rejects requests whose Host it doesn't recognise; these are the domains
     // OrbStack serves the container on.
-    allowedHosts: ['nanny-dev.local', '.orb.local'],
+    allowedHosts: ['mgs-dev.local', '.orb.local'],
     // Proxy API calls to the local Django backend so dev needs no CORS handling and mirrors
     // production: the root vercel.json rewrites /api(/.*)? to the backend service and
     // everything else to this SPA, on one origin. Keep the two in step.

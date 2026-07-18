@@ -1,4 +1,4 @@
-"""Root URL configuration for the planning-nounou backend."""
+"""Root URL configuration for the Ma Garde Sereine backend."""
 
 from django.conf import settings
 from django.contrib import admin

@@ -1,5 +1,5 @@
 """
-Django settings for the planning-nounou backend.
+Django settings for the Ma Garde Sereine backend.
 
 Configuration is environment-driven via django-environ so the same code runs
 locally (Docker + Postgres) and on Vercel (Python function + Neon Postgres).
@@ -110,7 +110,7 @@ WSGI_APPLICATION = "config.wsgi.application"
 DATABASES = {
     "default": env.db(
         "DATABASE_URL",
-        default="postgres://nounou:nounou@localhost:5432/nounou",
+        default="postgres://mgs:mgs@localhost:5432/mgs",
     ),
 }
 DATABASES["default"]["CONN_MAX_AGE"] = env("CONN_MAX_AGE", cast=int, default=0)
