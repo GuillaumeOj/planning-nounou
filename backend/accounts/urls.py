@@ -11,10 +11,6 @@ router.register("families", views.FamilyViewSet, basename="family")
 
 # Nested, family-scoped collections. Wired by hand to avoid a nested-router
 # dependency; each maps HTTP verbs to viewset actions under a family_pk prefix.
-child_list = views.ChildViewSet.as_view({"get": "list", "post": "create"})
-child_detail = views.ChildViewSet.as_view(
-    {"get": "retrieve", "put": "update", "patch": "partial_update", "delete": "destroy"}
-)
 member_list = views.FamilyMemberViewSet.as_view({"get": "list"})
 member_detail = views.FamilyMemberViewSet.as_view({"delete": "destroy"})
 invitation_list = views.InvitationViewSet.as_view({"get": "list", "post": "create"})
@@ -33,9 +29,6 @@ auth_patterns = [
 
 urlpatterns = [
     path("auth/", include(auth_patterns)),
-    # Family-scoped children.
-    path("families/<uuid:family_pk>/children/", child_list, name="family-children"),
-    path("families/<uuid:family_pk>/children/<uuid:pk>/", child_detail, name="family-child"),
     # Family members.
     path("families/<uuid:family_pk>/members/", member_list, name="family-members"),
     path("families/<uuid:family_pk>/members/<uuid:pk>/", member_detail, name="family-member"),

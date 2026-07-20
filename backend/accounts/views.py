@@ -7,14 +7,12 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.serializers import BaseSerializer
 
-from .models import Child, Family, FamilyMembership, Invitation, User
+from .models import Family, FamilyMembership, Invitation, User
 from .permissions import IsFamilyManager, IsFamilyMember
 from .serializers import (
     ChangeEmailSerializer,
     ChangePasswordSerializer,
-    ChildSerializer,
     FamilyMembershipSerializer,
     FamilySerializer,
     InvitationPreviewSerializer,
@@ -137,19 +135,6 @@ class FamilyScopedMixin:
                 raise PermissionDenied
             cache[manage] = family
         return cache[manage]
-
-
-class ChildViewSet(FamilyScopedMixin, viewsets.ModelViewSet):
-    """CRUD for a family's children, scoped to families the user can access."""
-
-    serializer_class = ChildSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        return Child.objects.filter(family=self.get_family())
-
-    def perform_create(self, serializer: BaseSerializer[Child]) -> None:
-        serializer.save(family=self.get_family())
 
 
 class FamilyMemberViewSet(

@@ -4,7 +4,8 @@ import pytest
 from rest_framework.test import APIClient
 
 from accounts.models import Family, FamilyMembership, User
-from tracking.models import Contract, ContractShare, Nanny
+from contracts.models import Contract, ContractShare
+from nannies.models import Nanny
 
 VALID_PASSWORD = "sufficiently-long-pass-42"
 

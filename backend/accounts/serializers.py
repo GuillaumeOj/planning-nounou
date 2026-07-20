@@ -3,7 +3,7 @@ from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
-from .models import Child, Family, FamilyMembership, Invitation, User
+from .models import Family, FamilyMembership, Invitation, User
 
 
 def unique_email_field() -> serializers.EmailField:
@@ -132,14 +132,6 @@ class ChangePasswordSerializer(CurrentPasswordMixin):
         user.set_password(self.validated_data["new_password"])
         user.save(update_fields=["password"])
         return user
-
-
-class ChildSerializer(serializers.ModelSerializer):
-    """A child of a family; the family is taken from the URL, not the payload."""
-
-    class Meta:
-        model = Child
-        fields = ("id", "first_name")
 
 
 class FamilySerializer(serializers.ModelSerializer):

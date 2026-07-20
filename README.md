@@ -12,7 +12,7 @@ Track the hours a nanny works for two families over the year.
 
 ```
 ma-garde-sereine/
-├── backend/        # Django project (config/) + tracking app; uv-managed
+├── backend/        # Django project (config/) + domain apps: accounts, children, nannies, contracts, reference; uv-managed
 ├── frontend/       # Vite React SPA; bun-managed
 └── docker-compose.yml
 ```
