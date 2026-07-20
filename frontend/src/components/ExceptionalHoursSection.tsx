@@ -17,6 +17,7 @@ import { FormErrors } from '@/src/components/FormErrors'
 import { SectionCard } from '@/src/components/SectionCard'
 import { hhmm, TimeField, toDisplayTime } from '@/src/components/TimeField'
 import { Button } from '@/src/components/ui/button'
+import { Checkbox } from '@/src/components/ui/checkbox'
 import { Input } from '@/src/components/ui/input'
 import { Label } from '@/src/components/ui/label'
 import {
@@ -138,11 +139,12 @@ function HoursFields({
       {sharedAllowed && (
         <div className="flex flex-col gap-1">
           <label className="flex items-start gap-2 text-sm">
-            <input
-              type="checkbox"
-              className="mt-0.5 size-4"
+            <Checkbox
+              className="mt-0.5"
               checked={draft.is_shared}
-              onChange={(e) => onChange({ is_shared: e.target.checked })}
+              onCheckedChange={(checked) =>
+                onChange({ is_shared: checked === true })
+              }
             />
             <span>
               <span className="font-medium">{t('exceptional.shared')}</span>

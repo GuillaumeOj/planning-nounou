@@ -49,8 +49,10 @@ import { SectionCard } from '@/src/components/SectionCard'
 import { formatTimeRange } from '@/src/components/TimeField'
 import { Button } from '@/src/components/ui/button'
 import { Card, CardContent } from '@/src/components/ui/card'
+import { Checkbox } from '@/src/components/ui/checkbox'
 import { Input } from '@/src/components/ui/input'
 import { Label } from '@/src/components/ui/label'
+import { RadioGroup, RadioGroupItem } from '@/src/components/ui/radio-group'
 import {
   Select,
   SelectContent,
@@ -999,12 +1001,7 @@ function AttachFamilyOption({
   return (
     <div className="flex flex-col gap-1">
       <label className="flex items-center gap-2 text-sm">
-        <input
-          type="checkbox"
-          className="size-4"
-          checked={selected}
-          onChange={onToggleFamily}
-        />
+        <Checkbox checked={selected} onCheckedChange={onToggleFamily} />
         <span className="font-medium">{family.name}</span>
       </label>
       {selected && (
@@ -1012,11 +1009,9 @@ function AttachFamilyOption({
           {children && children.length > 0 ? (
             children.map((child: Child) => (
               <label key={child.id} className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  className="size-4"
+                <Checkbox
                   checked={(childIds ?? []).includes(child.id)}
-                  onChange={() => onToggleChild(child.id)}
+                  onCheckedChange={() => onToggleChild(child.id)}
                 />
                 {child.first_name}
               </label>
@@ -1273,17 +1268,15 @@ function SplitMethodChoice({
 }) {
   const { t } = useI18n()
   return (
-    <div className="flex flex-col gap-2">
+    <RadioGroup
+      className="flex flex-col gap-2"
+      value={value}
+      onValueChange={(next) => onChange(next as SplitMethod)}
+      disabled={disabled}
+    >
       {SPLIT_METHODS.map((method) => (
         <label key={method} className="flex items-start gap-2 text-sm">
-          <input
-            type="radio"
-            name="split-method"
-            className="mt-0.5 size-4"
-            checked={value === method}
-            disabled={disabled}
-            onChange={() => onChange(method)}
-          />
+          <RadioGroupItem value={method} className="mt-0.5" />
           <span>
             <span className="font-medium">{t(`contract.split.${method}`)}</span>
             <span className="block text-xs text-muted-foreground">
@@ -1292,7 +1285,7 @@ function SplitMethodChoice({
           </span>
         </label>
       ))}
-    </div>
+    </RadioGroup>
   )
 }
 
@@ -1469,11 +1462,11 @@ function ContractWizard({
           <div className="flex flex-col gap-4">
             {nannies.length > 0 && (
               <label className="flex items-center gap-2 py-1 text-sm">
-                <input
-                  type="checkbox"
-                  className="size-4"
+                <Checkbox
                   checked={useExisting}
-                  onChange={(e) => setUseExisting(e.target.checked)}
+                  onCheckedChange={(checked) =>
+                    setUseExisting(checked === true)
+                  }
                 />
                 {t('wizard.existingNanny')}
               </label>
@@ -1550,10 +1543,9 @@ function ContractWizard({
               <>
                 {children.map((c) => (
                   <label key={c.id} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
+                    <Checkbox
                       checked={childIds.includes(c.id)}
-                      onChange={() => toggleChild(c.id)}
+                      onCheckedChange={() => toggleChild(c.id)}
                     />
                     {c.first_name}
                   </label>

@@ -37,6 +37,7 @@ import { TextField } from '@/src/components/TextField'
 import { Badge, StatusBadge } from '@/src/components/ui/badge'
 import { Button } from '@/src/components/ui/button'
 import { Card, CardContent } from '@/src/components/ui/card'
+import { Checkbox } from '@/src/components/ui/checkbox'
 import { Input } from '@/src/components/ui/input'
 import { Label } from '@/src/components/ui/label'
 import {
@@ -288,11 +289,10 @@ function CreateFamilyDialog({
           )}
         </form.Field>
         <label className="flex items-start gap-2 text-sm">
-          <input
-            type="checkbox"
+          <Checkbox
             className="mt-1"
             checked={forSomeoneElse}
-            onChange={(event) => setForSomeoneElse(event.target.checked)}
+            onCheckedChange={(checked) => setForSomeoneElse(checked === true)}
           />
           <span className="flex flex-col gap-0.5">
             <span className="text-foreground">

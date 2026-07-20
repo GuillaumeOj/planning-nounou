@@ -18,6 +18,7 @@ import { SectionCard } from '@/src/components/SectionCard'
 import { formatTimeRange, hhmm } from '@/src/components/TimeField'
 import { Button } from '@/src/components/ui/button'
 import { Label } from '@/src/components/ui/label'
+import { RadioGroup, RadioGroupItem } from '@/src/components/ui/radio-group'
 import {
   Select,
   SelectContent,
@@ -114,24 +115,23 @@ function ChildFields({
         <legend className="mb-2 text-sm font-medium">
           {t('contractChild.presence')}
         </legend>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="radio"
-            name="presence-mode"
-            checked={whole}
-            onChange={() => onChange({ windows: [] })}
-          />
-          {t('contractChild.wholeTime')}
-        </label>
-        <label className="flex items-center gap-2 text-sm">
-          <input
-            type="radio"
-            name="presence-mode"
-            checked={!whole}
-            onChange={() => onChange({ windows: [{ ...DEFAULT_WINDOW }] })}
-          />
-          {t('contractChild.someDays')}
-        </label>
+        <RadioGroup
+          value={whole ? 'whole' : 'windows'}
+          onValueChange={(value) =>
+            onChange({
+              windows: value === 'whole' ? [] : [{ ...DEFAULT_WINDOW }],
+            })
+          }
+        >
+          <label className="flex items-center gap-2 text-sm">
+            <RadioGroupItem value="whole" />
+            {t('contractChild.wholeTime')}
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <RadioGroupItem value="windows" />
+            {t('contractChild.someDays')}
+          </label>
+        </RadioGroup>
         <p className="text-xs text-muted-foreground">
           {t('contractChild.someDaysHint')}
         </p>

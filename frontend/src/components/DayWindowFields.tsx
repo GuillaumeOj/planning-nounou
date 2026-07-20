@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Modal } from '@/src/components/Modal'
 import { TimeField } from '@/src/components/TimeField'
 import { Button } from '@/src/components/ui/button'
+import { Checkbox } from '@/src/components/ui/checkbox'
 import { Label } from '@/src/components/ui/label'
 import {
   Select,
@@ -162,11 +163,9 @@ export function DayWindowFields({
             {WEEKDAY_KEYS.map((key, day) =>
               day === copyFrom ? null : (
                 <label key={key} className="flex items-center gap-1.5 py-1">
-                  <input
-                    type="checkbox"
-                    className="size-4"
+                  <Checkbox
                     checked={copyTo.includes(day)}
-                    onChange={() => toggleCopyTo(day)}
+                    onCheckedChange={() => toggleCopyTo(day)}
                   />
                   {t(key)}
                 </label>
