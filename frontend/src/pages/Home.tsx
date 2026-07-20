@@ -276,7 +276,9 @@ export default function Home() {
               {t('home.noContracts')}
             </p>
           ) : (
-            <div className="flex flex-col gap-4">
+            // Card grid (brand guide p.6): contracts flow into columns on wider
+            // screens, one per column on a phone.
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-5">
               {contractList.map((contract) => (
                 <ContractCard
                   key={contract.id}

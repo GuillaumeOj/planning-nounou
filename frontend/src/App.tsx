@@ -30,8 +30,13 @@ function AppLayout() {
     <ProtectedRoute>
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         <NavBar />
+        {/* The routed page is capped at the brand guide's 1120px main width and
+            centred in the space beside the sidebar; each page keeps its own
+            padding. */}
         <div className="flex min-w-0 flex-1 flex-col">
-          <Outlet />
+          <div className="mx-auto flex w-full max-w-[1120px] flex-1 flex-col">
+            <Outlet />
+          </div>
         </div>
       </div>
     </ProtectedRoute>
