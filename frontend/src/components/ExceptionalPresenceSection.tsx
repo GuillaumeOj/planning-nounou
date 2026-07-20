@@ -19,10 +19,16 @@ import { hhmm, TimeField, toDisplayTime } from '@/src/components/TimeField'
 import { Button } from '@/src/components/ui/button'
 import { Input } from '@/src/components/ui/input'
 import { Label } from '@/src/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/src/components/ui/select'
 import { useI18n } from '@/src/i18n/I18nContext'
 import type { Language } from '@/src/i18n/translations'
 import { inMonth } from '@/src/lib/months'
-import { selectClass } from '@/src/lib/utils'
 
 interface PresenceDraft {
   child: string
@@ -79,19 +85,21 @@ function PresenceFields({
         <Label htmlFor="presence-child">
           {t('exceptional.presence.child')}
         </Label>
-        <select
-          id="presence-child"
-          className={selectClass}
+        <Select
           value={draft.child}
-          onChange={(e) => onChange({ child: e.target.value })}
+          onValueChange={(value) => onChange({ child: value })}
         >
-          <option value="">{t('exceptional.presence.pickChild')}</option>
-          {childOptions.map((child) => (
-            <option key={child.id} value={child.id}>
-              {child.name}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger id="presence-child">
+            <SelectValue placeholder={t('exceptional.presence.pickChild')} />
+          </SelectTrigger>
+          <SelectContent>
+            {childOptions.map((child) => (
+              <SelectItem key={child.id} value={child.id}>
+                {child.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <DateField
         id="presence-date"

@@ -11,7 +11,7 @@ import {
   updateExceptionalHours,
 } from '@/src/api/declarations'
 import { ExceptionalHoursSection } from '@/src/components/ExceptionalHoursSection'
-import { renderWithProviders } from '@/tests/utils'
+import { renderWithProviders, selectOption } from '@/tests/utils'
 
 vi.mock('@/src/api/declarations', () => {
   const getExceptionalHours = vi.fn()
@@ -196,7 +196,7 @@ describe('ExceptionalHoursSection', () => {
     // Extra hours are not a night: nobody is woken.
     expect(screen.queryByLabelText('Times woken')).toBeNull()
 
-    await user.selectOptions(screen.getByLabelText('Kind'), 'Night presence')
+    await selectOption('Kind', 'Night presence', user)
     await user.type(screen.getByLabelText('Times woken'), '2')
     await user.type(screen.getByLabelText('From'), '07/06/2026')
     await user.type(screen.getByLabelText('Start time'), '9:00 PM')
@@ -281,10 +281,7 @@ describe('ExceptionalHoursSection', () => {
     await user.click(
       await screen.findByRole('button', { name: 'Add exceptional hours' }),
     )
-    await user.selectOptions(
-      screen.getByLabelText('Kind'),
-      'Responsible presence',
-    )
+    await selectOption('Kind', 'Responsible presence', user)
     await user.type(screen.getByLabelText('From'), '07/06/2026')
     await user.type(screen.getByLabelText('Start time'), '6:00 PM')
     await user.type(screen.getByLabelText('To'), '07/06/2026')

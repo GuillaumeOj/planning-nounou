@@ -15,9 +15,11 @@ import { ThemeProvider } from '@/src/theme/ThemeContext'
 export async function selectOption(
   triggerName: string | RegExp,
   optionName: string | RegExp,
+  // Accept either the module's direct API or a userEvent.setup() instance.
+  user: { click: (element: Element) => Promise<unknown> } = userEvent,
 ) {
-  await userEvent.click(screen.getByRole('combobox', { name: triggerName }))
-  await userEvent.click(await screen.findByRole('option', { name: optionName }))
+  await user.click(screen.getByRole('combobox', { name: triggerName }))
+  await user.click(await screen.findByRole('option', { name: optionName }))
 }
 
 // Build an AuthContextValue for `useAuth` mocks; override only what a test needs.

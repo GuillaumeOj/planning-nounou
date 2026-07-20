@@ -19,10 +19,16 @@ import { SectionCard } from '@/src/components/SectionCard'
 import { Button } from '@/src/components/ui/button'
 import { Input } from '@/src/components/ui/input'
 import { Label } from '@/src/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/src/components/ui/select'
 import { useI18n } from '@/src/i18n/I18nContext'
 import type { Language, TranslationKey } from '@/src/i18n/translations'
 import { overlapsMonth } from '@/src/lib/months'
-import { selectClass } from '@/src/lib/utils'
 
 interface LeaveDraft {
   leave_type: LeaveType
@@ -106,18 +112,21 @@ function LeaveFields({
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
         <Label htmlFor="leave-type">{t('leaves.type')}</Label>
-        <select
-          id="leave-type"
-          className={selectClass}
+        <Select
           value={draft.leave_type}
-          onChange={(e) => changeType(e.target.value as LeaveType)}
+          onValueChange={(value) => changeType(value as LeaveType)}
         >
-          {(Object.keys(LEAVE_TYPE_KEYS) as LeaveType[]).map((type) => (
-            <option key={type} value={type}>
-              {t(LEAVE_TYPE_KEYS[type])}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger id="leave-type">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(LEAVE_TYPE_KEYS) as LeaveType[]).map((type) => (
+              <SelectItem key={type} value={type}>
+                {t(LEAVE_TYPE_KEYS[type])}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       <DateField
         id="leave-start"
@@ -137,20 +146,23 @@ function LeaveFields({
       />
       <div className="flex flex-col gap-1">
         <Label htmlFor="leave-portion">{t('leaves.portion')}</Label>
-        <select
-          id="leave-portion"
-          className={selectClass}
+        <Select
           value={draft.portion}
-          onChange={(e) =>
-            onChange({ portion: e.target.value as LeavePortion })
+          onValueChange={(value) =>
+            onChange({ portion: value as LeavePortion })
           }
         >
-          {portions.map((portion) => (
-            <option key={portion} value={portion}>
-              {t(PORTION_KEYS[portion])}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger id="leave-portion">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {portions.map((portion) => (
+              <SelectItem key={portion} value={portion}>
+                {t(PORTION_KEYS[portion])}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       {draft.portion === 'hourly' && (
         <div className="flex flex-col gap-1">

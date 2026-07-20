@@ -19,10 +19,16 @@ import { hhmm, TimeField, toDisplayTime } from '@/src/components/TimeField'
 import { Button } from '@/src/components/ui/button'
 import { Input } from '@/src/components/ui/input'
 import { Label } from '@/src/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/src/components/ui/select'
 import { useI18n } from '@/src/i18n/I18nContext'
 import type { Language, TranslationKey } from '@/src/i18n/translations'
 import { overlapsMonth } from '@/src/lib/months'
-import { selectClass } from '@/src/lib/utils'
 
 interface HoursDraft {
   kind: ExceptionalKind
@@ -111,20 +117,23 @@ function HoursFields({
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
         <Label htmlFor="hours-kind">{t('exceptional.kind')}</Label>
-        <select
-          id="hours-kind"
-          className={selectClass}
+        <Select
           value={draft.kind}
-          onChange={(e) =>
-            onChange({ kind: e.target.value as ExceptionalKind })
+          onValueChange={(value) =>
+            onChange({ kind: value as ExceptionalKind })
           }
         >
-          {(Object.keys(KIND_KEYS) as ExceptionalKind[]).map((kind) => (
-            <option key={kind} value={kind}>
-              {t(KIND_KEYS[kind])}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger id="hours-kind">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(KIND_KEYS) as ExceptionalKind[]).map((kind) => (
+              <SelectItem key={kind} value={kind}>
+                {t(KIND_KEYS[kind])}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
       {sharedAllowed && (
         <div className="flex flex-col gap-1">

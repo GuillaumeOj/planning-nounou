@@ -10,7 +10,7 @@ import {
   updateLeave,
 } from '@/src/api/leaves'
 import { LeavesSection } from '@/src/components/LeavesSection'
-import { renderWithProviders } from '@/tests/utils'
+import { renderWithProviders, selectOption } from '@/tests/utils'
 
 vi.mock('@/src/api/leaves', () => {
   const getLeaves = vi.fn()
@@ -144,15 +144,17 @@ describe('LeavesSection', () => {
       await screen.findByRole('button', { name: 'Add days off' }),
     )
 
-    const portion = screen.getByLabelText('Duration')
-    // Paid leave: no hourly option.
+    // Paid leave: no hourly option. Open the dropdown to inspect its options,
+    // then close it before moving on.
+    await user.click(screen.getByRole('combobox', { name: 'Duration' }))
     expect(
-      within(portion).queryByRole('option', { name: 'By the hour' }),
-    ).toBeNull()
+      screen.queryByRole('option', { name: 'By the hour' }),
+    ).not.toBeInTheDocument()
+    await user.keyboard('{Escape}')
 
-    await user.selectOptions(screen.getByLabelText('Type'), 'Unpaid leave')
+    await selectOption('Type', 'Unpaid leave', user)
     // Now hourly is offered.
-    await user.selectOptions(portion, 'By the hour')
+    await selectOption('Duration', 'By the hour', user)
     await user.type(screen.getByLabelText('From'), '07/06/2026')
     await user.type(screen.getByLabelText('To'), '07/06/2026')
     await user.type(screen.getByLabelText('Number of hours'), '3.5')
@@ -177,8 +179,8 @@ describe('LeavesSection', () => {
     await user.click(
       await screen.findByRole('button', { name: 'Add days off' }),
     )
-    await user.selectOptions(screen.getByLabelText('Type'), 'Unpaid leave')
-    await user.selectOptions(screen.getByLabelText('Duration'), 'By the hour')
+    await selectOption('Type', 'Unpaid leave', user)
+    await selectOption('Duration', 'By the hour', user)
     await user.type(screen.getByLabelText('From'), '07/06/2026')
     await user.type(screen.getByLabelText('To'), '07/06/2026')
     await user.click(screen.getByRole('button', { name: 'Save days off' }))
@@ -194,18 +196,18 @@ describe('LeavesSection', () => {
     await user.click(
       await screen.findByRole('button', { name: 'Add days off' }),
     )
-    await user.selectOptions(screen.getByLabelText('Type'), 'Unpaid leave')
-    await user.selectOptions(screen.getByLabelText('Duration'), 'By the hour')
+    await selectOption('Type', 'Unpaid leave', user)
+    await selectOption('Duration', 'By the hour', user)
     expect(screen.getByLabelText('Number of hours')).toBeInTheDocument()
 
-    await user.selectOptions(screen.getByLabelText('Type'), 'Paid leave')
+    await selectOption('Type', 'Paid leave', user)
     // The hours field is gone and hourly is no longer selectable.
     expect(screen.queryByLabelText('Number of hours')).toBeNull()
+    await user.click(screen.getByRole('combobox', { name: 'Duration' }))
     expect(
-      within(screen.getByLabelText('Duration')).queryByRole('option', {
-        name: 'By the hour',
-      }),
-    ).toBeNull()
+      screen.queryByRole('option', { name: 'By the hour' }),
+    ).not.toBeInTheDocument()
+    await user.keyboard('{Escape}')
   })
 
   it('edits an existing leave', async () => {
