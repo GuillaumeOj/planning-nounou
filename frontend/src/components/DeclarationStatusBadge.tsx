@@ -1,27 +1,29 @@
+import { CircleCheck, FilePen } from 'lucide-react'
 import type { DeclarationStatus } from '@/src/api/declarations'
+import { Badge, StatusBadge } from '@/src/components/ui/badge'
 import { useI18n } from '@/src/i18n/I18nContext'
-import { cn } from '@/src/lib/utils'
 
 // The draft/filed pill for a monthly declaration. Shared by the declaration card
 // and the home dashboard's month summary, so the two never drift on colour or
-// wording.
+// wording. Per the brand guide, a real status is never colour alone: "filed" is
+// a success state with a check; "draft" is a neutral in-progress tag.
 export function DeclarationStatusBadge({
   status,
 }: {
   status: DeclarationStatus
 }) {
   const { t } = useI18n()
-  const isFiled = status === 'filed'
+  if (status === 'filed') {
+    return (
+      <StatusBadge icon={CircleCheck} variant="success">
+        {t('declaration.status.filed')}
+      </StatusBadge>
+    )
+  }
   return (
-    <span
-      className={cn(
-        'rounded-full px-2 py-0.5 text-xs font-medium',
-        isFiled
-          ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
-          : 'bg-muted text-muted-foreground',
-      )}
-    >
-      {isFiled ? t('declaration.status.filed') : t('declaration.status.draft')}
-    </span>
+    <Badge variant="secondary">
+      <FilePen aria-hidden={true} />
+      {t('declaration.status.draft')}
+    </Badge>
   )
 }

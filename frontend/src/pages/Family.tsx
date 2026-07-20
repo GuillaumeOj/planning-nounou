@@ -1,5 +1,6 @@
 import { useForm } from '@tanstack/react-form'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
 import {
   type Child,
@@ -32,7 +33,7 @@ import { FormErrors } from '@/src/components/FormErrors'
 import { Modal } from '@/src/components/Modal'
 import { SectionCard } from '@/src/components/SectionCard'
 import { TextField } from '@/src/components/TextField'
-import { Badge } from '@/src/components/ui/badge'
+import { Badge, StatusBadge } from '@/src/components/ui/badge'
 import { Button } from '@/src/components/ui/button'
 import { Card, CardContent } from '@/src/components/ui/card'
 import { Input } from '@/src/components/ui/input'
@@ -214,9 +215,13 @@ function FamilyRow({
         </span>
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary">{roleLabel(t, family.role)}</Badge>
-          <Badge variant={family.is_claimed ? 'outline' : 'destructive'}>
-            {family.is_claimed ? t('family.claimed') : t('family.unclaimed')}
-          </Badge>
+          {family.is_claimed ? (
+            <Badge variant="outline">{t('family.claimed')}</Badge>
+          ) : (
+            <StatusBadge icon={TriangleAlert} variant="destructive">
+              {t('family.unclaimed')}
+            </StatusBadge>
+          )}
         </div>
       </div>
       <Button
