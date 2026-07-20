@@ -7,9 +7,16 @@ import { getFamilies } from '@/src/api/family'
 import { DeclarationSection } from '@/src/components/DeclarationSection'
 import { Button } from '@/src/components/ui/button'
 import { Label } from '@/src/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/src/components/ui/select'
 import { useI18n } from '@/src/i18n/I18nContext'
 import { toMonthParam } from '@/src/lib/months'
-import { localeFor, selectClass } from '@/src/lib/utils'
+import { localeFor } from '@/src/lib/utils'
 
 // The month's pay, per contract and per family, ready to be typed into
 // pajemploi. The figures come from the backend already priced — this page picks
@@ -73,18 +80,18 @@ export default function Declarations() {
 
       <div className="flex w-full max-w-xs flex-col gap-2">
         <Label htmlFor="acting-family">{t('contract.selectFamily')}</Label>
-        <select
-          id="acting-family"
-          className={selectClass}
-          value={activeFamilyId ?? ''}
-          onChange={(e) => setFamilyId(e.target.value)}
-        >
-          {families.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.name}
-            </option>
-          ))}
-        </select>
+        <Select value={activeFamilyId ?? ''} onValueChange={setFamilyId}>
+          <SelectTrigger id="acting-family">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {families.map((f) => (
+              <SelectItem key={f.id} value={f.id}>
+                {f.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="flex items-center gap-2 sm:gap-3">

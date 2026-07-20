@@ -31,7 +31,7 @@ import {
 } from '@/src/api/declarations'
 import { getFamilies } from '@/src/api/family'
 import Nannies from '@/src/pages/Nannies'
-import { renderWithProviders } from '@/tests/utils'
+import { renderWithProviders, selectOption } from '@/tests/utils'
 
 vi.mock('@/src/api/family', () => ({ getFamilies: vi.fn() }))
 vi.mock('@/src/api/contracts', () => ({
@@ -204,7 +204,7 @@ describe('Nannies page', () => {
     ])
     renderWithProviders(<Nannies />)
     await screen.findByText('No nannies yet. Add your first one below.')
-    await user.selectOptions(screen.getByLabelText('Acting as family'), '2')
+    await selectOption('Acting as family', 'Grandma', user)
     await waitFor(() => expect(m.contracts).toHaveBeenCalledWith('2'))
   })
 
@@ -407,7 +407,7 @@ describe('onboarding wizard', () => {
     await screen.findByText('Step 1 of 6')
 
     await user.click(screen.getByRole('checkbox', { name: /Use a nanny/ }))
-    await user.selectOptions(screen.getByLabelText('Choose a nanny'), '5')
+    await selectOption('Choose a nanny', 'Marie Dupont', user)
     await user.type(screen.getByLabelText('Starting date'), '02/03/2026')
     for (let i = 0; i < 5; i++)
       await user.click(screen.getByRole('button', { name: 'Next' }))

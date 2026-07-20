@@ -45,9 +45,15 @@ import { Button } from '@/src/components/ui/button'
 import { Card, CardContent } from '@/src/components/ui/card'
 import { Input } from '@/src/components/ui/input'
 import { Label } from '@/src/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/src/components/ui/select'
 import { useI18n } from '@/src/i18n/I18nContext'
 import type { Language, TranslationKey } from '@/src/i18n/translations'
-import { selectClass } from '@/src/lib/utils'
 import type { DayWindow } from '@/src/lib/weekdays'
 
 // --- Static reference content -----------------------------------------------
@@ -994,19 +1000,18 @@ function ContractWizard({
             {useExisting ? (
               <div className="flex flex-col gap-1">
                 <Label htmlFor="wizard-nanny">{t('wizard.pickNanny')}</Label>
-                <select
-                  id="wizard-nanny"
-                  className={selectClass}
-                  value={nannyId}
-                  onChange={(e) => setNannyId(e.target.value)}
-                >
-                  <option value="">—</option>
-                  {nannies.map((n) => (
-                    <option key={n.id} value={n.id}>
-                      {n.first_name} {n.last_name}
-                    </option>
-                  ))}
-                </select>
+                <Select value={nannyId} onValueChange={setNannyId}>
+                  <SelectTrigger id="wizard-nanny">
+                    <SelectValue placeholder="—" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {nannies.map((n) => (
+                      <SelectItem key={n.id} value={n.id}>
+                        {n.first_name} {n.last_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             ) : (
               <>
@@ -1219,23 +1224,29 @@ function PendingContractInvitationsSection({
               ) : (
                 <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                   {manageable.length > 1 && (
-                    <select
-                      aria-label={t('contract.inbox.joinAs')}
-                      className={selectClass}
+                    <Select
                       value={familyId}
-                      onChange={(e) =>
+                      onValueChange={(value) =>
                         setJoinAs((prev) => ({
                           ...prev,
-                          [invite.id]: e.target.value,
+                          [invite.id]: value,
                         }))
                       }
                     >
-                      {manageable.map((f) => (
-                        <option key={f.id} value={f.id}>
-                          {f.name}
-                        </option>
-                      ))}
-                    </select>
+                      <SelectTrigger
+                        aria-label={t('contract.inbox.joinAs')}
+                        className="w-auto"
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {manageable.map((f) => (
+                          <SelectItem key={f.id} value={f.id}>
+                            {f.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   )}
                   <Button
                     type="button"
@@ -1332,21 +1343,24 @@ export default function Nannies() {
 
       <div className="flex w-full max-w-xs flex-col gap-2">
         <Label htmlFor="acting-family">{t('contract.selectFamily')}</Label>
-        <select
-          id="acting-family"
-          className={selectClass}
+        <Select
           value={activeFamilyId ?? ''}
-          onChange={(e) => {
-            setFamilyId(e.target.value)
+          onValueChange={(value) => {
+            setFamilyId(value)
             setOpenId(null)
           }}
         >
-          {families.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.name}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger id="acting-family">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {families.map((f) => (
+              <SelectItem key={f.id} value={f.id}>
+                {f.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <Button

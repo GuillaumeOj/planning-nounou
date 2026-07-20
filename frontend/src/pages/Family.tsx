@@ -37,9 +37,15 @@ import { Button } from '@/src/components/ui/button'
 import { Card, CardContent } from '@/src/components/ui/card'
 import { Input } from '@/src/components/ui/input'
 import { Label } from '@/src/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/src/components/ui/select'
 import { useI18n } from '@/src/i18n/I18nContext'
 import { roleLabel } from '@/src/lib/roleLabel'
-import { selectClass } from '@/src/lib/utils'
 
 // A user can manage a family when they own it, or when they created it and it is
 // still unclaimed (no owner has joined yet). Mirrors the backend's can_manage.
@@ -804,15 +810,18 @@ function InvitationsPanel({ family }: { family: Family }) {
         </inviteForm.Field>
         <div className="flex flex-col gap-2">
           <Label htmlFor="invite-role">{t('family.invites.role')}</Label>
-          <select
-            id="invite-role"
-            className={selectClass}
+          <Select
             value={role}
-            onChange={(event) => setRole(event.target.value as FamilyRole)}
+            onValueChange={(value) => setRole(value as FamilyRole)}
           >
-            <option value="member">{t('family.roleMember')}</option>
-            <option value="owner">{t('family.roleOwner')}</option>
-          </select>
+            <SelectTrigger id="invite-role">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="member">{t('family.roleMember')}</SelectItem>
+              <SelectItem value="owner">{t('family.roleOwner')}</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <FormErrors messages={errors} />
         <inviteForm.Subscribe selector={(state) => state.isSubmitting}>

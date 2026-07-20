@@ -15,14 +15,16 @@ import { DeclarationStatusBadge } from '@/src/components/DeclarationStatusBadge'
 import { type Figure, FigureGroup } from '@/src/components/FigureGroup'
 import { SectionCard } from '@/src/components/SectionCard'
 import { Label } from '@/src/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/src/components/ui/select'
 import { useI18n } from '@/src/i18n/I18nContext'
 import { toMonthParam } from '@/src/lib/months'
-import {
-  formatDays,
-  formatMoney,
-  localeFor,
-  selectClass,
-} from '@/src/lib/utils'
+import { formatDays, formatMoney, localeFor } from '@/src/lib/utils'
 
 // The dashboard: the family's contracts, each with the nanny's paid-leave
 // standing and a run of the recent months' declarations. It picks the acting
@@ -244,18 +246,18 @@ export default function Home() {
               <Label htmlFor="acting-family">
                 {t('contract.selectFamily')}
               </Label>
-              <select
-                id="acting-family"
-                className={selectClass}
-                value={activeFamilyId ?? ''}
-                onChange={(e) => setFamilyId(e.target.value)}
-              >
-                {families.map((f) => (
-                  <option key={f.id} value={f.id}>
-                    {f.name}
-                  </option>
-                ))}
-              </select>
+              <Select value={activeFamilyId ?? ''} onValueChange={setFamilyId}>
+                <SelectTrigger id="acting-family">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {families.map((f) => (
+                    <SelectItem key={f.id} value={f.id}>
+                      {f.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
 

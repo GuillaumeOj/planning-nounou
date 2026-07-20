@@ -130,8 +130,12 @@ describe('ExceptionalPresenceSection', () => {
     )
     await user.click(screen.getByRole('combobox', { name: 'Child' }))
     const options = screen.getByRole('listbox')
-    expect(within(options).getByRole('option', { name: 'Léa' })).toBeInTheDocument()
-    expect(within(options).getByRole('option', { name: 'Tom' })).toBeInTheDocument()
+    expect(
+      within(options).getByRole('option', { name: 'Léa' }),
+    ).toBeInTheDocument()
+    expect(
+      within(options).getByRole('option', { name: 'Tom' }),
+    ).toBeInTheDocument()
   })
 
   it('says so rather than offer a form when the contract covers no children', async () => {
