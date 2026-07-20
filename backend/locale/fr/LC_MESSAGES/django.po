@@ -1,14 +1,14 @@
-# French translations for the planning-nounou backend.
+# French translations for the Ma Garde Sereine backend.
 # Copyright (C) 2026
 # This file is distributed under the same license as the backend package.
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: planning-nounou\n"
+"Project-Id-Version: ma-garde-sereine\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2026-07-02 12:26+0000\n"
 "PO-Revision-Date: 2026-07-02 12:30+0000\n"
-"Last-Translator: planning-nounou\n"
+"Last-Translator: ma-garde-sereine\n"
 "Language-Team: French\n"
 "Language: fr\n"
 "MIME-Version: 1.0\n"

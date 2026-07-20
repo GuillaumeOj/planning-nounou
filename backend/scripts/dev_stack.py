@@ -1,7 +1,7 @@
 """Bring the dev stacks up and down from any git worktree.
 
-Both Compose projects are pinned by name in their compose file (``nanny-development`` and
-``nanny-tests``), so a stack is the same containers, image, and volume wherever it is
+Both Compose projects are pinned by name in their compose file (``mgs-development`` and
+``mgs-tests``), so a stack is the same containers, image, and volume wherever it is
 launched from. Pinning is what makes that true, but it also means every worktree competes
 for one set of containers and host ports. Resolving that competition is this script's job:
 it hands the pinned stack over to the calling worktree and clears stale stacks left behind
@@ -147,7 +147,7 @@ def _preflight(stack: str, project: str, wanted_ports: set[int], pinned_names: s
         if not (name in pinned_names or _belongs_to_repo(container, worktrees)):
             raise StackError(
                 f"Port {ports} is held by '{name}', which is not part of this repo.\n"
-                f"Stop it yourself, or move this stack to a free port with the NANNY_*_PORT\n"
+                f"Stop it yourself, or move this stack to a free port with the MGS_*_PORT\n"
                 f"variables in {STACK_FILES[stack]}."
             )
         _say(f"-> stopping stale container '{name}' (holds port {ports})")
