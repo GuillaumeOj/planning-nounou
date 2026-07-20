@@ -14,7 +14,7 @@ services:
       POSTGRES_PASSWORD: mgs
       POSTGRES_DB: mgs
     ports:
-      - "${MGS_DB_PORT:-5432}:5432"
+      - "${MGS_DB_PORT:-5444}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -46,14 +46,14 @@ services:
       # mgs-dev.local is here because Vite proxies /api without rewriting the Host header,
       # so Django sees the frontend's domain on proxied requests.
       DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0,mgs-dev.local,mgs-api.local,.orb.local"
-      CORS_ALLOWED_ORIGINS: "http://localhost:5173,https://mgs-dev.local"
+      CORS_ALLOWED_ORIGINS: "http://localhost:5175,https://mgs-dev.local"
       CSRF_TRUSTED_ORIGINS: "https://mgs-dev.local,https://mgs-api.local,https://*.orb.local"
     volumes:
       - ./backend:/app
       # Preserve the container's Linux virtualenv (don't let the host .venv shadow it).
       - /app/.venv
     ports:
-      - "${MGS_WEB_PORT:-8000}:8000"
+      - "${MGS_WEB_PORT:-8002}:8000"
     # Without this, `up --wait` calls the stack ready as soon as the process starts — which
     # is before migrate has finished and Django has bound the port.
     healthcheck:
@@ -83,6 +83,10 @@ services:
     environment:
       # Django is a compose service here, not localhost (which is Vite's own container).
       VITE_API_PROXY_TARGET: "http://web:8000"
+      # Keep the in-container dev server on 5173 (matches the compose mapping's right side,
+      # EXPOSE, the OrbStack http-port label, and the healthcheck). Host-side `bun run dev`
+      # has no VITE_DEV_PORT and defaults to 5175 instead — see vite.config.ts.
+      VITE_DEV_PORT: "5173"
       # The page arrives through OrbStack's TLS proxy on 443, so the HMR socket has to be
       # wss on 443; Vite would otherwise point it at ws on the dev-server port and the
       # browser would block it as mixed content.
@@ -92,7 +96,7 @@ services:
       # Preserve the container's Linux node_modules (don't let the host's shadow it).
       - /app/node_modules
     ports:
-      - "${MGS_FRONTEND_PORT:-5173}:5173"
+      - "${MGS_FRONTEND_PORT:-5175}:5173"
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:5173/"]
       interval: 3s

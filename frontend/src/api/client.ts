@@ -6,7 +6,7 @@ import {
   setAccessToken,
 } from '@/src/auth/tokenStorage'
 
-// In dev, Vite proxies /api -> localhost:8000. In production the SPA and API
+// In dev, Vite proxies /api -> localhost:8002. In production the SPA and API
 // share an origin on Vercel, so a relative baseURL works in both cases.
 // VITE_API_URL can override this (e.g. to point at a separate backend host).
 const baseURL = import.meta.env.VITE_API_URL ?? '/api'

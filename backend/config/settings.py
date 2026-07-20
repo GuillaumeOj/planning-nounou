@@ -110,7 +110,7 @@ WSGI_APPLICATION = "config.wsgi.application"
 DATABASES = {
     "default": env.db(
         "DATABASE_URL",
-        default="postgres://mgs:mgs@localhost:5432/mgs",
+        default="postgres://mgs:mgs@localhost:5444/mgs",
     ),
 }
 DATABASES["default"]["CONN_MAX_AGE"] = env("CONN_MAX_AGE", cast=int, default=0)
@@ -181,7 +181,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
 # CORS — the React SPA calls the API cross-origin in dev; same-origin in prod.
-CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS", cast=list, default=["http://localhost:5173"])
+CORS_ALLOWED_ORIGINS = env("CORS_ALLOWED_ORIGINS", cast=list, default=["http://localhost:5175"])
 
 # Behind Vercel's proxy, trust the forwarded protocol header.
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")

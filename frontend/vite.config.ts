@@ -7,8 +7,13 @@ import { defineConfig } from 'vite'
 // Set when the dev server runs inside the Docker stack, where Django is a compose service
 // rather than localhost, and the page is served through OrbStack's TLS proxy on 443.
 const apiProxyTarget =
-  process.env.VITE_API_PROXY_TARGET ?? 'http://localhost:8000'
+  process.env.VITE_API_PROXY_TARGET ?? 'http://localhost:8002'
 const hmrClientPort = process.env.VITE_HMR_CLIENT_PORT
+// Host-side `bun run dev` listens on 5175 (default ports are taken by other projects on this
+// machine). In Docker the frontend service sets VITE_DEV_PORT=5173 so the in-container server
+// stays on 5173 — the port EXPOSE, the OrbStack label, the healthcheck, and the `:5173` side
+// of the compose mapping all expect.
+const devPort = Number(process.env.VITE_DEV_PORT ?? 5175)
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -21,6 +26,7 @@ export default defineConfig({
     },
   },
   server: {
+    port: devPort,
     // Vite rejects requests whose Host it doesn't recognise; these are the domains
     // OrbStack serves the container on.
     allowedHosts: ['mgs-dev.local', '.orb.local'],

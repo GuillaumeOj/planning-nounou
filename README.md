@@ -30,7 +30,7 @@ uv run tox -e dev-down  # stop it (the database volume is kept)
 - App: https://mgs-dev.local → the SPA
 - API: https://mgs-dev.local/api/health/ → `{"status":"ok"}`
 - Django admin: https://mgs-dev.local/api/admin/
-- Postgres is exposed on `localhost:5432` (`mgs` / `mgs`).
+- Postgres is exposed on `localhost:5444` (`mgs` / `mgs`).
 
 Both containers mount their source directory, so hot reload works for Django and Vite alike.
 Ctrl-C stops the log tail and leaves the stack running.
@@ -48,7 +48,7 @@ these aren't public-looking TLDs.
 | https://mgs-dev.local/ | the SPA (Vite) |
 | https://mgs-dev.local/api/* | Django, proxied by Vite |
 | https://mgs-api.local/api/* | Django, directly |
-| http://localhost:5173, http://localhost:8000 | unchanged, still work |
+| http://localhost:5175, http://localhost:8002 | unchanged, still work |
 
 The single origin is deliberate: it's the same split `vercel.json` applies in production
 (`/api(/.*)?` → backend, `/(.*)` → frontend), so local routing matches prod and the browser
@@ -101,7 +101,7 @@ checkout directory:
 
 | Stack | Project | Compose file | Containers | Host ports |
 | --- | --- | --- | --- | --- |
-| dev | `mgs-development` | `docker-compose.yml` | `mgs_db`, `mgs_web`, `mgs_frontend` | 5432, 8000, 5173 |
+| dev | `mgs-development` | `docker-compose.yml` | `mgs_db`, `mgs_web`, `mgs_frontend` | 5444, 8002, 5175 |
 | tests | `mgs-tests` | `docker-compose.tests.yml` | `mgs_db_test` | 5435 |
 
 Tests get their own database so a test run can never touch your dev data. Both stacks can run
@@ -154,7 +154,7 @@ yourself to test elsewhere, which is what CI does (it brings its own Postgres se
 ```bash
 cd frontend
 bun install
-bun run dev                 # http://localhost:5173, proxies /api -> :8000
+bun run dev                 # http://localhost:5175, proxies /api -> :8002
 ```
 
 Checks:
