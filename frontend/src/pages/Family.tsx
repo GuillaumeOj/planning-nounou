@@ -31,6 +31,7 @@ import { useAuth } from '@/src/auth/AuthContext'
 import { ConfirmButton } from '@/src/components/ConfirmButton'
 import { FormErrors } from '@/src/components/FormErrors'
 import { Modal } from '@/src/components/Modal'
+import { PersonAvatar } from '@/src/components/PersonAvatar'
 import { SectionCard } from '@/src/components/SectionCard'
 import { TextField } from '@/src/components/TextField'
 import { Badge, StatusBadge } from '@/src/components/ui/badge'
@@ -676,20 +677,23 @@ function MembersPanel({ family }: { family: Family }) {
               key={member.id}
               className="flex flex-col items-start gap-2 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
             >
-              <div className="flex min-w-0 flex-col gap-1">
-                <span className="font-medium break-words text-foreground">
-                  {displayName}{' '}
-                  {isSelf && (
-                    <span className="text-sm text-muted-foreground">
-                      {t('family.members.you')}
-                    </span>
-                  )}
-                </span>
-                {/* An address has no break opportunities of its own, so it
-                    would otherwise push the row wider than the card. */}
-                <span className="text-sm break-all text-muted-foreground">
-                  {member.email}
-                </span>
+              <div className="flex min-w-0 items-center gap-3">
+                <PersonAvatar name={displayName} />
+                <div className="flex min-w-0 flex-col gap-1">
+                  <span className="font-medium break-words text-foreground">
+                    {displayName}{' '}
+                    {isSelf && (
+                      <span className="text-sm text-muted-foreground">
+                        {t('family.members.you')}
+                      </span>
+                    )}
+                  </span>
+                  {/* An address has no break opportunities of its own, so it
+                      would otherwise push the row wider than the card. */}
+                  <span className="text-sm break-all text-muted-foreground">
+                    {member.email}
+                  </span>
+                </div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <Badge variant="secondary">{roleLabel(t, member.role)}</Badge>

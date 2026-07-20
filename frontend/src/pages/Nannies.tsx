@@ -1210,13 +1210,18 @@ function PendingContractInvitationsSection({
               key={invite.id}
               className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
             >
-              <div className="flex min-w-0 flex-col gap-0.5">
-                <span className="font-medium break-words text-foreground">
-                  {invite.nanny_first_name} {invite.nanny_last_name}
-                </span>
-                <span className="text-sm text-muted-foreground">
-                  {t('contract.inbox.subtitle')}
-                </span>
+              <div className="flex min-w-0 items-center gap-3">
+                <PersonAvatar
+                  name={`${invite.nanny_first_name} ${invite.nanny_last_name}`}
+                />
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <span className="font-medium break-words text-foreground">
+                    {invite.nanny_first_name} {invite.nanny_last_name}
+                  </span>
+                  <span className="text-sm text-muted-foreground">
+                    {t('contract.inbox.subtitle')}
+                  </span>
+                </div>
               </div>
               {manageable.length === 0 ? (
                 <span className="text-sm text-muted-foreground">
