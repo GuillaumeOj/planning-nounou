@@ -34,7 +34,10 @@ import { getFamilies } from '@/src/api/family'
 import Nannies from '@/src/pages/Nannies'
 import { renderWithProviders, selectOption } from '@/tests/utils'
 
-vi.mock('@/src/api/family', () => ({ getFamilies: vi.fn() }))
+vi.mock('@/src/api/family', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/src/api/family')>()),
+  getFamilies: vi.fn(),
+}))
 vi.mock('@/src/api/contracts', () => ({
   getContracts: vi.fn(),
   createContract: vi.fn(),

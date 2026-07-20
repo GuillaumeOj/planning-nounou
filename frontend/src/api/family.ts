@@ -21,6 +21,14 @@ export interface FamilyInput {
   claim?: boolean
 }
 
+// A family the acting user may manage: one they own, or one they created and
+// nobody has claimed yet. Mirrors the backend's Family.can_manage — a write
+// routed through such a family is authorised, and stops being so the instant
+// the family is claimed (its owner takes over, and it leaves this user's list).
+export function canManageFamily(family: Family): boolean {
+  return family.role === 'owner' || (family.role === null && !family.is_claimed)
+}
+
 export interface FamilyMember {
   id: string
   user: string
