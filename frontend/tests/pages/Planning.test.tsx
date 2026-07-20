@@ -20,7 +20,7 @@ import { getBankHolidays } from '@/src/api/holidays'
 import { getLeaves } from '@/src/api/leaves'
 import { MOBILE_QUERY } from '@/src/hooks/useMediaQuery'
 import Planning from '@/src/pages/Planning'
-import { renderWithProviders } from '@/tests/utils'
+import { renderWithProviders, selectOption } from '@/tests/utils'
 
 vi.mock('@/src/api/family', () => ({ getFamilies: vi.fn() }))
 vi.mock('@/src/api/contracts', () => ({
@@ -247,7 +247,7 @@ describe('Planning page', () => {
     renderWithProviders(<Planning />)
     await screen.findByText('July 2026')
 
-    await user.selectOptions(screen.getByLabelText('Acting as family'), '2')
+    await selectOption('Acting as family', 'Grandparents', user)
     await waitFor(() => expect(m.contracts).toHaveBeenCalledWith('2'))
   })
 
@@ -329,7 +329,7 @@ describe('Planning tabs', () => {
     const user = await openTab('Exceptional hours')
     await screen.findByText('No exceptional hours this month.')
 
-    await user.selectOptions(screen.getByLabelText('Acting as family'), '2')
+    await selectOption('Acting as family', 'Grandparents', user)
     await waitFor(() => expect(m.contracts).toHaveBeenCalledWith('2'))
   })
 

@@ -5,7 +5,7 @@ import { type Contract, getContracts } from '@/src/api/contracts'
 import { getDeclarations } from '@/src/api/declarations'
 import { getFamilies } from '@/src/api/family'
 import Declarations from '@/src/pages/Declarations'
-import { renderWithProviders } from '@/tests/utils'
+import { renderWithProviders, selectOption } from '@/tests/utils'
 
 vi.mock('@/src/api/family', () => ({ getFamilies: vi.fn() }))
 vi.mock('@/src/api/contracts', () => ({ getContracts: vi.fn() }))
@@ -125,10 +125,7 @@ describe('Declarations', () => {
     renderWithProviders(<Declarations />)
     await screen.findByText('Marie Dupont')
 
-    await userEvent.selectOptions(
-      screen.getByLabelText('Acting as family'),
-      'fam-2',
-    )
+    await selectOption('Acting as family', 'Grandparents')
 
     await waitFor(() => expect(m.contracts).toHaveBeenCalledWith('fam-2'))
     await waitFor(() =>

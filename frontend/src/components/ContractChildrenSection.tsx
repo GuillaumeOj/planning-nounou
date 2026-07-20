@@ -18,9 +18,15 @@ import { SectionCard } from '@/src/components/SectionCard'
 import { hhmm, toDisplayTime } from '@/src/components/TimeField'
 import { Button } from '@/src/components/ui/button'
 import { Label } from '@/src/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/src/components/ui/select'
 import { useI18n } from '@/src/i18n/I18nContext'
 import type { Language, TranslationKey } from '@/src/i18n/translations'
-import { selectClass } from '@/src/lib/utils'
 import { type DayWindow, sortByDay, WEEKDAY_KEYS } from '@/src/lib/weekdays'
 
 // What a new window opens as. The nanny's own day is the natural span, but her
@@ -86,20 +92,22 @@ function ChildFields({
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
         <Label htmlFor="contract-child">{t('contractChild.child')}</Label>
-        <select
-          id="contract-child"
-          className={selectClass}
+        <Select
           value={draft.child}
           disabled={lockChild}
-          onChange={(e) => onChange({ child: e.target.value })}
+          onValueChange={(value) => onChange({ child: value })}
         >
-          <option value="">{t('contractChild.pickChild')}</option>
-          {childOptions.map((child) => (
-            <option key={child.id} value={child.id}>
-              {child.name}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger id="contract-child">
+            <SelectValue placeholder={t('contractChild.pickChild')} />
+          </SelectTrigger>
+          <SelectContent>
+            {childOptions.map((child) => (
+              <SelectItem key={child.id} value={child.id}>
+                {child.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <fieldset className="flex flex-col gap-2">

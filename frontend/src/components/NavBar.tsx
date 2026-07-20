@@ -95,7 +95,16 @@ export function NavBar() {
   useEffect(() => {
     if (!menuOpen) return
     const onPointerDown = (event: MouseEvent) => {
-      if (userRef.current && !userRef.current.contains(event.target as Node)) {
+      const target = event.target as Node
+      // The appearance Selects live in this menu but portal their dropdown to
+      // <body>; clicking an option must not read as an outside click.
+      if (
+        target instanceof Element &&
+        target.closest('[data-slot="select-content"]')
+      ) {
+        return
+      }
+      if (userRef.current && !userRef.current.contains(target)) {
         setMenuOpen(false)
       }
     }

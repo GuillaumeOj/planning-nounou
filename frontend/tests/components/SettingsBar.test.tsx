@@ -1,8 +1,7 @@
 import { screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { SettingsBar } from '@/src/components/SettingsBar'
-import { renderWithProviders } from '@/tests/utils'
+import { renderWithProviders, selectOption } from '@/tests/utils'
 
 function renderBar() {
   return renderWithProviders(<SettingsBar />)
@@ -11,27 +10,29 @@ function renderBar() {
 describe('SettingsBar', () => {
   it('renders a language and a theme dropdown defaulting to system', () => {
     renderBar()
-    expect(screen.getByLabelText('Language')).toHaveValue('system')
-    expect(screen.getByLabelText('Theme')).toHaveValue('system')
+    // The Select trigger shows the current choice's label rather than carrying a
+    // form value, so assert on its text.
+    expect(screen.getByLabelText('Language')).toHaveTextContent('System')
+    expect(screen.getByLabelText('Theme')).toHaveTextContent('System')
   })
 
   it('switches the UI language and its own labels', async () => {
     renderBar()
 
-    await userEvent.selectOptions(screen.getByLabelText('Language'), 'fr')
+    await selectOption('Language', 'Français')
 
     expect(document.documentElement.lang).toBe('fr')
     // The control labels are themselves translated after the switch.
-    expect(screen.getByLabelText('Langue')).toHaveValue('fr')
+    expect(screen.getByLabelText('Langue')).toHaveTextContent('Français')
     expect(screen.getByLabelText('Thème')).toBeInTheDocument()
   })
 
   it('switches the theme and applies it to <html>', async () => {
     renderBar()
 
-    await userEvent.selectOptions(screen.getByLabelText('Theme'), 'dark')
+    await selectOption('Theme', 'Dark')
 
-    expect(screen.getByLabelText('Theme')).toHaveValue('dark')
+    expect(screen.getByLabelText('Theme')).toHaveTextContent('Dark')
     expect(document.documentElement.dataset.theme).toBe('dark')
   })
 })

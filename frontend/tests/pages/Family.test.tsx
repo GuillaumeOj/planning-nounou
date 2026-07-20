@@ -27,7 +27,7 @@ import {
 import { useAuth } from '@/src/auth/AuthContext'
 import { I18nProvider } from '@/src/i18n/I18nContext'
 import FamilyPage from '@/src/pages/Family'
-import { makeAuth } from '@/tests/utils'
+import { makeAuth, selectOption } from '@/tests/utils'
 
 vi.mock('@/src/api/family', () => ({
   getFamilies: vi.fn(),
@@ -345,7 +345,7 @@ describe('FamilyPage — invitations', () => {
       await screen.findByLabelText('Email'),
       'new@example.com',
     )
-    await userEvent.selectOptions(screen.getByLabelText('Role'), 'owner')
+    await selectOption('Role', 'Owner')
     await userEvent.click(
       screen.getByRole('button', { name: 'Send invitation' }),
     )

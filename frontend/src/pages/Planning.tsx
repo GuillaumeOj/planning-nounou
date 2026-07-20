@@ -40,6 +40,13 @@ import {
   PopoverTrigger,
 } from '@/src/components/ui/popover'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/src/components/ui/select'
+import {
   Tabs,
   TabsContent,
   TabsList,
@@ -49,7 +56,7 @@ import { MOBILE_QUERY, useMediaQuery } from '@/src/hooks/useMediaQuery'
 import { useI18n } from '@/src/i18n/I18nContext'
 import type { TranslationKey } from '@/src/i18n/translations'
 import { toMonthParam } from '@/src/lib/months'
-import { cn, localeFor, selectClass } from '@/src/lib/utils'
+import { cn, localeFor } from '@/src/lib/utils'
 import {
   nannyColorMap,
   toISODate,
@@ -494,18 +501,18 @@ export default function Planning() {
 
       <div className="flex w-full max-w-xs flex-col gap-2">
         <Label htmlFor="acting-family">{t('contract.selectFamily')}</Label>
-        <select
-          id="acting-family"
-          className={selectClass}
-          value={activeFamilyId ?? ''}
-          onChange={(e) => setFamilyId(e.target.value)}
-        >
-          {families.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.name}
-            </option>
-          ))}
-        </select>
+        <Select value={activeFamilyId ?? ''} onValueChange={setFamilyId}>
+          <SelectTrigger id="acting-family">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {families.map((f) => (
+              <SelectItem key={f.id} value={f.id}>
+                {f.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="flex items-center gap-2 sm:gap-3">

@@ -3,9 +3,15 @@ import { Modal } from '@/src/components/Modal'
 import { TimeField } from '@/src/components/TimeField'
 import { Button } from '@/src/components/ui/button'
 import { Label } from '@/src/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/src/components/ui/select'
 import { useI18n } from '@/src/i18n/I18nContext'
 import type { Language } from '@/src/i18n/translations'
-import { selectClass } from '@/src/lib/utils'
 import {
   type DayWindow,
   duplicateDayBlocks,
@@ -82,20 +88,23 @@ export function DayWindowFields({
             <Label htmlFor={`${idPrefix}-day-${index}`}>
               {t('schedule.day')}
             </Label>
-            <select
-              id={`${idPrefix}-day-${index}`}
-              className={selectClass}
-              value={window.weekday}
-              onChange={(e) =>
-                updateWindow(index, { weekday: Number(e.target.value) })
+            <Select
+              value={String(window.weekday)}
+              onValueChange={(value) =>
+                updateWindow(index, { weekday: Number(value) })
               }
             >
-              {WEEKDAY_KEYS.map((key, day) => (
-                <option key={key} value={day}>
-                  {t(key)}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger id={`${idPrefix}-day-${index}`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {WEEKDAY_KEYS.map((key, day) => (
+                  <SelectItem key={key} value={String(day)}>
+                    {t(key)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <TimeField
             id={`${idPrefix}-start-${index}`}

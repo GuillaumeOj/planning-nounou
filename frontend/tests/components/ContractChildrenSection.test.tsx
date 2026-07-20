@@ -11,7 +11,7 @@ import {
   updateContractChild,
 } from '@/src/api/declarations'
 import { ContractChildrenSection } from '@/src/components/ContractChildrenSection'
-import { renderWithProviders } from '@/tests/utils'
+import { renderWithProviders, selectOption } from '@/tests/utils'
 
 vi.mock('@/src/api/declarations', () => ({
   getContractChildren: vi.fn(),
@@ -101,7 +101,7 @@ describe('ContractChildrenSection', () => {
     await userEvent.click(
       await screen.findByRole('button', { name: 'Add a child' }),
     )
-    await userEvent.selectOptions(screen.getByLabelText('Child'), 'kid-1')
+    await selectOption('Child', 'Léa')
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() =>
@@ -130,7 +130,7 @@ describe('ContractChildrenSection', () => {
     await userEvent.click(
       await screen.findByRole('button', { name: 'Add a child' }),
     )
-    await userEvent.selectOptions(screen.getByLabelText('Child'), 'kid-1')
+    await selectOption('Child', 'Léa')
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(
@@ -189,9 +189,10 @@ describe('ContractChildrenSection', () => {
     await userEvent.click(
       await screen.findByRole('button', { name: 'Add a child' }),
     )
-    const picker = screen.getByLabelText('Child')
-    expect(within(picker).queryByText('Léa')).not.toBeInTheDocument()
-    expect(within(picker).getByText('Noé')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('combobox', { name: 'Child' }))
+    const options = screen.getByRole('listbox')
+    expect(within(options).queryByText('Léa')).not.toBeInTheDocument()
+    expect(within(options).getByText('Noé')).toBeInTheDocument()
   })
 
   // The other family's children are half of what the split divides, so they are
@@ -221,7 +222,7 @@ describe('ContractChildrenSection windows', () => {
     await userEvent.click(
       await screen.findByRole('button', { name: 'Add a child' }),
     )
-    await userEvent.selectOptions(screen.getByLabelText('Child'), 'kid-1')
+    await selectOption('Child', 'Léa')
     await userEvent.click(
       screen.getByRole('radio', { name: 'Only on certain days' }),
     )
@@ -266,7 +267,7 @@ describe('ContractChildrenSection windows', () => {
     m.create.mockResolvedValue(child())
     await openWindows()
 
-    await userEvent.selectOptions(screen.getByLabelText('Day'), '2')
+    await selectOption('Day', 'Wednesday')
     const from = screen.getByLabelText('From')
     await userEvent.clear(from)
     await userEvent.type(from, '8:30 AM')

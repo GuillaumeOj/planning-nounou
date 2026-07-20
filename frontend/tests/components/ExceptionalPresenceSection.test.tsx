@@ -12,7 +12,7 @@ import {
   updateExceptionalPresence,
 } from '@/src/api/declarations'
 import { ExceptionalPresenceSection } from '@/src/components/ExceptionalPresenceSection'
-import { renderWithProviders } from '@/tests/utils'
+import { renderWithProviders, selectOption } from '@/tests/utils'
 
 vi.mock('@/src/api/declarations', () => {
   const getExceptionalPresences = vi.fn()
@@ -128,13 +128,14 @@ describe('ExceptionalPresenceSection', () => {
         name: 'Add an exceptional presence',
       }),
     )
-    const picker = screen.getByLabelText('Child')
-    expect(within(picker).getByRole('option', { name: 'Léa' })).toHaveValue(
-      'C1',
-    )
-    expect(within(picker).getByRole('option', { name: 'Tom' })).toHaveValue(
-      'C2',
-    )
+    await user.click(screen.getByRole('combobox', { name: 'Child' }))
+    const options = screen.getByRole('listbox')
+    expect(
+      within(options).getByRole('option', { name: 'Léa' }),
+    ).toBeInTheDocument()
+    expect(
+      within(options).getByRole('option', { name: 'Tom' }),
+    ).toBeInTheDocument()
   })
 
   it('says so rather than offer a form when the contract covers no children', async () => {
@@ -171,7 +172,7 @@ describe('ExceptionalPresenceSection', () => {
         name: 'Add an exceptional presence',
       }),
     )
-    await user.selectOptions(screen.getByLabelText('Child'), 'C1')
+    await selectOption('Child', 'Léa', user)
     await user.click(
       screen.getByRole('button', { name: 'Save the exceptional presence' }),
     )
@@ -187,7 +188,7 @@ describe('ExceptionalPresenceSection', () => {
         name: 'Add an exceptional presence',
       }),
     )
-    await user.selectOptions(screen.getByLabelText('Child'), 'C1')
+    await selectOption('Child', 'Léa', user)
     await user.type(screen.getByLabelText('Date'), '07/08/2026')
     await user.click(
       screen.getByRole('button', { name: 'Save the exceptional presence' }),
@@ -206,7 +207,7 @@ describe('ExceptionalPresenceSection', () => {
         name: 'Add an exceptional presence',
       }),
     )
-    await user.selectOptions(screen.getByLabelText('Child'), 'C1')
+    await selectOption('Child', 'Léa', user)
     await user.type(screen.getByLabelText('Date'), '07/08/2026')
     await user.type(screen.getByLabelText('Start time'), '9:00 AM')
     await user.type(screen.getByLabelText('End time'), '12:00 PM')
@@ -269,7 +270,7 @@ describe('ExceptionalPresenceSection', () => {
         name: 'Add an exceptional presence',
       }),
     )
-    await user.selectOptions(screen.getByLabelText('Child'), 'C1')
+    await selectOption('Child', 'Léa', user)
     await user.type(screen.getByLabelText('Date'), '07/08/2026')
     await user.type(screen.getByLabelText('Start time'), '9:00 AM')
     await user.type(screen.getByLabelText('End time'), '12:00 PM')
