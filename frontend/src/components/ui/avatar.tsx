@@ -1,38 +1,24 @@
 import * as React from "react"
-import { cva, type VariantProps } from "class-variance-authority"
 import { Avatar as AvatarPrimitive } from "radix-ui"
 
 import { cn } from "@/src/lib/utils"
 
-// Avatar (brand guide p.7). Circle, emerald ground, Bricolage initials at ~40%
-// of the box. Three sizes: sm 32 · md 40 (default) · lg 48. The emerald ground
-// is a brand colour — never a status colour.
-const avatarVariants = cva(
-  "relative flex shrink-0 overflow-hidden rounded-full select-none",
-  {
-    variants: {
-      size: {
-        sm: "size-8 text-[13px]",
-        md: "size-10 text-base",
-        lg: "size-12 text-lg",
-      },
-    },
-    defaultVariants: {
-      size: "md",
-    },
-  }
-)
-
 function Avatar({
   className,
-  size = "md",
+  size = "default",
   ...props
-}: React.ComponentProps<typeof AvatarPrimitive.Root> &
-  VariantProps<typeof avatarVariants>) {
+}: React.ComponentProps<typeof AvatarPrimitive.Root> & {
+  size?: "default" | "sm" | "lg"
+}) {
   return (
     <AvatarPrimitive.Root
       data-slot="avatar"
-      className={cn(avatarVariants({ size }), className)}
+      data-size={size}
+      className={cn(
+        // Brand guide p.7: sm 32 · md (default) 40 · lg 48.
+        "group/avatar relative flex size-10 shrink-0 rounded-full select-none after:absolute after:inset-0 after:rounded-full after:border after:border-border after:mix-blend-darken data-[size=lg]:size-12 data-[size=sm]:size-8 dark:after:mix-blend-lighten",
+        className
+      )}
       {...props}
     />
   )
@@ -45,7 +31,10 @@ function AvatarImage({
   return (
     <AvatarPrimitive.Image
       data-slot="avatar-image"
-      className={cn("aspect-square size-full object-cover", className)}
+      className={cn(
+        "aspect-square size-full rounded-full object-cover",
+        className
+      )}
       {...props}
     />
   )
@@ -59,7 +48,9 @@ function AvatarFallback({
     <AvatarPrimitive.Fallback
       data-slot="avatar-fallback"
       className={cn(
-        "flex size-full items-center justify-center bg-brand-emerald font-heading font-semibold text-brand-emerald-foreground",
+        // Brand guide p.7: emerald ground (never a status colour), Bricolage
+        // initials at ~40% of the box.
+        "flex size-full items-center justify-center rounded-full bg-brand-emerald font-heading text-base font-semibold text-brand-emerald-foreground group-data-[size=sm]/avatar:text-sm group-data-[size=lg]/avatar:text-lg",
         className
       )}
       {...props}
@@ -67,4 +58,56 @@ function AvatarFallback({
   )
 }
 
-export { Avatar, AvatarImage, AvatarFallback }
+function AvatarBadge({ className, ...props }: React.ComponentProps<"span">) {
+  return (
+    <span
+      data-slot="avatar-badge"
+      className={cn(
+        "absolute right-0 bottom-0 z-10 inline-flex items-center justify-center rounded-full bg-primary text-primary-foreground bg-blend-color ring-2 ring-background select-none",
+        "group-data-[size=sm]/avatar:size-2 group-data-[size=sm]/avatar:[&>svg]:hidden",
+        "group-data-[size=default]/avatar:size-2.5 group-data-[size=default]/avatar:[&>svg]:size-2",
+        "group-data-[size=lg]/avatar:size-3 group-data-[size=lg]/avatar:[&>svg]:size-2",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function AvatarGroup({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="avatar-group"
+      className={cn(
+        "group/avatar-group flex -space-x-2 *:data-[slot=avatar]:ring-2 *:data-[slot=avatar]:ring-background",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function AvatarGroupCount({
+  className,
+  ...props
+}: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="avatar-group-count"
+      className={cn(
+        "relative flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-sm text-muted-foreground ring-2 ring-background group-has-data-[size=lg]/avatar-group:size-10 group-has-data-[size=sm]/avatar-group:size-6 [&>svg]:size-4 group-has-data-[size=lg]/avatar-group:[&>svg]:size-5 group-has-data-[size=sm]/avatar-group:[&>svg]:size-3",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+export {
+  Avatar,
+  AvatarImage,
+  AvatarFallback,
+  AvatarGroup,
+  AvatarGroupCount,
+  AvatarBadge,
+}
