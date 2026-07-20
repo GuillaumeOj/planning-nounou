@@ -33,6 +33,17 @@ export function toDisplayTime(value: string, lang: Language): string {
     : ''
 }
 
+// "08:00:00"/"17:00:00" -> "8:00 AM–5:00 PM" (or 24h in French). One place for the
+// start–end block string shared by the schedule summary/diff and a child's
+// presence windows, so the separator and the HH:mm:ss→display step never drift.
+export function formatTimeRange(
+  start: string,
+  end: string,
+  lang: Language,
+): string {
+  return `${toDisplayTime(hhmm(start), lang)}–${toDisplayTime(hhmm(end), lang)}`
+}
+
 export function TimeField({
   id,
   label,

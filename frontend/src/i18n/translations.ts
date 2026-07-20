@@ -488,6 +488,38 @@ const en = {
   'invite.haveAccount': 'Already have an account?',
   'invite.login': 'Log in to accept',
   'invite.goToFamily': 'Go to your families',
+  // Compensation summary + working-hours display.
+  'terms.current': 'Current conditions',
+  'terms.nightPresence': 'Night-presence rate (€/h)',
+  'terms.nightPresenceHint':
+    'Paid for night presence (8pm–6:30am), as a flat indemnity.',
+  'terms.unit.perHour': '€/h',
+  'terms.unit.euro': '€',
+  'terms.unit.perKm': '€/km',
+  'schedule.current': 'Current schedule',
+  'schedule.noBlocks': 'This schedule has no time blocks.',
+  // Modification history: who, and what changed.
+  'history.by': 'Changed by',
+  'history.viewChanges': 'View changes',
+  'history.initial': 'First recorded version — nothing to compare against.',
+  // Attaching a family the user also manages.
+  'attach.title': 'Attach a family you manage',
+  'attach.hint':
+    'Families you set up yourself join without an invitation. Choose which of their children this contract covers.',
+  'attach.button': 'Attach the selected families',
+  'attach.noChildren': 'This family has no children yet.',
+  // Deleting a contract — a guarded, type-to-confirm action.
+  'contract.delete.title': 'Delete this contract?',
+  'contract.delete.lead':
+    'This cannot be undone, and it reaches beyond your family:',
+  'contract.delete.consequence1':
+    'The other family loses the contract too — they will no longer see it.',
+  'contract.delete.consequence2': 'The entire planning will be lost.',
+  'contract.delete.consequence3':
+    'Every declaration, leave and record on it will be lost.',
+  'contract.delete.prompt': 'To confirm, type',
+  // The verb inside the confirm phrase, so "delete Marie Dupont" localises whole.
+  'contract.delete.verb': 'delete',
 } as const
 
 export type TranslationKey = keyof typeof en
@@ -972,6 +1004,37 @@ const fr: Record<TranslationKey, string> = {
   'invite.haveAccount': 'Vous avez déjà un compte ?',
   'invite.login': 'Se connecter pour accepter',
   'invite.goToFamily': 'Aller à vos familles',
+  // Résumé de la rémunération + affichage des horaires.
+  'terms.current': 'Conditions actuelles',
+  'terms.nightPresence': 'Tarif présence de nuit (€/h)',
+  'terms.nightPresenceHint':
+    'Rémunère la présence de nuit (20h–6h30), sous forme d’indemnité forfaitaire.',
+  'terms.unit.perHour': '€/h',
+  'terms.unit.euro': '€',
+  'terms.unit.perKm': '€/km',
+  'schedule.current': 'Horaires actuels',
+  'schedule.noBlocks': 'Ces horaires ne comportent aucune plage.',
+  // Historique des modifications : qui, et ce qui a changé.
+  'history.by': 'Modifié par',
+  'history.viewChanges': 'Voir les changements',
+  'history.initial': 'Première version enregistrée — rien à quoi la comparer.',
+  // Rattacher une famille que l’utilisateur gère aussi.
+  'attach.title': 'Rattacher une famille que vous gérez',
+  'attach.hint':
+    'Les familles que vous avez créées vous-même rejoignent sans invitation. Choisissez lesquels de leurs enfants sont couverts par ce contrat.',
+  'attach.button': 'Rattacher les familles sélectionnées',
+  'attach.noChildren': 'Cette famille n’a pas encore d’enfant.',
+  // Suppression d’un contrat — action protégée, à confirmer en saisissant.
+  'contract.delete.title': 'Supprimer ce contrat ?',
+  'contract.delete.lead':
+    'Cette action est irréversible et dépasse votre famille :',
+  'contract.delete.consequence1':
+    'L’autre famille perd aussi le contrat — elle ne le verra plus.',
+  'contract.delete.consequence2': 'Tout le planning sera perdu.',
+  'contract.delete.consequence3':
+    'Toutes les déclarations, congés et données du contrat seront perdus.',
+  'contract.delete.prompt': 'Pour confirmer, saisissez',
+  'contract.delete.verb': 'supprimer',
 }
 
 export const translations: Record<Language, Record<TranslationKey, string>> = {

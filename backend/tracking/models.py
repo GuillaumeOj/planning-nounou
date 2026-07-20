@@ -151,6 +151,18 @@ class Contract(UUIDModel):
         """Latest schedule snapshot effective on `on` (default today), or None."""
         return _current_snapshot(self.schedules, on or timezone.localdate())
 
+    def add_family(self, family, *, is_originator: bool = False) -> ContractShare:
+        """Attach ``family`` to this contract, idempotently, and return the share.
+
+        The single join point shared by the invitation-accept flow and the
+        direct-attach action: re-attaching keeps the existing share. The caller is
+        responsible for checking that the acting user may act for ``family``.
+        """
+        share, _created = ContractShare.objects.get_or_create(
+            contract=self, family=family, defaults={"is_originator": is_originator}
+        )
+        return share
+
 
 class ContractShare(UUIDModel):
     """Links a family to a shared contract. The through model for `Contract.families`."""
@@ -216,9 +228,7 @@ class ContractInvitation(UUIDModel):
         ``family``.
         """
         with transaction.atomic():
-            share, _created = ContractShare.objects.get_or_create(
-                contract=self.contract, family=family
-            )
+            share = self.contract.add_family(family)
             self.status = self.Status.ACCEPTED
             self.responded_at = timezone.now()
             self.save(update_fields=["status", "responded_at"])
@@ -264,6 +274,16 @@ class ContractTerms(UUIDModel):
     # Set when this snapshot was corrected in place (vs. a fresh dated version),
     # so the UI can flag the current state as "edited".
     edited = models.BooleanField(default=False)
+    # Who last wrote this snapshot — the history shows it so a family can see at a
+    # glance who changed the pay. SET_NULL: the record of the change outlives the
+    # account that made it.
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="contract_terms_created",
+    )
 
     if TYPE_CHECKING:
         contract_id: uuid.UUID
@@ -303,6 +323,14 @@ class ContractSchedule(UUIDModel):
     effective_from = models.DateField(default=timezone.localdate)
     # Set when corrected in place (see ContractTerms.edited).
     edited = models.BooleanField(default=False)
+    # Who last wrote this snapshot (see ContractTerms.created_by).
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="contract_schedules_created",
+    )
 
     if TYPE_CHECKING:
         id: int

@@ -229,7 +229,22 @@ class Command(BaseCommand):
         if len(families) >= 2:
             nanny = nannies[len(families) % len(nannies)]
             contracts.append(self._create_contract(rng, nanny, families[:2]))
+            # A second shared contract whose other family was set up on the first's
+            # behalf and is still unclaimed — attached directly, the way the wizard
+            # now lets a user do without inviting themselves by email.
+            behalf = self._create_unclaimed_family(rng, self._owner(families[0]))
+            nanny2 = nannies[(len(families) + 1) % len(nannies)]
+            contracts.append(self._create_contract(rng, nanny2, [families[0], behalf]))
         return contracts
+
+    def _create_unclaimed_family(self, rng: random.Random, creator: User) -> Family:
+        """A family a user sets up on another's behalf: it has children but no
+        member yet (unclaimed), so ``creator`` keeps access until it is claimed."""
+        last_name = rng.choice(LAST_NAMES)
+        family = Family.objects.create(name=f"Famille {last_name}", created_by=creator)
+        for first_name in rng.sample(CHILD_NAMES, k=rng.randint(1, 2)):
+            Child.objects.create(family=family, first_name=first_name)
+        return family
 
     def _create_contract(
         self, rng: random.Random, nanny: Nanny, families: list[Family]
@@ -252,9 +267,12 @@ class Command(BaseCommand):
             ContractShare.objects.create(
                 contract=contract, family=family, is_originator=position == 0
             )
+        # Who could have entered a change: the originating family's members. A
+        # two-parent household gives the history more than one author.
+        authors = [m.user for m in families[0].memberships.select_related("user")] or [owner]
         self._create_contract_children(rng, contract, families)
-        self._create_terms(rng, contract)
-        self._create_schedules(rng, contract)
+        self._create_terms(rng, contract, authors)
+        self._create_schedules(rng, contract, authors)
         self._create_leaves(rng, contract, owner)
         self._create_exceptional_hours(rng, contract, families, owner)
         self._file_past_declarations(contract, owner)
@@ -398,9 +416,10 @@ class Command(BaseCommand):
                 notes="Présence responsable — demo (garde simple only).",
             )
 
-    def _create_terms(self, rng: random.Random, contract: Contract) -> None:
+    def _create_terms(self, rng: random.Random, contract: Contract, authors: list[User]) -> None:
         """Two snapshots — the opening rate and a raise — so the history has depth
-        and `current_terms` has something to pick."""
+        and `current_terms` has something to pick. The raise is credited to a
+        (possibly different) author, so the history's "changed by" line varies."""
         rate = Decimal(rng.randrange(950, 1250)) / 100  # 9.50 – 12.50 € net/hour
         ContractTerms.objects.create(
             contract=contract,
@@ -408,6 +427,7 @@ class Command(BaseCommand):
             net_hourly_rate=rate,
             transport_fee=Decimal(rng.choice(["0", "25.00", "40.00"])),
             mileage_rate=Decimal("0.150"),
+            created_by=authors[0],
         )
         ContractTerms.objects.create(
             contract=contract,
@@ -420,19 +440,26 @@ class Command(BaseCommand):
             transport_fee=Decimal(rng.choice(["0", "25.00", "40.00"])),
             mileage_rate=Decimal("0.150"),
             benefits_in_kind=Decimal(rng.choice(["0", "15.00"])),
+            created_by=rng.choice(authors),
         )
 
-    def _create_schedules(self, rng: random.Random, contract: Contract) -> None:
-        self._create_schedule(rng, contract, contract.starting_date)
+    def _create_schedules(
+        self, rng: random.Random, contract: Contract, authors: list[User]
+    ) -> None:
+        self._create_schedule(rng, contract, contract.starting_date, authors[0])
         # Some contracts have re-arranged their week since; that later snapshot
         # becomes the current one and the first stays as history.
         if rng.random() < 0.5:
-            self._create_schedule(rng, contract, timezone.localdate() - timedelta(days=90))
+            self._create_schedule(
+                rng, contract, timezone.localdate() - timedelta(days=90), rng.choice(authors)
+            )
 
     def _create_schedule(
-        self, rng: random.Random, contract: Contract, effective_from: date
+        self, rng: random.Random, contract: Contract, effective_from: date, author: User
     ) -> None:
-        schedule = ContractSchedule.objects.create(contract=contract, effective_from=effective_from)
+        schedule = ContractSchedule.objects.create(
+            contract=contract, effective_from=effective_from, created_by=author
+        )
         start = rng.choice([time(8, 0), time(8, 30), time(9, 0)])
         end = rng.choice([time(17, 30), time(18, 0), time(18, 30)])
         # A Wednesday off and a half day are both common enough to be worth seeing

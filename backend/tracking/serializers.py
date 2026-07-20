@@ -30,6 +30,15 @@ NON_NEGATIVE_DECIMAL = {"min_value": Decimal("0")}
 _MISSING = object()
 
 
+def _actor_name(user) -> str | None:
+    """A person's display name for the history: their full name, or their email
+    when no name is set. ``None`` when the account has since been deleted."""
+    if user is None:
+        return None
+    full = user.get_full_name().strip()
+    return full or user.email
+
+
 def _effective_to(instance) -> date_cls | None:
     """The day before the next snapshot takes effect, or None if it is the latest.
 
@@ -67,6 +76,7 @@ class ContractTermsSerializer(serializers.ModelSerializer):
     minimum_net_hourly_rate = serializers.SerializerMethodField()
     below_minimum = serializers.SerializerMethodField()
     warnings = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
 
     class Meta:
         model = ContractTerms
@@ -75,6 +85,7 @@ class ContractTermsSerializer(serializers.ModelSerializer):
             "effective_from",
             "effective_to",
             "net_hourly_rate",
+            "night_presence_rate",
             "transport_fee",
             "mileage_rate",
             "benefits_in_kind",
@@ -82,6 +93,7 @@ class ContractTermsSerializer(serializers.ModelSerializer):
             "below_minimum",
             "warnings",
             "edited",
+            "created_by_name",
         )
         read_only_fields = (
             "id",
@@ -90,13 +102,18 @@ class ContractTermsSerializer(serializers.ModelSerializer):
             "below_minimum",
             "warnings",
             "edited",
+            "created_by_name",
         )
         extra_kwargs = {
             "net_hourly_rate": NON_NEGATIVE_DECIMAL,
+            "night_presence_rate": NON_NEGATIVE_DECIMAL,
             "transport_fee": NON_NEGATIVE_DECIMAL,
             "mileage_rate": NON_NEGATIVE_DECIMAL,
             "benefits_in_kind": NON_NEGATIVE_DECIMAL,
         }
+
+    def get_created_by_name(self, obj: ContractTerms) -> str | None:
+        return _actor_name(obj.created_by)
 
     def get_effective_to(self, obj: ContractTerms) -> str | None:
         end = _effective_to(obj)
@@ -154,15 +171,27 @@ class ContractScheduleSerializer(serializers.ModelSerializer):
     blocks = ScheduleBlockSerializer(many=True)
     effective_to = serializers.SerializerMethodField()
     weekly_hours = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
 
     class Meta:
         model = ContractSchedule
-        fields = ("id", "effective_from", "effective_to", "weekly_hours", "edited", "blocks")
-        read_only_fields = ("id", "effective_to", "weekly_hours", "edited")
+        fields = (
+            "id",
+            "effective_from",
+            "effective_to",
+            "weekly_hours",
+            "edited",
+            "created_by_name",
+            "blocks",
+        )
+        read_only_fields = ("id", "effective_to", "weekly_hours", "edited", "created_by_name")
 
     def get_effective_to(self, obj: ContractSchedule) -> str | None:
         end = _effective_to(obj)
         return end.isoformat() if end else None
+
+    def get_created_by_name(self, obj: ContractSchedule) -> str | None:
+        return _actor_name(obj.created_by)
 
     def get_weekly_hours(self, obj: ContractSchedule) -> float:
         return round(sum(_block_hours(b.start_time, b.end_time) for b in obj.blocks.all()), 2)

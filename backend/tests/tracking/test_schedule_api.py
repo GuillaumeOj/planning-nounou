@@ -160,3 +160,15 @@ def test_delete_schedule_snapshot(client, owner, family, contract):
     resp = client.delete(schedule_detail_url(family, contract, created.data["id"]))
     assert resp.status_code == 204
     assert ContractSchedule.objects.filter(contract=contract).count() == 0
+
+
+def test_schedule_history_records_who_made_the_change(client, owner, family, contract):
+    client.force_authenticate(user=owner)
+    resp = client.post(
+        schedule_url(family, contract),
+        {"effective_from": "2026-06-01", "blocks": [block(MON, "08:00", "12:00")]},
+        format="json",
+    )
+    assert resp.status_code == 201
+    # owner has no name set, so the display name falls back to the email.
+    assert resp.data["created_by_name"] == owner.email

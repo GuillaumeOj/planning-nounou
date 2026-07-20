@@ -187,3 +187,20 @@ def test_edit_requires_owner(client, owner, member, family, contract):
         format="json",
     )
     assert resp.status_code == 403
+
+
+def test_night_presence_rate_roundtrips(client, owner, family, contract):
+    client.force_authenticate(user=owner)
+    resp = post_terms(client, family, contract, net_hourly_rate="12.00", night_presence_rate="3.50")
+    assert resp.status_code == 201
+    assert resp.data["night_presence_rate"] == "3.50"
+
+
+def test_history_records_who_made_the_change(client, owner, family, contract):
+    # owner has no name set, so the display name falls back to the email.
+    client.force_authenticate(user=owner)
+    created = post_terms(client, family, contract, net_hourly_rate="12.00")
+    assert created.data["created_by_name"] == owner.email
+
+    resp = client.get(terms_url(family, contract))
+    assert resp.data[0]["created_by_name"] == owner.email

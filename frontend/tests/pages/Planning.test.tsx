@@ -97,6 +97,7 @@ function makeSchedule(o: Partial<ContractSchedule> = {}): ContractSchedule {
     effective_to: null,
     weekly_hours: 9,
     edited: false,
+    created_by_name: null,
     blocks: [{ weekday: 2, start_time: '08:00:00', end_time: '17:00:00' }],
     ...o,
   }

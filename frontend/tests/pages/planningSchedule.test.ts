@@ -36,6 +36,7 @@ function schedule(
     effective_to: effectiveTo,
     weekly_hours: 0,
     edited: false,
+    created_by_name: null,
     blocks,
   }
 }

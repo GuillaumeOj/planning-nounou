@@ -192,3 +192,65 @@ def test_reuse_rejects_a_nanny_not_linked_to_the_family(
     )
     assert resp.status_code == 400
     assert "nanny_id" in resp.data
+
+
+def attach_family_url(family, contract):
+    return reverse("tracking:contract-attach-family", args=[family.id, contract.id])
+
+
+def test_attach_family_the_user_also_manages(client, owner, family, contract):
+    # A family the owner set up on someone's behalf: unclaimed, no members, so the
+    # creator manages it. It can be joined to the contract without an invitation.
+    from accounts.models import Family
+
+    behalf = Family.objects.create(name="Behalf", created_by=owner)
+    client.force_authenticate(user=owner)
+
+    resp = client.post(
+        attach_family_url(family, contract), {"family_id": str(behalf.id)}, format="json"
+    )
+
+    assert resp.status_code == 200
+    assert ContractShare.objects.filter(
+        contract=contract, family=behalf, is_originator=False
+    ).exists()
+    assert {str(f["id"]) for f in resp.data["families"]} == {
+        str(family.id),
+        str(behalf.id),
+    }
+
+
+def test_attach_family_is_idempotent(client, owner, family, contract):
+    from accounts.models import Family
+
+    behalf = Family.objects.create(name="Behalf", created_by=owner)
+    client.force_authenticate(user=owner)
+    url = attach_family_url(family, contract)
+    client.post(url, {"family_id": str(behalf.id)}, format="json")
+    client.post(url, {"family_id": str(behalf.id)}, format="json")
+    assert ContractShare.objects.filter(contract=contract, family=behalf).count() == 1
+
+
+def test_attach_family_rejects_one_you_do_not_manage(client, owner, family, contract, other_family):
+    client.force_authenticate(user=owner)
+    resp = client.post(
+        attach_family_url(family, contract),
+        {"family_id": str(other_family.id)},
+        format="json",
+    )
+    assert resp.status_code == 403
+    assert not ContractShare.objects.filter(contract=contract, family=other_family).exists()
+
+
+def test_attach_family_requires_a_family_id(client, owner, family, contract):
+    client.force_authenticate(user=owner)
+    resp = client.post(attach_family_url(family, contract), {}, format="json")
+    assert resp.status_code == 400
+
+
+def test_attach_family_requires_manage_rights_on_acting_family(client, member, family, contract):
+    client.force_authenticate(user=member)
+    resp = client.post(
+        attach_family_url(family, contract), {"family_id": str(family.id)}, format="json"
+    )
+    assert resp.status_code == 403

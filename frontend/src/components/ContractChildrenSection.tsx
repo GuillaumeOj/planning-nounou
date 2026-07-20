@@ -15,7 +15,7 @@ import { ConfirmButton } from '@/src/components/ConfirmButton'
 import { DayWindowFields } from '@/src/components/DayWindowFields'
 import { FormErrors } from '@/src/components/FormErrors'
 import { SectionCard } from '@/src/components/SectionCard'
-import { hhmm, toDisplayTime } from '@/src/components/TimeField'
+import { formatTimeRange, hhmm } from '@/src/components/TimeField'
 import { Button } from '@/src/components/ui/button'
 import { Label } from '@/src/components/ui/label'
 import {
@@ -65,7 +65,7 @@ function describePresence(
   return sortByDay(windows)
     .map(
       (w) =>
-        `${t(WEEKDAY_KEYS[w.weekday])} ${toDisplayTime(hhmm(w.start_time), lang)}–${toDisplayTime(hhmm(w.end_time), lang)}`,
+        `${t(WEEKDAY_KEYS[w.weekday])} ${formatTimeRange(w.start_time, w.end_time, lang)}`,
     )
     .join(' · ')
 }

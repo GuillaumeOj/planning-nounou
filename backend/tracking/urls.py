@@ -12,6 +12,7 @@ contract_detail = views.ContractViewSet.as_view(
     {"get": "retrieve", "put": "update", "patch": "partial_update", "delete": "destroy"}
 )
 contract_paid_leave = views.ContractViewSet.as_view({"get": "paid_leave"})
+contract_attach_family = views.ContractViewSet.as_view({"post": "attach_family"})
 terms_list = views.ContractTermsViewSet.as_view({"get": "list", "post": "create"})
 terms_detail = views.ContractTermsViewSet.as_view(
     {"get": "retrieve", "put": "update", "patch": "partial_update", "delete": "destroy"}
@@ -63,6 +64,12 @@ urlpatterns = [
         "families/<uuid:family_pk>/contracts/<uuid:pk>/paid-leave/",
         contract_paid_leave,
         name="contract-paid-leave",
+    ),
+    # Attach a family the acting user also manages directly to the contract.
+    path(
+        "families/<uuid:family_pk>/contracts/<uuid:pk>/attach-family/",
+        contract_attach_family,
+        name="contract-attach-family",
     ),
     # Versioned compensation for a contract.
     path(

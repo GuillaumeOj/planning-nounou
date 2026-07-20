@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import cast
 
-from django.db.models import Q
+from django.db.models import Prefetch, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.dateparse import parse_date
@@ -22,7 +22,9 @@ from .models import (
     BankHoliday,
     Contract,
     ContractInvitation,
+    ContractSchedule,
     ContractShare,
+    ContractTerms,
     MinimumWage,
     MonthlyDeclaration,
 )
@@ -116,7 +118,18 @@ class ContractViewSet(FamilyScopedMixin, viewsets.ModelViewSet):
         base = (
             Contract.objects.filter(families=family)
             .select_related("nanny")
-            .prefetch_related("shares__family", "terms", "schedules__blocks")
+            .prefetch_related(
+                "shares__family",
+                # created_by feeds the history's "changed by" line; select it with
+                # the snapshots so the current-terms/schedule read stays one query.
+                Prefetch("terms", queryset=ContractTerms.objects.select_related("created_by")),
+                Prefetch(
+                    "schedules",
+                    queryset=ContractSchedule.objects.select_related("created_by").prefetch_related(
+                        "blocks"
+                    ),
+                ),
+            )
         )
         # as_manager() loses the ContractQuerySet type through chaining.
         return base.with_current_terms().with_current_schedule()  # ty: ignore[unresolved-attribute]
@@ -150,6 +163,31 @@ class ContractViewSet(FamilyScopedMixin, viewsets.ModelViewSet):
         balance = paid_leave_balance(contract)
         return Response(PaidLeaveBalanceSerializer(balance).data)
 
+    @action(detail=True, methods=["post"], url_path="attach-family")
+    def attach_family(self, request: Request, **kwargs) -> Response:
+        """Attach a family the acting user *also* manages directly to the contract.
+
+        The invitation flow is for a family someone else owns. A user who set up
+        a second family on another's behalf — unclaimed, or one they own — can
+        join it to the contract without inviting themselves: they already hold
+        the rights on both sides. Idempotent on the share.
+
+        Requires manage rights on the acting family (to touch the contract) and on
+        the family being attached (to speak for it).
+        """
+        contract = get_object_or_404(
+            Contract.objects.filter(families=self.get_family(manage=True)), pk=self.kwargs["pk"]
+        )
+        family_id = request.data.get("family_id")
+        if not family_id:
+            raise ValidationError({"family_id": _("Choose which family to attach.")})
+        family = get_object_or_404(Family, pk=family_id)
+        if not family.can_manage(request.user):
+            raise PermissionDenied(_("You can only attach a family you manage."))
+        contract.add_family(family)
+        contract = self.get_queryset().get(pk=contract.pk)
+        return Response(self.get_serializer(contract).data)
+
 
 class ContractTermsViewSet(
     ContractScopedMixin,
@@ -166,7 +204,9 @@ class ContractTermsViewSet(
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        return self.get_contract(manage=self.action in _WRITE_ACTIONS).terms.all()
+        return self.get_contract(manage=self.action in _WRITE_ACTIONS).terms.select_related(
+            "created_by"
+        )
 
     def perform_create(self, serializer: BaseSerializer) -> None:
         contract = self.get_contract(manage=True)
@@ -175,11 +215,14 @@ class ContractTermsViewSet(
         existing = contract.terms.filter(effective_from=effective_from).first()
         serializer.instance = existing
         serializer.save(
-            contract=contract, effective_from=effective_from, edited=existing is not None
+            contract=contract,
+            effective_from=effective_from,
+            edited=existing is not None,
+            created_by=self.request.user,
         )
 
     def perform_update(self, serializer: BaseSerializer) -> None:
-        serializer.save(edited=True)
+        serializer.save(edited=True, created_by=self.request.user)
 
 
 class ContractScheduleViewSet(
@@ -198,17 +241,26 @@ class ContractScheduleViewSet(
 
     def get_queryset(self):
         manage = self.action in _WRITE_ACTIONS
-        return self.get_contract(manage=manage).schedules.prefetch_related("blocks")
+        return (
+            self.get_contract(manage=manage)
+            .schedules.select_related("created_by")
+            .prefetch_related("blocks")
+        )
 
     def perform_create(self, serializer: BaseSerializer) -> None:
         contract = self.get_contract(manage=True)
         effective_from = serializer.validated_data.get("effective_from") or timezone.localdate()
         # Replace any same-day snapshot (a correction) then write the new one.
         deleted, _ = contract.schedules.filter(effective_from=effective_from).delete()
-        serializer.save(contract=contract, effective_from=effective_from, edited=deleted > 0)
+        serializer.save(
+            contract=contract,
+            effective_from=effective_from,
+            edited=deleted > 0,
+            created_by=self.request.user,
+        )
 
     def perform_update(self, serializer: BaseSerializer) -> None:
-        serializer.save(edited=True)
+        serializer.save(edited=True, created_by=self.request.user)
 
 
 class LeaveViewSet(

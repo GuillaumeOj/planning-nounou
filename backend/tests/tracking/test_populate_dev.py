@@ -56,11 +56,13 @@ def test_rejects_empty_counts(option):
 def test_creates_the_whole_object_graph():
     call_command("populate_dev", "--families", "2", "--nannies", "2", verbosity=0)
 
-    assert Family.objects.count() == 2
+    # Two claimed families, plus one set up on the first's behalf (unclaimed) for
+    # the direct-attach demo.
+    assert Family.objects.count() == 3
     assert Nanny.objects.count() == 2
     assert Child.objects.exists()
-    # One contract per family, plus the shared one.
-    assert Contract.objects.count() == 3
+    # One contract per family, the shared one, and the behalf-family shared one.
+    assert Contract.objects.count() == 4
     for contract in Contract.objects.all():
         assert contract.current_terms() is not None
         assert contract.current_schedule() is not None
@@ -75,9 +77,12 @@ def test_creates_a_superuser_and_family_owners_sharing_one_password():
     assert admin.is_superuser and admin.is_staff
     assert admin.check_password("hunter2")
 
-    for family in Family.objects.all():
-        owner = family.memberships.get(role=FamilyMembership.Role.OWNER).user
-        assert owner.check_password("hunter2")
+    # Every family owner shares the password. Skips the unclaimed on-behalf
+    # family, which has no owner (no members yet) by design.
+    owners = FamilyMembership.objects.filter(role=FamilyMembership.Role.OWNER)
+    assert owners.exists()
+    for membership in owners.select_related("user"):
+        assert membership.user.check_password("hunter2")
 
 
 def test_every_account_sits_under_the_demo_domain():
@@ -88,8 +93,38 @@ def test_every_account_sits_under_the_demo_domain():
 def test_shares_one_contract_between_two_families():
     call_command("populate_dev", "--families", "2", "--nannies", "2", verbosity=0)
 
-    shared = Contract.objects.annotate(count=models.Count("shares")).get(count=2)
-    assert shared.shares.filter(is_originator=True).count() == 1
+    # Two two-family contracts: the plain garde partagée, and the one whose second
+    # family was set up on the first's behalf. Each has exactly one originator.
+    shared = Contract.objects.annotate(count=models.Count("shares")).filter(count=2)
+    assert shared.count() == 2
+    for contract in shared:
+        assert contract.shares.filter(is_originator=True).count() == 1
+
+
+def test_attaches_an_unclaimed_family_set_up_on_another_s_behalf():
+    """The direct-attach state: a family with children but no member yet, joined to
+    a contract by the user who created it — the case the wizard now allows."""
+    call_command("populate_dev", "--families", "2", "--nannies", "2", verbosity=0)
+
+    behalf = Family.objects.filter(memberships__isnull=True).distinct()
+    assert behalf.count() == 1, "no unclaimed on-behalf family"
+    family = behalf.get()
+    assert family.children.exists(), "the on-behalf family has no children to declare"
+    share = ContractShare.objects.get(family=family)
+    assert share.is_originator is False
+    # Its children are wired onto the contract it was attached to.
+    assert ContractChild.objects.filter(contract=share.contract, child__family=family).exists()
+
+
+def test_snapshots_record_who_changed_them():
+    """The history's 'changed by' line reads off created_by — so the demo data must
+    set it, or the feature is only ever seen empty in dev."""
+    call_command("populate_dev", "--families", "1", "--nannies", "1", verbosity=0)
+
+    assert ContractTerms.objects.exclude(created_by=None).exists()
+    assert not ContractTerms.objects.filter(created_by=None).exists()
+    assert ContractSchedule.objects.exclude(created_by=None).exists()
+    assert not ContractSchedule.objects.filter(created_by=None).exists()
 
 
 def test_terms_and_schedules_keep_their_history():
@@ -161,15 +196,17 @@ def test_rerunning_resets_rather_than_piles_up():
     call_command("populate_dev", "--families", "2", "--nannies", "2", verbosity=0)
     call_command("populate_dev", "--families", "2", "--nannies", "2", verbosity=0)
 
-    assert Family.objects.count() == 2
+    assert Family.objects.count() == 3
     assert Nanny.objects.count() == 2
-    assert Contract.objects.count() == 3
+    assert Contract.objects.count() == 4
     assert User.objects.filter(email=f"admin@{DEMO_DOMAIN}").count() == 1
     # Cascades reached the leaves of the graph, not just the roots. _flush only
     # deletes Contract, Nanny and Family; everything below must come with them,
     # or a re-run doubles it.
-    assert ContractShare.objects.count() == 4
-    assert Leave.objects.count() == 12
+    # Two solo contracts (1 share each) + two two-family contracts (2 each) = 6.
+    assert ContractShare.objects.count() == 6
+    # Four contracts, four leaves each.
+    assert Leave.objects.count() == 16
     demo = f"@{DEMO_DOMAIN}"
     for model, path in (
         (ContractChild, "contract__created_by__email__endswith"),

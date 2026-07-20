@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { listChildren } from '@/src/api/children'
 import {
   acceptContractInvitation,
+  attachContractFamily,
   type Contract,
   type ContractSchedule,
   type ContractTerms,
@@ -53,6 +54,7 @@ vi.mock('@/src/api/contracts', () => ({
   getMyContractInvitations: vi.fn(),
   acceptContractInvitation: vi.fn(),
   declineContractInvitation: vi.fn(),
+  attachContractFamily: vi.fn(),
   getMinimumWage: vi.fn(),
 }))
 // The children section mounts with the other sections once a contract is
@@ -89,6 +91,7 @@ const m = {
   contractChildren: vi.mocked(getContractChildren),
   children: vi.mocked(listChildren),
   createContractChild: vi.mocked(createContractChild),
+  attachFamily: vi.mocked(attachContractFamily),
 }
 
 const family = {
@@ -105,6 +108,7 @@ function makeTerms(o: Partial<ContractTerms> = {}): ContractTerms {
     effective_from: '2026-01-05',
     effective_to: null,
     net_hourly_rate: '12.00',
+    night_presence_rate: '0.00',
     transport_fee: '0.00',
     mileage_rate: '0.000',
     benefits_in_kind: '0.00',
@@ -112,6 +116,7 @@ function makeTerms(o: Partial<ContractTerms> = {}): ContractTerms {
     below_minimum: false,
     warnings: [],
     edited: false,
+    created_by_name: null,
     ...o,
   }
 }
@@ -122,6 +127,7 @@ function makeSchedule(o: Partial<ContractSchedule> = {}): ContractSchedule {
     effective_to: null,
     weekly_hours: 8,
     edited: false,
+    created_by_name: null,
     blocks: [],
     ...o,
   }
@@ -208,7 +214,7 @@ describe('Nannies page', () => {
     await waitFor(() => expect(m.contracts).toHaveBeenCalledWith('2'))
   })
 
-  it('deletes a contract after confirmation', async () => {
+  it('deletes a contract only after typing the confirm phrase', async () => {
     const user = userEvent.setup()
     m.contracts.mockResolvedValue([makeContract()])
     m.deleteContract.mockResolvedValue()
@@ -216,7 +222,15 @@ describe('Nannies page', () => {
     await screen.findByText('Marie Dupont')
     await user.click(screen.getByRole('button', { name: 'Delete' }))
     const dialog = await screen.findByRole('alertdialog')
-    await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+    // The confirm button stays disabled until the exact phrase is typed.
+    const confirm = within(dialog).getByRole('button', { name: 'Delete' })
+    await user.click(confirm)
+    expect(m.deleteContract).not.toHaveBeenCalled()
+    await user.type(
+      within(dialog).getByLabelText(/To confirm, type/),
+      'delete Marie Dupont',
+    )
+    await user.click(confirm)
     await waitFor(() =>
       expect(m.deleteContract).toHaveBeenCalledWith('1', '10'),
     )
@@ -451,6 +465,176 @@ describe('manage panels', () => {
     )
     expect(screen.getByText('Too low.')).toBeInTheDocument()
     expect(screen.getByText(/edited/)).toBeInTheDocument()
+  })
+
+  it('shows every current compensation figure, not just the rate', async () => {
+    const user = userEvent.setup()
+    await openManage(
+      user,
+      makeContract({
+        current_terms: makeTerms({
+          net_hourly_rate: '12.50',
+          night_presence_rate: '3.50',
+          transport_fee: '40.00',
+          mileage_rate: '0.300',
+          benefits_in_kind: '15.00',
+        }),
+      }),
+    )
+    expect(screen.getByText('Night-presence rate (€/h)')).toBeInTheDocument()
+    expect(screen.getByText('12.50 €/h')).toBeInTheDocument()
+    expect(screen.getByText('3.50 €/h')).toBeInTheDocument()
+    expect(screen.getByText('40.00 €')).toBeInTheDocument()
+    expect(screen.getByText('0.300 €/km')).toBeInTheDocument()
+    expect(screen.getByText('15.00 €')).toBeInTheDocument()
+  })
+
+  it('shows the current schedule as day-by-day time blocks', async () => {
+    const user = userEvent.setup()
+    await openManage(
+      user,
+      makeContract({
+        current_schedule: makeSchedule({
+          weekly_hours: 4.5,
+          blocks: [
+            { weekday: 0, start_time: '08:00:00', end_time: '12:30:00' },
+          ],
+        }),
+      }),
+    )
+    expect(screen.getByText('Monday')).toBeInTheDocument()
+    expect(screen.getByText(/8:00 AM.+12:30 PM/)).toBeInTheDocument()
+  })
+
+  it('shows who changed compensation and a diff of what changed', async () => {
+    const user = userEvent.setup()
+    m.terms.mockResolvedValue([
+      makeTerms({
+        id: 'a',
+        effective_from: '2026-05-01',
+        net_hourly_rate: '12.50',
+        created_by_name: 'Alice Dupont',
+      }),
+      makeTerms({
+        id: 'b',
+        effective_from: '2026-01-01',
+        net_hourly_rate: '12.00',
+        created_by_name: 'Bob Martin',
+      }),
+    ])
+    await openManage(user, makeContract())
+
+    const row = (await screen.findByText(/Alice Dupont/)).closest(
+      'li',
+    ) as HTMLElement
+    await user.click(within(row).getByRole('button', { name: 'View changes' }))
+
+    const dialog = await screen.findByRole('dialog')
+    // The net hourly rate went from 12.00 to 12.50, shown old → new.
+    expect(within(dialog).getByText('12.00 €/h')).toBeInTheDocument()
+    expect(within(dialog).getByText(/12.50 €\/h/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/Alice Dupont/)).toBeInTheDocument()
+  })
+
+  it('marks the first recorded version as having nothing to compare', async () => {
+    const user = userEvent.setup()
+    m.terms.mockResolvedValue([
+      makeTerms({ id: 'only', net_hourly_rate: '11.00' }),
+    ])
+    await openManage(user, makeContract())
+
+    const row = (await screen.findByText(/11.00 €\/h/)).closest(
+      'li',
+    ) as HTMLElement
+    await user.click(within(row).getByRole('button', { name: 'View changes' }))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(
+      within(dialog).getByText(/First recorded version/),
+    ).toBeInTheDocument()
+    // With nothing to compare, the value shows on its own (no →).
+    expect(within(dialog).getByText('11.00 €/h')).toBeInTheDocument()
+  })
+
+  it('says so when the current schedule has no time blocks', async () => {
+    const user = userEvent.setup()
+    await openManage(
+      user,
+      makeContract({ current_schedule: makeSchedule({ blocks: [] }) }),
+    )
+    expect(
+      screen.getByText('This schedule has no time blocks.'),
+    ).toBeInTheDocument()
+  })
+
+  it('shows who changed the schedule and a day-by-day diff', async () => {
+    const user = userEvent.setup()
+    m.schedules.mockResolvedValue([
+      makeSchedule({
+        id: 's1',
+        effective_from: '2026-06-01',
+        created_by_name: 'Alice Dupont',
+        blocks: [{ weekday: 0, start_time: '08:00:00', end_time: '12:00:00' }],
+      }),
+      makeSchedule({
+        id: 's2',
+        effective_from: '2026-01-01',
+        created_by_name: 'Bob Martin',
+        blocks: [{ weekday: 0, start_time: '08:00:00', end_time: '17:00:00' }],
+      }),
+    ])
+    await openManage(user, makeContract())
+
+    const row = (await screen.findByText(/Alice Dupont/)).closest(
+      'li',
+    ) as HTMLElement
+    await user.click(within(row).getByRole('button', { name: 'View changes' }))
+
+    const dialog = await screen.findByRole('dialog')
+    // Monday's end moved from 5:00 PM to 12:00 PM, shown old → new.
+    expect(within(dialog).getByText('Monday')).toBeInTheDocument()
+    expect(within(dialog).getByText(/8:00 AM.+5:00 PM/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/8:00 AM.+12:00 PM/)).toBeInTheDocument()
+  })
+
+  it('attaches a family the user manages, with its children', async () => {
+    const user = userEvent.setup()
+    m.families.mockResolvedValue([
+      family,
+      {
+        id: '2',
+        name: 'Grandma',
+        role: null,
+        is_claimed: false,
+        created_at: '',
+      },
+    ])
+    m.children.mockImplementation((fid: string) =>
+      Promise.resolve(fid === '2' ? [{ id: 'c1', first_name: 'Zoe' }] : []),
+    )
+    m.attachFamily.mockResolvedValue(makeContract())
+    m.createContractChild.mockResolvedValue({
+      id: 'x',
+      child: 'c1',
+      first_name: 'Zoe',
+      family_id: '2',
+      windows: [],
+    })
+    await openManage(user, makeContract())
+
+    await user.click(screen.getByLabelText('Grandma'))
+    await user.click(await screen.findByLabelText('Zoe'))
+    await user.click(
+      screen.getByRole('button', { name: 'Attach the selected families' }),
+    )
+
+    await waitFor(() =>
+      expect(m.attachFamily).toHaveBeenCalledWith('1', '10', '2'),
+    )
+    expect(m.createContractChild).toHaveBeenCalledWith('2', '10', {
+      child: 'c1',
+      windows: [],
+    })
   })
 
   it('adds compensation through the consequence dialog', async () => {

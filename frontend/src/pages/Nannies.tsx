@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { useMemo, useState } from 'react'
-import { listChildren } from '@/src/api/children'
+import { type Child, listChildren } from '@/src/api/children'
 import {
   acceptContractInvitation,
+  attachContractFamily,
   type Contract,
   type ContractInput,
   type ContractSchedule,
@@ -26,6 +27,7 @@ import {
   getMyContractInvitations,
   type Nanny,
   revokeContractInvitation,
+  type ScheduleBlock,
   type SplitMethod,
   updateContract,
   updateContractSchedule,
@@ -35,13 +37,16 @@ import { createContractChild } from '@/src/api/declarations'
 import { extractErrorMessages } from '@/src/api/errors'
 import { type Family, getFamilies } from '@/src/api/family'
 import { ConfirmButton } from '@/src/components/ConfirmButton'
+import { ConfirmByTypingDialog } from '@/src/components/ConfirmByTypingDialog'
 import { ContractChildrenSection } from '@/src/components/ContractChildrenSection'
 import { DateField, formatDate } from '@/src/components/DateField'
 import { DayWindowFields } from '@/src/components/DayWindowFields'
+import { type Figure, FigureGroup } from '@/src/components/FigureGroup'
 import { FormErrors } from '@/src/components/FormErrors'
 import { Modal } from '@/src/components/Modal'
 import { PersonAvatar } from '@/src/components/PersonAvatar'
 import { SectionCard } from '@/src/components/SectionCard'
+import { formatTimeRange } from '@/src/components/TimeField'
 import { Button } from '@/src/components/ui/button'
 import { Card, CardContent } from '@/src/components/ui/card'
 import { Input } from '@/src/components/ui/input'
@@ -55,7 +60,7 @@ import {
 } from '@/src/components/ui/select'
 import { useI18n } from '@/src/i18n/I18nContext'
 import type { Language, TranslationKey } from '@/src/i18n/translations'
-import type { DayWindow } from '@/src/lib/weekdays'
+import { type DayWindow, WEEKDAY_KEYS } from '@/src/lib/weekdays'
 
 // --- Static reference content -----------------------------------------------
 
@@ -66,9 +71,20 @@ const URSSAF_IND =
 
 type MoneyKey =
   | 'net_hourly_rate'
+  | 'night_presence_rate'
   | 'transport_fee'
   | 'mileage_rate'
   | 'benefits_in_kind'
+
+// The unit each figure reads in — driving both the editor and the read-only
+// summary so a rate never shows as a flat euro amount or vice versa.
+const MONEY_UNIT: Record<MoneyKey, TranslationKey> = {
+  net_hourly_rate: 'terms.unit.perHour',
+  night_presence_rate: 'terms.unit.perHour',
+  transport_fee: 'terms.unit.euro',
+  mileage_rate: 'terms.unit.perKm',
+  benefits_in_kind: 'terms.unit.euro',
+}
 
 const MONEY_FIELDS: {
   name: MoneyKey
@@ -81,6 +97,12 @@ const MONEY_FIELDS: {
     label: 'terms.netHourly',
     hint: 'terms.netHourlyHint',
     url: URSSAF_MIN,
+  },
+  {
+    name: 'night_presence_rate',
+    label: 'terms.nightPresence',
+    hint: 'terms.nightPresenceHint',
+    url: URSSAF_IND,
   },
   {
     name: 'transport_fee',
@@ -120,6 +142,7 @@ type TermsDraft = Record<MoneyKey, string> & { effective_from: string }
 const EMPTY_TERMS: TermsDraft = {
   effective_from: '',
   net_hourly_rate: '',
+  night_presence_rate: '',
   transport_fee: '',
   mileage_rate: '',
   benefits_in_kind: '',
@@ -129,6 +152,7 @@ function termsToDraft(terms: ContractTerms): TermsDraft {
   return {
     effective_from: terms.effective_from,
     net_hourly_rate: terms.net_hourly_rate,
+    night_presence_rate: terms.night_presence_rate,
     transport_fee: terms.transport_fee,
     mileage_rate: terms.mileage_rate,
     benefits_in_kind: terms.benefits_in_kind,
@@ -139,10 +163,66 @@ function termsDraftToInput(draft: TermsDraft): ContractTermsInput {
   return {
     effective_from: draft.effective_from || undefined,
     net_hourly_rate: draft.net_hourly_rate,
+    night_presence_rate: draft.night_presence_rate || undefined,
     transport_fee: draft.transport_fee || undefined,
     mileage_rate: draft.mileage_rate || undefined,
     benefits_in_kind: draft.benefits_in_kind || undefined,
   }
+}
+
+// A money/rate value with its unit, e.g. "12.50 €/h". Named apart from
+// lib/utils' locale currency formatter: this deliberately shows the backend's
+// raw decimal (mileage keeps its third decimal, which currency rounding drops).
+function moneyWithUnit(
+  value: string,
+  field: MoneyKey,
+  t: (key: TranslationKey) => string,
+): string {
+  return `${value} ${t(MONEY_UNIT[field])}`
+}
+
+// The full set of current compensation figures, in the order the editor lists
+// them. This is the "all the information" the summary shows rather than the rate
+// alone.
+function termsFigures(
+  terms: ContractTerms,
+  t: (key: TranslationKey) => string,
+): Figure[] {
+  return MONEY_FIELDS.map((mf) => ({
+    label: t(mf.label),
+    value: moneyWithUnit(terms[mf.name], mf.name, t),
+    strong: mf.name === 'net_hourly_rate',
+  }))
+}
+
+// One day's blocks as a single string, sorted by start time. Shared by the
+// schedule summary and the diff so the separator and ordering never drift.
+function formatDayBlocks(blocks: ScheduleBlock[], lang: Language): string {
+  return [...blocks]
+    .sort((a, b) => a.start_time.localeCompare(b.start_time))
+    .map((b) => formatTimeRange(b.start_time, b.end_time, lang))
+    .join(' · ')
+}
+
+// The current weekly schedule as one row per worked day, each listing that day's
+// time blocks — the actual hours, not just the weekly total.
+function scheduleFigures(
+  blocks: ScheduleBlock[],
+  t: (key: TranslationKey) => string,
+  lang: Language,
+): Figure[] {
+  const byDay = new Map<number, ScheduleBlock[]>()
+  for (const block of blocks) {
+    const day = byDay.get(block.weekday) ?? []
+    day.push(block)
+    byDay.set(block.weekday, day)
+  }
+  return [...byDay.keys()]
+    .sort((a, b) => a - b)
+    .map((weekday) => ({
+      label: t(WEEKDAY_KEYS[weekday]),
+      value: formatDayBlocks(byDay.get(weekday) ?? [], lang),
+    }))
 }
 
 // A schedule block is a plain day window; the shape is shared with a child's
@@ -325,6 +405,126 @@ function belowMinimum(rate: string, current: ContractTerms | null): boolean {
   return rateBelowMinimum(rate, current?.minimum_net_hourly_rate)
 }
 
+// --- Modification history: who, and what changed ----------------------------
+
+// One line of a diff. `before` is absent for the very first version (nothing to
+// compare against); `changed` marks a line the reader should notice.
+interface DiffRow {
+  label: string
+  before?: string
+  after: string
+  changed: boolean
+}
+
+// A dialog spelling out what one history entry changed against the version it
+// superseded — the "what changed" behind the history's "who changed it" line.
+function HistoryDiffDialog({
+  title,
+  subtitle,
+  author,
+  rows,
+  onClose,
+}: {
+  title: string
+  subtitle: string
+  author: string | null
+  rows: DiffRow[]
+  onClose: () => void
+}) {
+  const { t } = useI18n()
+  const initial = rows.every((r) => r.before === undefined)
+  return (
+    <Modal title={title} onClose={onClose}>
+      <div className="flex flex-col gap-1 text-sm">
+        <span className="text-muted-foreground">{subtitle}</span>
+        {author && (
+          <span className="text-muted-foreground">
+            {t('history.by')} <span className="text-foreground">{author}</span>
+          </span>
+        )}
+      </div>
+      {initial && (
+        <p className="text-xs text-muted-foreground">{t('history.initial')}</p>
+      )}
+      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
+        {rows.map((row) => (
+          <div key={row.label} className="contents">
+            <dt className="text-muted-foreground">{row.label}</dt>
+            <dd
+              className={
+                row.changed ? 'font-semibold' : 'text-muted-foreground'
+              }
+            >
+              {/* `changed` is only ever set when `before` is defined, so the
+                  unchanged and initial cases both just show `after`. */}
+              {row.changed ? (
+                <>
+                  <span className="text-muted-foreground line-through">
+                    {row.before}
+                  </span>{' '}
+                  → {row.after}
+                </>
+              ) : (
+                row.after
+              )}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      <div className="flex justify-end">
+        <Button type="button" variant="outline" onClick={onClose}>
+          {t('common.close')}
+        </Button>
+      </div>
+    </Modal>
+  )
+}
+
+function termsDiffRows(
+  item: ContractTerms,
+  prev: ContractTerms | undefined,
+  t: (key: TranslationKey) => string,
+): DiffRow[] {
+  return MONEY_FIELDS.map((mf) => ({
+    label: t(mf.label),
+    before: prev ? moneyWithUnit(prev[mf.name], mf.name, t) : undefined,
+    after: moneyWithUnit(item[mf.name], mf.name, t),
+    changed: prev ? item[mf.name] !== prev[mf.name] : false,
+  }))
+}
+
+// One day's blocks as a single string, or an em dash when the nanny doesn't work
+// that day — so a day that gained or lost hours reads as a real change.
+function dayValue(
+  blocks: ScheduleBlock[],
+  weekday: number,
+  lang: Language,
+): string {
+  const day = blocks.filter((b) => b.weekday === weekday)
+  return day.length === 0 ? '—' : formatDayBlocks(day, lang)
+}
+
+function scheduleDiffRows(
+  item: ContractSchedule,
+  prev: ContractSchedule | undefined,
+  t: (key: TranslationKey) => string,
+  lang: Language,
+): DiffRow[] {
+  const weekdays = [
+    ...new Set([...item.blocks, ...(prev?.blocks ?? [])].map((b) => b.weekday)),
+  ].sort((a, b) => a - b)
+  return weekdays.map((weekday) => {
+    const after = dayValue(item.blocks, weekday, lang)
+    const before = prev ? dayValue(prev.blocks, weekday, lang) : undefined
+    return {
+      label: t(WEEKDAY_KEYS[weekday]),
+      before,
+      after,
+      changed: before !== undefined && before !== after,
+    }
+  })
+}
+
 // --- Compensation section ---------------------------------------------------
 
 function TermsSection({
@@ -340,6 +540,8 @@ function TermsSection({
   const [editingId, setEditingId] = useState<string | 'new' | null>(null)
   const [errors, setErrors] = useState<string[]>([])
   const [confirming, setConfirming] = useState(false)
+  // Index into `history` of the entry whose diff is open, or null.
+  const [diffIndex, setDiffIndex] = useState<number | null>(null)
 
   const { data: history } = useQuery({
     queryKey: ['contract-terms', contract.id],
@@ -409,19 +611,19 @@ function TermsSection({
   return (
     <SectionCard title={t('terms.title')} description={t('terms.description')}>
       {current ? (
-        <div className="flex flex-col gap-1 text-sm">
-          <span className="font-medium">
-            {current.net_hourly_rate} €/h · {t('terms.since')}{' '}
-            {current.effective_from}
-            {current.edited && (
-              <span className="text-muted-foreground">
-                {' '}
-                · {t('common.edited')}
+        <div className="flex flex-col gap-2">
+          <FigureGroup
+            title={t('terms.current')}
+            rows={termsFigures(current, t)}
+            aside={
+              <span className="text-xs text-muted-foreground">
+                {t('terms.since')} {formatDate(current.effective_from, lang)}
+                {current.edited && ` · ${t('common.edited')}`}
               </span>
-            )}
-          </span>
+            }
+          />
           {current.below_minimum && (
-            <span className="text-destructive" role="alert">
+            <span className="text-sm text-destructive" role="alert">
               {current.warnings[0] ?? t('terms.belowMinimum')}
             </span>
           )}
@@ -462,17 +664,32 @@ function TermsSection({
         <div className="flex flex-col gap-2">
           <h4 className="text-sm font-medium">{t('terms.history')}</h4>
           <ul className="flex flex-col divide-y text-sm">
-            {history.map((terms) => (
+            {history.map((terms, index) => (
               <li
                 key={terms.id}
                 className="flex flex-col items-start gap-1 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
               >
-                <span className="text-muted-foreground">
-                  {effectiveRange(terms, lang, t('nanny.ongoing'))} ·{' '}
-                  {terms.net_hourly_rate} €/h
-                  {terms.edited && ` · ${t('common.edited')}`}
+                <span className="flex min-w-0 flex-col">
+                  <span className="text-muted-foreground">
+                    {effectiveRange(terms, lang, t('nanny.ongoing'))} ·{' '}
+                    {moneyWithUnit(terms.net_hourly_rate, 'net_hourly_rate', t)}
+                    {terms.edited && ` · ${t('common.edited')}`}
+                  </span>
+                  {terms.created_by_name && (
+                    <span className="text-xs text-muted-foreground">
+                      {t('history.by')} {terms.created_by_name}
+                    </span>
+                  )}
                 </span>
                 <span className="flex shrink-0 gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setDiffIndex(index)}
+                  >
+                    {t('history.viewChanges')}
+                  </Button>
                   <Button
                     type="button"
                     variant="ghost"
@@ -492,6 +709,20 @@ function TermsSection({
             ))}
           </ul>
         </div>
+      )}
+
+      {history && diffIndex !== null && history[diffIndex] && (
+        <HistoryDiffDialog
+          title={t('terms.title')}
+          subtitle={effectiveRange(
+            history[diffIndex],
+            lang,
+            t('nanny.ongoing'),
+          )}
+          author={history[diffIndex].created_by_name}
+          rows={termsDiffRows(history[diffIndex], history[diffIndex + 1], t)}
+          onClose={() => setDiffIndex(null)}
+        />
       )}
 
       {confirming && (
@@ -521,6 +752,8 @@ function ScheduleSection({
   const [editingId, setEditingId] = useState<string | 'new' | null>(null)
   const [errors, setErrors] = useState<string[]>([])
   const [confirming, setConfirming] = useState(false)
+  // Index into `history` of the entry whose diff is open, or null.
+  const [diffIndex, setDiffIndex] = useState<number | null>(null)
 
   const { data: history } = useQuery({
     queryKey: ['contract-schedule', contract.id],
@@ -582,16 +815,23 @@ function ScheduleSection({
       description={t('schedule.description')}
     >
       {current ? (
-        <p className="text-sm">
-          {current.weekly_hours} {t('schedule.perWeek')} · {t('terms.since')}{' '}
-          {current.effective_from}
-          {current.edited && (
-            <span className="text-muted-foreground">
-              {' '}
-              · {t('common.edited')}
-            </span>
-          )}
-        </p>
+        current.blocks.length > 0 ? (
+          <FigureGroup
+            title={t('schedule.current')}
+            rows={scheduleFigures(current.blocks, t, lang)}
+            aside={
+              <span className="text-xs text-muted-foreground">
+                {current.weekly_hours} {t('schedule.perWeek')} ·{' '}
+                {t('terms.since')} {formatDate(current.effective_from, lang)}
+                {current.edited && ` · ${t('common.edited')}`}
+              </span>
+            }
+          />
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            {t('schedule.noBlocks')}
+          </p>
+        )
       ) : (
         <p className="text-sm text-muted-foreground">{t('schedule.none')}</p>
       )}
@@ -628,17 +868,32 @@ function ScheduleSection({
         <div className="flex flex-col gap-2">
           <h4 className="text-sm font-medium">{t('schedule.history')}</h4>
           <ul className="flex flex-col divide-y text-sm">
-            {history.map((schedule) => (
+            {history.map((schedule, index) => (
               <li
                 key={schedule.id}
                 className="flex flex-col items-start gap-1 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
               >
-                <span className="text-muted-foreground">
-                  {effectiveRange(schedule, lang, t('nanny.ongoing'))} ·{' '}
-                  {schedule.weekly_hours} {t('schedule.perWeek')}
-                  {schedule.edited && ` · ${t('common.edited')}`}
+                <span className="flex min-w-0 flex-col">
+                  <span className="text-muted-foreground">
+                    {effectiveRange(schedule, lang, t('nanny.ongoing'))} ·{' '}
+                    {schedule.weekly_hours} {t('schedule.perWeek')}
+                    {schedule.edited && ` · ${t('common.edited')}`}
+                  </span>
+                  {schedule.created_by_name && (
+                    <span className="text-xs text-muted-foreground">
+                      {t('history.by')} {schedule.created_by_name}
+                    </span>
+                  )}
                 </span>
                 <span className="flex shrink-0 gap-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setDiffIndex(index)}
+                  >
+                    {t('history.viewChanges')}
+                  </Button>
                   <Button
                     type="button"
                     variant="ghost"
@@ -660,6 +915,25 @@ function ScheduleSection({
         </div>
       )}
 
+      {history && diffIndex !== null && history[diffIndex] && (
+        <HistoryDiffDialog
+          title={t('schedule.title')}
+          subtitle={effectiveRange(
+            history[diffIndex],
+            lang,
+            t('nanny.ongoing'),
+          )}
+          author={history[diffIndex].created_by_name}
+          rows={scheduleDiffRows(
+            history[diffIndex],
+            history[diffIndex + 1],
+            t,
+            lang,
+          )}
+          onClose={() => setDiffIndex(null)}
+        />
+      )}
+
       {confirming && (
         <ConsequenceDialog
           lines={[
@@ -676,19 +950,181 @@ function ScheduleSection({
   )
 }
 
+// --- Attaching a family the user also manages -------------------------------
+
+// A user may attach a family to a contract directly (no email invite) only when
+// they manage it: one they own, or one they created and nobody has claimed yet.
+// Mirrors the backend's Family.can_manage.
+function canManageFamily(family: Family): boolean {
+  return family.role === 'owner' || (family.role === null && !family.is_claimed)
+}
+
+// The families the acting user could attach to this contract: ones they manage,
+// that are neither the acting family nor already on it.
+function attachableFamilies(
+  families: Family[],
+  actingFamilyId: string,
+  excludeIds: string[],
+): Family[] {
+  return families.filter(
+    (f) =>
+      canManageFamily(f) &&
+      f.id !== actingFamilyId &&
+      !excludeIds.includes(f.id),
+  )
+}
+
+// One attachable family: a checkbox to include it, and — once included — its
+// children to put on the contract alongside it. Its own query so the child list
+// loads only when the family is actually chosen.
+function AttachFamilyOption({
+  family,
+  childIds,
+  onToggleFamily,
+  onToggleChild,
+}: {
+  family: Family
+  // undefined when the family is not selected; a (possibly empty) list otherwise.
+  childIds: string[] | undefined
+  onToggleFamily: () => void
+  onToggleChild: (childId: string) => void
+}) {
+  const { t } = useI18n()
+  const selected = childIds !== undefined
+  const { data: children } = useQuery({
+    queryKey: ['children', family.id],
+    queryFn: () => listChildren(family.id),
+    enabled: selected,
+  })
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          className="size-4"
+          checked={selected}
+          onChange={onToggleFamily}
+        />
+        <span className="font-medium">{family.name}</span>
+      </label>
+      {selected && (
+        <div className="flex flex-col gap-1 pl-6">
+          {children && children.length > 0 ? (
+            children.map((child: Child) => (
+              <label key={child.id} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="size-4"
+                  checked={(childIds ?? []).includes(child.id)}
+                  onChange={() => onToggleChild(child.id)}
+                />
+                {child.first_name}
+              </label>
+            ))
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              {t('attach.noChildren')}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Choose families the acting user also manages to attach, and which of their
+// children come with them. Controlled: `value` maps a family id to its selected
+// child ids (a key present means the family is selected).
+function ManagedFamilyPicker({
+  candidates,
+  value,
+  onChange,
+}: {
+  candidates: Family[]
+  value: Record<string, string[]>
+  onChange: (value: Record<string, string[]>) => void
+}) {
+  const toggleFamily = (id: string) => {
+    const next = { ...value }
+    if (id in next) delete next[id]
+    else next[id] = []
+    onChange(next)
+  }
+  const toggleChild = (id: string, childId: string) => {
+    const current = value[id] ?? []
+    onChange({
+      ...value,
+      [id]: current.includes(childId)
+        ? current.filter((c) => c !== childId)
+        : [...current, childId],
+    })
+  }
+  return (
+    <div className="flex flex-col gap-3">
+      {candidates.map((family) => (
+        <AttachFamilyOption
+          key={family.id}
+          family={family}
+          childIds={value[family.id]}
+          onToggleFamily={() => toggleFamily(family.id)}
+          onToggleChild={(childId) => toggleChild(family.id, childId)}
+        />
+      ))}
+    </div>
+  )
+}
+
+// Attach the picked families to a contract and put their chosen children on it.
+// Shared by the wizard (once it has created the contract) and the edit view.
+async function applyFamilyAttachments(
+  actingFamilyId: string,
+  contractId: string,
+  selection: Record<string, string[]>,
+): Promise<void> {
+  // Families are independent of each other, and a family's children of one
+  // another; only a family's own attach must precede its children (the child
+  // endpoint needs the share to exist). So fan out the families, and each
+  // family's children once its attach resolves.
+  await Promise.all(
+    Object.entries(selection).map(async ([targetFamilyId, childIds]) => {
+      await attachContractFamily(actingFamilyId, contractId, targetFamilyId)
+      // A child is added through its own family's endpoint — the acting user
+      // manages that family, and it now shares the contract, so the child is
+      // allowed on it.
+      await Promise.all(
+        childIds.map((childId) =>
+          createContractChild(targetFamilyId, contractId, {
+            child: childId,
+            windows: [],
+          }),
+        ),
+      )
+    }),
+  )
+}
+
 // --- Sharing section --------------------------------------------------------
 
 function SharingSection({
   familyId,
   contract,
+  families,
 }: {
   familyId: string
   contract: Contract
+  families: Family[]
 }) {
   const { t } = useI18n()
   const queryClient = useQueryClient()
   const [email, setEmail] = useState('')
   const [errors, setErrors] = useState<string[]>([])
+  const [attachSel, setAttachSel] = useState<Record<string, string[]>>({})
+
+  const attachCandidates = attachableFamilies(
+    families,
+    familyId,
+    contract.families.map((f) => f.id),
+  )
 
   const { data: invitations } = useQuery({
     queryKey: ['contract-invitations', contract.id],
@@ -713,6 +1149,18 @@ function SharingSection({
       revokeContractInvitation(familyId, contract.id, id),
     onSuccess: invalidate,
   })
+  const attachMutation = useMutation({
+    mutationFn: () => applyFamilyAttachments(familyId, contract.id, attachSel),
+    onSuccess: async () => {
+      setAttachSel({})
+      setErrors([])
+      await queryClient.invalidateQueries({ queryKey: ['contracts', familyId] })
+      await queryClient.invalidateQueries({
+        queryKey: ['contract-children', contract.id],
+      })
+    },
+    onError: (err) => setErrors(extractErrorMessages(err, t('nanny.error'))),
+  })
 
   const pending = (invitations ?? []).filter((i) => i.status === 'pending')
 
@@ -734,6 +1182,30 @@ function SharingSection({
           </li>
         ))}
       </ul>
+
+      {attachCandidates.length > 0 && (
+        <div className="flex flex-col gap-2 rounded-md border p-3">
+          <h4 className="text-sm font-medium">{t('attach.title')}</h4>
+          <p className="text-xs text-muted-foreground">{t('attach.hint')}</p>
+          <ManagedFamilyPicker
+            candidates={attachCandidates}
+            value={attachSel}
+            onChange={setAttachSel}
+          />
+          {Object.keys(attachSel).length > 0 && (
+            <Button
+              type="button"
+              className="self-start"
+              disabled={attachMutation.isPending}
+              onClick={() => attachMutation.mutate()}
+            >
+              {attachMutation.isPending
+                ? t('nanny.saving')
+                : t('attach.button')}
+            </Button>
+          )}
+        </div>
+      )}
 
       <form
         className="flex flex-col gap-2"
@@ -878,11 +1350,13 @@ const WIZARD_STEPS: TranslationKey[] = [
 function ContractWizard({
   familyId,
   nannies,
+  families,
   onClose,
   onCreated,
 }: {
   familyId: string
   nannies: Nanny[]
+  families: Family[]
   onClose: () => void
   onCreated: () => void
 }) {
@@ -900,6 +1374,9 @@ function ContractWizard({
   const [schedule, setSchedule] = useState<ScheduleDraft>(EMPTY_SCHEDULE)
   const [childIds, setChildIds] = useState<string[]>([])
   const [shareEmail, setShareEmail] = useState('')
+  // Families the user also manages, to attach directly (see ManagedFamilyPicker).
+  const [attachSel, setAttachSel] = useState<Record<string, string[]>>({})
+  const attachCandidates = attachableFamilies(families, familyId, [])
 
   // Whose children are on offer: this family's own. The other family adds its
   // own from its side once the contract is shared.
@@ -949,6 +1426,9 @@ function ContractWizard({
       if (shareEmail) {
         await createContractInvitation(familyId, contract.id, shareEmail)
       }
+      // Families the user manages themselves are attached directly, with the
+      // children they bring — no invitation to accept.
+      await applyFamilyAttachments(familyId, contract.id, attachSel)
     },
     onSuccess: onCreated,
     onError: (err) => setErrors(extractErrorMessages(err, t('nanny.error'))),
@@ -1104,6 +1584,19 @@ function ContractWizard({
 
         {step === 5 && (
           <div className="flex flex-col gap-4">
+            {attachCandidates.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <p className="text-sm font-medium">{t('attach.title')}</p>
+                <p className="text-xs text-muted-foreground">
+                  {t('attach.hint')}
+                </p>
+                <ManagedFamilyPicker
+                  candidates={attachCandidates}
+                  value={attachSel}
+                  onChange={setAttachSel}
+                />
+              </div>
+            )}
             <div className="flex flex-col gap-1">
               <Label htmlFor="wizard-share">{t('wizard.shareOptional')}</Label>
               <Input
@@ -1158,10 +1651,37 @@ function ContractWizard({
 
 // --- Page -------------------------------------------------------------------
 
-// A user can attach a family to a contract only when they own it, or created it
-// and it is still unclaimed. Mirrors the backend's Family.can_manage.
-function canManageFamily(family: Family): boolean {
-  return family.role === 'owner' || (family.role === null && !family.is_claimed)
+// Deleting a contract is destructive and reaches beyond the acting family — the
+// other employer loses it too, along with the planning and every declaration —
+// so it goes through the type-to-confirm gate. The phrase is localised whole
+// (verb included), so it reads in the user's language.
+function DeleteContractDialog({
+  nanny,
+  busy,
+  onConfirm,
+}: {
+  nanny: Nanny
+  busy: boolean
+  onConfirm: () => void
+}) {
+  const { t } = useI18n()
+  return (
+    <ConfirmByTypingDialog
+      trigger={t('nanny.delete')}
+      title={t('contract.delete.title')}
+      lead={t('contract.delete.lead')}
+      consequences={[
+        t('contract.delete.consequence1'),
+        t('contract.delete.consequence2'),
+        t('contract.delete.consequence3'),
+      ]}
+      promptLabel={t('contract.delete.prompt')}
+      phrase={`${t('contract.delete.verb')} ${nanny.first_name} ${nanny.last_name}`}
+      confirmLabel={t('nanny.delete')}
+      busy={busy}
+      onConfirm={onConfirm}
+    />
+  )
 }
 
 // Contract invitations addressed to the logged-in user — how an existing
@@ -1428,10 +1948,9 @@ export default function Nannies() {
                           ? t('contract.close')
                           : t('contract.manage')}
                       </Button>
-                      <ConfirmButton
-                        trigger={t('nanny.delete')}
-                        title={t('nanny.delete')}
-                        description={t('contract.confirmDelete')}
+                      <DeleteContractDialog
+                        nanny={contract.nanny}
+                        busy={deleteMutation.isPending}
                         onConfirm={() => deleteMutation.mutate(contract.id)}
                       />
                     </div>
@@ -1457,6 +1976,7 @@ export default function Nannies() {
                       <SharingSection
                         familyId={activeFamilyId}
                         contract={contract}
+                        families={families}
                       />
                     </div>
                   )}
@@ -1475,6 +1995,7 @@ export default function Nannies() {
         <ContractWizard
           familyId={activeFamilyId}
           nannies={knownNannies}
+          families={families}
           onClose={() => setWizardOpen(false)}
           onCreated={() => {
             queryClient.invalidateQueries({

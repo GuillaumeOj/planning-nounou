@@ -12,6 +12,7 @@ export interface ContractTerms {
   effective_from: string
   effective_to: string | null
   net_hourly_rate: string
+  night_presence_rate: string
   transport_fee: string
   mileage_rate: string
   benefits_in_kind: string
@@ -19,11 +20,15 @@ export interface ContractTerms {
   below_minimum: boolean
   warnings: string[]
   edited: boolean
+  // Display name of whoever last saved this snapshot; null if that account is
+  // gone. Read-only — the server pins it to the acting user.
+  created_by_name: string | null
 }
 
 export interface ContractTermsInput {
   effective_from?: string
   net_hourly_rate: string
+  night_presence_rate?: string
   transport_fee?: string
   mileage_rate?: string
   benefits_in_kind?: string
@@ -42,6 +47,8 @@ export interface ContractSchedule {
   effective_to: string | null
   weekly_hours: number
   edited: boolean
+  // Display name of whoever last saved this snapshot; null if that account is gone.
+  created_by_name: string | null
   blocks: ScheduleBlock[]
 }
 
@@ -178,6 +185,21 @@ export async function deleteContract(
   id: string,
 ): Promise<void> {
   await api.delete(`${base(familyId)}${id}/`)
+}
+
+// Attach a family the acting user also manages (an unclaimed one they set up, or
+// one they own) directly to the contract — no email invitation. `familyId` is the
+// acting family; `targetFamilyId` the one being joined.
+export async function attachContractFamily(
+  familyId: string,
+  contractId: string,
+  targetFamilyId: string,
+): Promise<Contract> {
+  const { data } = await api.post<Contract>(
+    `${base(familyId)}${contractId}/attach-family/`,
+    { family_id: targetFamilyId },
+  )
+  return data
 }
 
 export async function getContractTerms(
