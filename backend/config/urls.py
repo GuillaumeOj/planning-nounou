@@ -9,5 +9,7 @@ urlpatterns = [
     # so Vercel's /api -> backend rewrite reaches it — see the ADMIN_PATH note in settings.py.
     path(f"api/{settings.ADMIN_PATH}/", admin.site.urls),
     path("api/", include("accounts.urls")),
-    path("api/", include("tracking.urls")),
+    path("api/", include("children.urls")),
+    path("api/", include("contracts.urls")),
+    path("api/", include("reference.urls")),
 ]

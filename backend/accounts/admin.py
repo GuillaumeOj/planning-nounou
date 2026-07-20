@@ -1,7 +1,9 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
-from .models import Child, Family, FamilyMembership, Invitation, User
+from children.models import Child
+
+from .models import Family, FamilyMembership, Invitation, User
 
 
 @admin.register(User)
@@ -46,14 +48,6 @@ class FamilyAdmin(admin.ModelAdmin):
     @admin.display(boolean=True, description="Claimed")
     def is_claimed(self, obj: Family) -> bool:
         return obj.is_claimed
-
-
-@admin.register(Child)
-class ChildAdmin(admin.ModelAdmin):
-    """Admin listing of children and their family."""
-
-    list_display = ("first_name", "family")
-    search_fields = ("first_name", "family__name")
 
 
 @admin.register(Invitation)

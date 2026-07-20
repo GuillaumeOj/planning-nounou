@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import secrets
 import uuid
-from datetime import timedelta
 from typing import TYPE_CHECKING, ClassVar
 
 from django.contrib.auth.models import AbstractUser
@@ -13,6 +11,7 @@ from django.utils.translation import gettext_lazy as _
 from config.models import UUIDModel
 
 from .managers import UserManager
+from .tokens import default_invitation_expiry, generate_invitation_token
 
 if TYPE_CHECKING:
     from django.db.models.fields.related_descriptors import RelatedManager
@@ -72,7 +71,7 @@ class Family(UUIDModel):
     if TYPE_CHECKING:
         created_by_id: uuid.UUID | None
         memberships: RelatedManager[FamilyMembership]
-        children: RelatedManager[Child]
+        children: RelatedManager  # children.Child
 
     def __str__(self) -> str:
         return self.name
@@ -123,26 +122,6 @@ class FamilyMembership(UUIDModel):
 
     def __str__(self) -> str:
         return f"{self.user} in {self.family} ({self.role})"
-
-
-class Child(UUIDModel):
-    """A child belonging to a family."""
-
-    family = models.ForeignKey(Family, on_delete=models.CASCADE, related_name="children")
-    first_name = models.CharField(max_length=150)
-
-    def __str__(self) -> str:
-        return self.first_name
-
-
-def generate_invitation_token() -> str:
-    """A URL-safe secret embedded in the invite link."""
-    return secrets.token_urlsafe(32)
-
-
-def default_invitation_expiry():
-    """Invitations are actionable for a week by default."""
-    return timezone.now() + timedelta(days=7)
 
 
 class Invitation(UUIDModel):

@@ -539,7 +539,7 @@ fetched and read, not taken second-hand.
 summary has omitted a garde partagée rule that changes the money — présence responsable
 (§1) and the split (§2). When they differ, the convention governs.
 
-The machine-readable versions of these citations live in `backend/tracking/sources.py`,
+The machine-readable versions of these citations live in `backend/contracts/sources.py`,
 so the same quote can back a docstring, an API warning, and a "why?" link in the UI.
 
 [urssaf-contrat]: https://www.urssaf.fr/accueil/particulier/particulier-employeur/embaucher-un-salarie/contrat-travail-salarie-domicile.html#ancre-le-contenu-du-contrat-de-travail

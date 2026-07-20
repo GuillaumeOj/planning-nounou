@@ -1,6 +1,7 @@
 import pytest
 
-from accounts.models import Child, Family, FamilyMembership, User
+from accounts.models import Family, FamilyMembership, User
+from children.models import Child
 
 pytestmark = pytest.mark.django_db
 

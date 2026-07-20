@@ -2,7 +2,7 @@
 
 ## Keep `populate_dev` in sync with the features you add
 
-`tracking/management/commands/populate_dev.py` builds the demo dataset the dev
+`contracts/management/commands/populate_dev.py` builds the demo dataset the dev
 stack runs on (`uv run tox -e populate`). It is not test fixture code — it's how
 everyone gets a database they can actually click through, and it's the first
 place a new feature gets looked at.
@@ -24,7 +24,7 @@ In practice, in the same PR:
   still pending) → cover the states worth seeing, not just the happy one.
 - **Anything owned by the demo accounts** → check `_flush` reaches it, so a
   re-run still resets cleanly instead of piling up.
-- **Cover it** in `tests/tracking/test_populate_dev.py`.
+- **Cover it** in `tests/contracts/test_populate_dev.py`.
 
 Two invariants the command must keep, whatever you add:
 
