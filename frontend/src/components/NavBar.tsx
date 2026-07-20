@@ -19,6 +19,7 @@ import { useAuth } from '@/src/auth/AuthContext'
 import { AppearanceControls } from '@/src/components/AppearanceControls'
 import { Button } from '@/src/components/ui/button'
 import { useI18n } from '@/src/i18n/I18nContext'
+import { APP_NAME } from '@/src/lib/brand'
 import { cn } from '@/src/lib/utils'
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
@@ -104,7 +105,9 @@ export function NavBar() {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex items-center gap-1 border-b bg-background px-2 py-2 md:hidden">
+      {/* Page header (brand guide p.9): 64px tall, sticky, 1px bottom border,
+          no shadow, 16px horizontal padding on mobile. */}
+      <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b bg-background px-4 md:hidden">
         <Button
           variant="ghost"
           size="icon"
@@ -116,8 +119,8 @@ export function NavBar() {
           <Menu size={20} aria-hidden="true" />
         </Button>
         <div className="flex items-center gap-2 font-heading text-base font-semibold text-foreground">
-          <Baby size={20} aria-hidden="true" />
-          <span>Nounou</span>
+          <Baby size={20} aria-hidden="true" className="text-brand-emerald" />
+          <span>{APP_NAME}</span>
         </div>
       </header>
 
@@ -144,8 +147,8 @@ export function NavBar() {
         aria-label={t('nav.primary')}
       >
         <div className="flex items-center gap-2.5 px-2.5 pt-2 pb-4 font-heading text-lg font-semibold text-foreground">
-          <Baby size={24} aria-hidden="true" />
-          <span>Nounou</span>
+          <Baby size={24} aria-hidden="true" className="text-brand-emerald" />
+          <span>{APP_NAME}</span>
           <Button
             variant="ghost"
             size="icon"

@@ -50,4 +50,4 @@ export function formatDays(days: string, lang: Language) {
 // The 16px base font size is deliberate: iOS Safari zooms the viewport when a
 // focused control's text is smaller, so only desktop drops to text-sm.
 export const selectClass =
-  'h-9 min-w-0 rounded-md border border-input bg-background px-2 text-base text-foreground shadow-xs outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:h-8 md:text-sm'
+  'h-9 min-w-0 rounded-md border border-input bg-background px-3 text-base text-foreground outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm'

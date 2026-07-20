@@ -167,7 +167,7 @@ describe('NavBar', () => {
 
     // The brand also appears in the mobile top bar, so target the nav's copy.
     const nav = screen.getByRole('navigation')
-    await userEvent.click(within(nav).getByText('Nounou'))
+    await userEvent.click(within(nav).getByText('Ma Garde Sereine'))
     expect(screen.queryByRole('menu')).not.toBeInTheDocument()
   })
 

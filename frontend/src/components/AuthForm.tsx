@@ -17,6 +17,7 @@ import {
 } from '@/src/components/ui/card'
 import { useI18n } from '@/src/i18n/I18nContext'
 import type { TranslationKey } from '@/src/i18n/translations'
+import { APP_NAME } from '@/src/lib/brand'
 
 interface AuthFormProps {
   variant: 'login' | 'register'
@@ -57,11 +58,14 @@ export function AuthForm({ variant, onSubmit }: AuthFormProps) {
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
           <div
-            className="mx-auto mb-2 flex size-13 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/20"
+            className="mx-auto mb-2 flex size-13 items-center justify-center rounded-2xl bg-brand-emerald/10 text-brand-emerald ring-1 ring-brand-emerald/20"
             aria-hidden="true"
           >
             <Baby size={28} />
           </div>
+          <p className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+            {APP_NAME}
+          </p>
           <CardTitle className="text-2xl">{tk('title')}</CardTitle>
           <CardDescription>{tk('subtitle')}</CardDescription>
         </CardHeader>

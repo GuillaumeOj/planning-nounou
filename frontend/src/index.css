@@ -1,88 +1,116 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
+/* Ma Garde Sereine typography: Bricolage Grotesque for headings (>=20px only),
+   Public Sans for all functional text. See brand guide, page 4. */
+@import "@fontsource-variable/bricolage-grotesque";
+@import "@fontsource-variable/public-sans";
 
 /* App dark mode is driven by data-theme on <html> (set by ThemeProvider and the
    pre-paint script in index.html). Point Tailwind's dark: variant at it so
    shadcn's dark tokens and any dark: utilities resolve from the same source. */
 @custom-variant dark ([data-theme='dark'] &);
 
+/* Ma Garde Sereine — light theme. Quasi-white background, deep-ink foreground,
+   vivid coral for the brand/action, deep emerald for serenity. Hex values are
+   the exact ones the brand guide verified for WCAG contrast (guide p.2-3). */
 :root {
   color-scheme: light;
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  /* Brand violet (#6d28d9) drives primary actions and focus rings. */
-  --primary: oklch(0.511 0.244 296.5);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.511 0.244 296.5);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.511 0.244 296.5);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.511 0.244 296.5);
+  --radius: 0.625rem; /* 10px — card radius, the base "lg" */
+  --background: #fdfcfa;
+  --foreground: #132a22;
+  --card: #ffffff;
+  --card-foreground: #132a22;
+  --popover: #ffffff;
+  --popover-foreground: #132a22;
+  /* Coral (#C93C1A) — the single primary action + focus ring. */
+  --primary: #c93c1a;
+  --primary-foreground: #ffffff;
+  --secondary: #f0f7f3;
+  --secondary-foreground: #132a22;
+  --muted: #f6f6f3;
+  --muted-foreground: #5c6660;
+  /* shadcn's --accent is the subtle hover surface, kept as the light emerald
+     tint so hovers read on-brand. The saturated brand emerald lives in
+     --brand-emerald below (avatars, decorative icons), never as a hover. */
+  --accent: #f0f7f3;
+  --accent-foreground: #132a22;
+  --destructive: #ae3b31;
+  --destructive-foreground: #ffffff;
+  --border: #e3e6e0;
+  --input: #e3e6e0;
+  --ring: #c93c1a;
+  /* Brand emerald + semantic status colors (guide p.2). Status is never colour
+     alone — components pair these with an icon + label. */
+  --brand-emerald: #0e6b4f;
+  --brand-emerald-foreground: #ffffff;
+  --success: #257a35;
+  --success-foreground: #ffffff;
+  --warning: #f1c978;
+  --warning-foreground: #6b4b12;
+  --chart-1: #c93c1a;
+  --chart-2: #0e6b4f;
+  --chart-3: #257a35;
+  --chart-4: #f1c978;
+  --chart-5: #5c6660;
+  --sidebar: #fdfcfa;
+  --sidebar-foreground: #132a22;
+  --sidebar-primary: #c93c1a;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f0f7f3;
+  --sidebar-accent-foreground: #132a22;
+  --sidebar-border: #e3e6e0;
+  --sidebar-ring: #c93c1a;
 }
 
+/* Ma Garde Sereine — dark theme. Very dark ink (never pure black); coral and
+   emerald lightened to stay legible. Foregrounds the guide left implicit are
+   derived to keep the p.3 contrast targets. */
 [data-theme="dark"] {
   color-scheme: dark;
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.55 0.223 296.8);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
+  --background: #10201a;
+  --foreground: #f4f7f4;
+  --card: #17251f;
+  --card-foreground: #f4f7f4;
+  --popover: #17251f;
+  --popover-foreground: #f4f7f4;
+  --primary: #f17753;
+  --primary-foreground: #10201a;
+  --secondary: #1c2f27;
+  --secondary-foreground: #f4f7f4;
+  --muted: #17251f;
+  --muted-foreground: #9eaaa2;
+  --accent: #1c2f27;
+  --accent-foreground: #f4f7f4;
+  --destructive: #e0685a;
+  --destructive-foreground: #2a0b08;
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.55 0.223 296.8);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.55 0.223 296.8);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --ring: #f17753;
+  --brand-emerald: #3fa37e;
+  --brand-emerald-foreground: #0c1a13;
+  --success: #5fbf6e;
+  --success-foreground: #0c1a10;
+  --warning: #4a3a14;
+  --warning-foreground: #f1c978;
+  --chart-1: #f17753;
+  --chart-2: #3fa37e;
+  --chart-3: #5fbf6e;
+  --chart-4: #f1c978;
+  --chart-5: #9eaaa2;
+  --sidebar: #10201a;
+  --sidebar-foreground: #f4f7f4;
+  --sidebar-primary: #f17753;
+  --sidebar-primary-foreground: #10201a;
+  --sidebar-accent: #1c2f27;
+  --sidebar-accent-foreground: #f4f7f4;
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.55 0.223 296.8);
+  --sidebar-ring: #f17753;
 }
 
 @theme inline {
-  --font-heading: var(--font-sans);
-  --font-sans: 'Geist Variable', sans-serif;
+  --font-sans: 'Public Sans Variable', sans-serif;
+  --font-heading: 'Bricolage Grotesque Variable', sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -98,9 +126,18 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  /* Brand emerald + status colours, exposed as Tailwind utilities
+     (bg-brand-emerald, text-success, bg-warning, ...). */
+  --color-brand-emerald: var(--brand-emerald);
+  --color-brand-emerald-foreground: var(--brand-emerald-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -114,13 +151,15 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --radius-sm: calc(var(--radius) * 0.6);
-  --radius-md: calc(var(--radius) * 0.8);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) * 1.4);
-  --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
+  /* Explicit brand radius scale (guide p.6): sm 4 · md 6 · lg 10 · xl 14.
+     Badges/avatars use rounded-full directly. */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+  --radius-2xl: 18px;
+  --radius-3xl: 22px;
+  --radius-4xl: 26px;
 }
 
 @layer base {
@@ -129,6 +168,8 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* Guide p.4: body line-height 1.5-1.7 for readability. */
+    line-height: 1.6;
   }
   html {
     @apply font-sans;
