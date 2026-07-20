@@ -1,10 +1,72 @@
 <!doctype html>
-<html lang="en">
+<html lang="fr">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Ma Garde Sereine</title>
+
+    <!-- SEO / social. These STATIC tags describe the landing ("/") and are what
+         link-preview scrapers read, since they don't run the SPA's JS. Per-route
+         updates for Googlebot happen at runtime in src/hooks/useSeoMeta.ts.
+         TODO: add the /og-default.png (1200×630) preview image. -->
+    <title>Ma Garde Sereine — Gérer sa garde partagée & pajemploi</title>
+    <meta
+      name="description"
+      content="Simplifiez la garde partagée à domicile : planning, mensualisation, congés payés et déclaration pajemploi de votre nounou. Application en bêta."
+    />
+    <meta name="theme-color" content="#c93c1a" />
+    <link rel="canonical" href="https://ma-garde-sereine.fr/" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Ma Garde Sereine" />
+    <meta property="og:locale" content="fr_FR" />
+    <meta
+      property="og:title"
+      content="Ma Garde Sereine — Gérer sa garde partagée & pajemploi"
+    />
+    <meta
+      property="og:description"
+      content="Simplifiez la garde partagée à domicile : planning, mensualisation, congés payés et déclaration pajemploi de votre nounou. Application en bêta."
+    />
+    <meta property="og:url" content="https://ma-garde-sereine.fr/" />
+    <meta
+      property="og:image"
+      content="https://ma-garde-sereine.fr/og-default.png"
+    />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      name="twitter:title"
+      content="Ma Garde Sereine — Gérer sa garde partagée & pajemploi"
+    />
+    <meta
+      name="twitter:description"
+      content="Simplifiez la garde partagée à domicile : planning, mensualisation, congés payés et déclaration pajemploi de votre nounou. Application en bêta."
+    />
+    <meta
+      name="twitter:image"
+      content="https://ma-garde-sereine.fr/og-default.png"
+    />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Ma Garde Sereine",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web",
+        "inLanguage": "fr",
+        "url": "https://ma-garde-sereine.fr/",
+        "description": "Application pour gérer une garde partagée à domicile : planning, mensualisation, congés payés (convention collective IDCC 3239) et déclaration pajemploi de la nounou.",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "EUR"
+        }
+      }
+    </script>
     <script>
       // Resolve the saved theme (or system) before first paint to avoid a flash.
       // The key/query mirror THEME_KEY/DARK_QUERY in src/theme/ThemeContext.tsx.

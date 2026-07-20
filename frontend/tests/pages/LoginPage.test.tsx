@@ -25,7 +25,7 @@ function renderPage() {
 }
 
 describe('LoginPage', () => {
-  it('submits credentials and navigates home on success', async () => {
+  it('submits credentials and navigates to the dashboard on success', async () => {
     login.mockResolvedValue(undefined)
     renderPage()
 
@@ -39,7 +39,7 @@ describe('LoginPage', () => {
         password: 'secret-pass',
       }),
     )
-    expect(mockNavigate).toHaveBeenCalledWith('/')
+    expect(mockNavigate).toHaveBeenCalledWith('/dashboard')
   })
 
   it('shows an error message when login fails', async () => {

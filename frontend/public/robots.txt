@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /planning
+Disallow: /declarations
+Disallow: /nannies
+Disallow: /family
+Disallow: /settings
+Disallow: /login
+Disallow: /register
+Disallow: /invite
+
+Sitemap: https://ma-garde-sereine.fr/sitemap.xml

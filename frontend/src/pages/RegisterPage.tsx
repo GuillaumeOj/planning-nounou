@@ -11,7 +11,7 @@ export default function RegisterPage() {
       variant="register"
       onSubmit={async (credentials) => {
         await register(credentials)
-        navigate('/')
+        navigate('/dashboard')
       }}
     />
   )

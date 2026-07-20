@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
 import {
-  Baby,
   CalendarDays,
   ChevronUp,
   FileText,
@@ -17,10 +16,10 @@ import { getMyContractInvitations } from '@/src/api/contracts'
 import { getMyInvitations } from '@/src/api/family'
 import { useAuth } from '@/src/auth/AuthContext'
 import { AppearanceControls } from '@/src/components/AppearanceControls'
+import { BrandLockup } from '@/src/components/BrandLockup'
 import { PersonAvatar } from '@/src/components/PersonAvatar'
 import { Button } from '@/src/components/ui/button'
 import { useI18n } from '@/src/i18n/I18nContext'
-import { APP_NAME } from '@/src/lib/brand'
 import { cn } from '@/src/lib/utils'
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
@@ -128,10 +127,7 @@ export function NavBar() {
         >
           <Menu size={20} aria-hidden="true" />
         </Button>
-        <div className="flex items-center gap-2 font-heading text-base font-semibold text-foreground">
-          <Baby size={20} aria-hidden="true" className="text-brand-emerald" />
-          <span>{APP_NAME}</span>
-        </div>
+        <BrandLockup className="text-base" />
       </header>
 
       {/* Backdrop: tapping beside the drawer dismisses it. Inert on desktop,
@@ -156,9 +152,8 @@ export function NavBar() {
         )}
         aria-label={t('nav.primary')}
       >
-        <div className="flex items-center gap-2.5 px-2.5 pt-2 pb-4 font-heading text-lg font-semibold text-foreground">
-          <Baby size={24} aria-hidden="true" className="text-brand-emerald" />
-          <span>{APP_NAME}</span>
+        <div className="flex items-center gap-2.5 px-2.5 pt-2 pb-4">
+          <BrandLockup iconSize={24} className="text-lg" />
           <Button
             variant="ghost"
             size="icon"
@@ -171,7 +166,7 @@ export function NavBar() {
         </div>
         <ul className="flex flex-col gap-1">
           <li>
-            <NavLink to="/" end className={linkClass}>
+            <NavLink to="/dashboard" end className={linkClass}>
               <HomeIcon size={18} aria-hidden="true" />
               {t('nav.home')}
             </NavLink>

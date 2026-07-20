@@ -26,7 +26,7 @@ function renderPage() {
 }
 
 describe('RegisterPage', () => {
-  it('registers and navigates home on success', async () => {
+  it('registers and navigates to the dashboard on success', async () => {
     register.mockResolvedValue(undefined)
     renderPage()
 
@@ -40,7 +40,7 @@ describe('RegisterPage', () => {
         password: 'secret-pass',
       }),
     )
-    expect(mockNavigate).toHaveBeenCalledWith('/')
+    expect(mockNavigate).toHaveBeenCalledWith('/dashboard')
   })
 
   it('shows an error message when registration fails', async () => {

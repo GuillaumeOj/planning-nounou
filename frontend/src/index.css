@@ -173,6 +173,11 @@
   }
   html {
     @apply font-sans;
+    /* Always reserve room for the vertical scrollbar so navigating between a
+       tall page (with a scrollbar) and a short one (without) never changes the
+       viewport width — otherwise the centred header and content jump sideways,
+       which reads as the layout/text shifting on route change. */
+    scrollbar-gutter: stable;
   }
   #root {
     @apply flex min-h-svh flex-col;

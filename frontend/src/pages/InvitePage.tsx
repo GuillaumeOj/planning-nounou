@@ -40,7 +40,10 @@ export default function InvitePage() {
               <p className="text-sm text-destructive" role="alert">
                 {t('invite.invalid')}
               </p>
-              <Link to="/" className="text-sm text-primary hover:underline">
+              <Link
+                to="/family"
+                className="text-sm text-primary hover:underline"
+              >
                 {t('invite.goToFamily')}
               </Link>
             </>

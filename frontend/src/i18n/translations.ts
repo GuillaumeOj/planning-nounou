@@ -1,9 +1,10 @@
 // Supported UI languages. The app follows the browser's preferred language and
-// falls back to English for anything unsupported.
-export const LANGUAGES = ['en', 'fr'] as const
+// falls back to French — the product is French-first; English serves non-French
+// speakers living in France.
+export const LANGUAGES = ['fr', 'en'] as const
 export type Language = (typeof LANGUAGES)[number]
 
-export const DEFAULT_LANGUAGE: Language = 'en'
+export const DEFAULT_LANGUAGE: Language = 'fr'
 
 // Each language's endonym, for the language picker options.
 export const LANGUAGE_NAMES: Record<Language, string> = {
@@ -520,6 +521,219 @@ const en = {
   'contract.delete.prompt': 'To confirm, type',
   // The verb inside the confirm phrase, so "delete Marie Dupont" localises whole.
   'contract.delete.verb': 'delete',
+  // Beta status — shown on the public landing and in the app navbar. The product
+  // is still validating its calculations, so figures should be double-checked.
+  'beta.tag': 'Beta',
+  'beta.banner':
+    "Beta app: we're still validating the calculations. Always double-check the amounts before you declare.",
+  'beta.banner.dismiss': 'Dismiss banner',
+  // Public marketing surface (landing at "/", features at "/features").
+  'landing.nav.features': 'Features',
+  'landing.nav.login': 'Log in',
+  'landing.nav.register': 'Create an account',
+  'landing.hero.title': 'Shared childcare, with peace of mind.',
+  'landing.hero.subtitle':
+    "Ma Garde Sereine helps you manage your in-home nanny's contract and calmly prepare your monthly pajemploi declaration. So you can keep your focus where it matters: the relationship with the person who cares for your children.",
+  'landing.hero.ctaPrimary': 'Create an account',
+  'landing.hero.ctaSecondary': 'Explore the features',
+  'landing.value.lessStress.title': 'Less mental load',
+  'landing.value.lessStress.body':
+    'No more spreadsheets or last-minute calculations. Your hours, rates and absences all live in one place, ready when you need them.',
+  'landing.value.management.title': 'Simple day-to-day management',
+  'landing.value.management.body':
+    'Contract, weekly schedule, paid leave: everything updates easily, without jargon and without eating up your evenings.',
+  'landing.value.declaration.title': 'A stress-free monthly declaration',
+  'landing.value.declaration.body':
+    "Each month, the app prepares one declaration per family from your schedule. All that's left is to check the figures and report them on pajemploi.",
+  'landing.value.human.title': 'People before paperwork',
+  'landing.value.human.body':
+    'By lightening the admin, you can put your energy where it truly counts: a relationship of trust with your nanny.',
+  'landing.value.pay.title': "See what you'll pay",
+  'landing.value.pay.body':
+    "Ordinary hours, overtime, public holidays, benefits: the month's total takes shape day by day, with no unpleasant surprises at month-end.",
+  'landing.features.sectionTitle':
+    'Everything you need for well-managed childcare',
+  'landing.features.sectionSubtitle':
+    'From the contract to the monthly declaration, Ma Garde Sereine follows how you really work, including shared care between two families.',
+  'landing.features.link': 'See all features',
+  'landing.teaser.contracts.title': 'A clear, up-to-date contract',
+  'landing.teaser.contracts.body':
+    'Net hourly rate, night presence, schedule and annual leave: your contract is clearly framed and versioned at every change.',
+  'landing.teaser.sharedCare.title': 'Built for shared care',
+  'landing.teaser.sharedCare.body':
+    'One nanny, two families. Invite the other family and let the app share the hours out fairly.',
+  'landing.teaser.declaration.title': 'One declaration per family',
+  'landing.teaser.declaration.body':
+    'The app applies overtime bands, then splits the hours between families so each one declares its own share.',
+  'landing.teaser.holidays.title': 'Public holidays and minimum rate',
+  'landing.teaser.holidays.body':
+    'Increases for worked public holidays, plus an alert if the rate drops below the URSSAF recommended net minimum.',
+  'landing.teaser.inHome.title': 'Made for in-home care',
+  'landing.teaser.inHome.body':
+    'Designed for in-home childcare under the IDCC 3239 collective agreement, not for registered childminders.',
+  'landing.how.title': 'How it works',
+  'landing.how.step1.title': 'Set up the framework',
+  'landing.how.step1.body':
+    "Create your nanny's contract: net rate, weekly schedule, paid leave and, if relevant, the second family.",
+  'landing.how.step2.title': 'Follow the month',
+  'landing.how.step2.body':
+    'The month fills in from your schedule. Just note absences, public holidays and any adjustments.',
+  'landing.how.step3.title': 'Get each declaration',
+  'landing.how.step3.body':
+    "The app prepares each family's declaration. Check the figures, then report them on pajemploi.",
+  'landing.cta.title': 'Ready to manage your childcare with a lighter mind?',
+  'landing.cta.body':
+    'Create your account and prepare your first declaration in minutes.',
+  'landing.cta.button': 'Create my account',
+  'landing.footer.tagline': 'Shared in-home childcare, managed with serenity.',
+  'landing.footer.rights': 'All rights reserved.',
+  'seo.landing.title':
+    'Ma Garde Sereine — Shared nanny care & pajemploi made easy',
+  'seo.landing.description':
+    'Manage your shared in-home nanny: schedule, monthly salary, paid leave and pajemploi/URSSAF declaration. Built for French families. Beta.',
+  'seo.features.title': 'Features — nanny schedule, payroll & pajemploi filing',
+  'seo.features.description':
+    'Care schedule, monthly salary, paid leave, collective agreement (IDCC 3239) and pajemploi declaration — every feature of Ma Garde Sereine.',
+  // Features page (/features) — fuller copy, one section per feature.
+  'features.page.title': 'Ma Garde Sereine features',
+  'features.page.subtitle':
+    "A tool built for families who employ an in-home nanny, on their own or in shared care. Here's what it does for you in detail, and where it stays cautious.",
+  'features.contracts.title': 'The contract, your reference point',
+  'features.contracts.body':
+    "Everything starts from your nanny's contract. You set out their pay and working arrangements, and every change is kept as a new version. That way you keep a clear record of what applies, and since when.",
+  'features.contracts.b1':
+    'Versioned net hourly rate, with a night-presence rate',
+  'features.contracts.b2': 'Transport, mileage allowance and benefits in kind',
+  'features.contracts.b3': 'Recurring weekly schedule',
+  'features.contracts.b4': 'Agreed number of paid-leave days per year',
+  'features.sharedCare.title': 'Shared care, managed together',
+  'features.sharedCare.body':
+    "Shared care means one nanny for two families, and two separate declarations. The app links both families around the same nanny and shares the hours between them. You can even set things up on another family's behalf and hand it over later: they claim it when they're ready.",
+  'features.sharedCare.b1': 'Several families attached to the same nanny',
+  'features.sharedCare.b2': 'Invite the other family in a few clicks',
+  'features.sharedCare.b3':
+    'Split equally or in proportion to the children present',
+  'features.sharedCare.b4':
+    'A contractual split, independent of where the care takes place',
+  'features.declaration.title': 'The monthly declaration, prepared for you',
+  'features.declaration.body':
+    'Each family files its own declaration with pajemploi. From your schedule, the app prepares a draft per family: it first applies overtime bands under the IDCC 3239 agreement, then splits the hours between families. The draft follows your schedule until you freeze it; it stays editable for a short window after filing.',
+  'features.declaration.b1': 'One draft per family, aligned with your schedule',
+  'features.declaration.b2':
+    'Overtime bands: 0-40h normal, 41-48h +25%, 49h and over +50%',
+  'features.declaration.b3':
+    'Choose how hours are split: equally or in proportion to children',
+  'features.declaration.b4':
+    'Filing freezes the declaration, with a short grace window to correct it',
+  'features.holidays.title': 'Public holidays, mensualisation and minimum rate',
+  'features.holidays.body':
+    "The details that make payroll tricky are taken into account. Mensualisation smooths your hours across the year for a stable monthly salary, public holidays are handled depending on whether they're worked or not, and a marker flags a rate below the recommended minimum, without ever forcing your hand.",
+  'features.holidays.b1':
+    'Mensualisation: weekly hours × 52 ÷ 12 for a fixed monthly salary',
+  'features.holidays.b2': 'Ordinary public holiday worked: +10%',
+  'features.holidays.b3': '1 May worked: +100%',
+  'features.holidays.b4':
+    'Informational alert if the net rate falls below the URSSAF recommended minimum',
+  'features.inHome.title': 'Made for in-home childcare',
+  'features.inHome.body':
+    'Ma Garde Sereine focuses on one specific case: in-home childcare, governed by the IDCC 3239 collective agreement. This focus lets us stay close to your rules, in particular tracking paid leave over the 1 June to 31 May reference period.',
+  'features.inHome.b1': "Dedicated to childcare in the parents' home",
+  'features.inHome.b2': 'Aligned with the IDCC 3239 collective agreement',
+  'features.inHome.b3': 'Paid-leave balance tracked from 1 June to 31 May',
+  'features.inHome.b4':
+    'One job done well, rather than everything done halfway',
+  'features.cta.title': 'Want to try it for yourself?',
+  'features.cta.body':
+    'Create your account and set up your first nanny in minutes. Your feedback helps us make the calculations more reliable.',
+  'features.cta.button': 'Create an account',
+  // Extra public routes and the section framing that gives the landing a
+  // step-by-step, "discover as you scroll" rhythm.
+  'landing.nav.pricing': 'Pricing',
+  'landing.nav.privacy': 'Privacy',
+  'landing.nav.legal': 'Legal notice',
+  'landing.footer.product': 'Product',
+  'landing.footer.legal': 'Legal',
+  'landing.how.eyebrow': 'Step by step',
+  'landing.features.eyebrow': 'What you can manage',
+  'landing.value.eyebrow': 'The payoff',
+  'landing.value.sectionTitle': 'Why families choose Ma Garde Sereine',
+  // Pricing page (/pricing).
+  'seo.pricing.title': 'Pricing — free during the beta',
+  'seo.pricing.description':
+    'Ma Garde Sereine is free while in beta: manage your shared in-home nanny, contracts and pajemploi declarations at no cost.',
+  'pricing.page.title': "Simple pricing while we're in beta",
+  'pricing.page.subtitle':
+    'Ma Garde Sereine is free of charge for now. Use every feature and help us make it better.',
+  'pricing.plan.name': 'Beta',
+  'pricing.plan.price': 'Free',
+  'pricing.plan.period': 'while in beta',
+  'pricing.plan.description':
+    'Full access to everything the app offers today, at no cost.',
+  'pricing.plan.b1': 'Contracts, schedules and paid-leave tracking',
+  'pricing.plan.b2': 'Shared care between two families',
+  'pricing.plan.b3': 'Monthly declaration prepared for each family',
+  'pricing.plan.b4': 'Public holidays, mensualisation and minimum-rate alerts',
+  'pricing.plan.b5': 'Unlimited nannies, families and declarations',
+  'pricing.note':
+    "Pricing may change once the app leaves beta. If it does, we'll let you know well in advance — nothing becomes paid without notice.",
+  'pricing.cta.button': 'Create a free account',
+  // Privacy policy (/privacy).
+  'seo.privacy.title': 'Privacy policy',
+  'seo.privacy.description':
+    'How Ma Garde Sereine collects, uses and protects the data you enter to manage your nanny and declarations.',
+  'privacy.page.title': 'Privacy policy',
+  'privacy.page.lead':
+    'This page explains what data Ma Garde Sereine handles, why, and the rights you have over it. Ma Garde Sereine is in beta and this policy may be updated.',
+  'privacy.controller.title': 'Data controller',
+  'privacy.controller.body':
+    'The controller of your personal data is [publisher name], reachable at [contact@ma-garde-sereine.fr]. For any data-protection question, write to us at this address.',
+  'privacy.collect.title': 'Data we collect',
+  'privacy.collect.body':
+    "We collect the account details you provide (email and password — the password is stored hashed and never in clear text) and the information you enter to run the service: families, children's first names, nannies, contracts, schedules, absences and monthly declarations. Children's first names concern minors: we limit them to what is strictly necessary and use them for no other purpose.",
+  'privacy.purpose.title': 'Why we use it, and on what basis',
+  'privacy.purpose.body':
+    'Your data is used solely to provide the service: computing schedules, paid-leave balances and the monthly declaration each family reports to pajemploi. We do not sell it or use it for advertising. The legal basis is the performance of the service contract you accept when creating an account (Article 6(1)(b) GDPR); some data may be retained to meet our legal obligations.',
+  'privacy.sharing.title': 'Recipients and sharing',
+  'privacy.sharing.body':
+    "In shared care, a contract links two families; each family sees only its own declaration figures, and the other family's amounts are never exposed. Your data is shared only with the providers needed to run the service — chiefly our host, Vercel, acting as a data processor — and with no advertising or data-broker third parties.",
+  'privacy.hosting.title': 'Hosting, transfers and retention',
+  'privacy.hosting.body':
+    "The application and its database are hosted on Vercel. As hosting takes place in the United States, your data may be transferred there; this transfer is governed by the European Commission's Standard Contractual Clauses and Vercel's certification under the EU–US Data Privacy Framework. Data is kept while your account is active and erased within 30 days after you delete it, except where longer retention is required by law. An account inactive for [X] months may be deleted after prior notice.",
+  'privacy.cookies.title': 'Cookies and local storage',
+  'privacy.cookies.body':
+    "Ma Garde Sereine only uses your browser's local storage for strictly necessary purposes (login, and language and theme preferences). We use no analytics cookies or advertising trackers, so no consent is required.",
+  'privacy.rights.title': 'Your rights',
+  'privacy.rights.body':
+    'Under the GDPR you have the right to access, correct, erase, export (portability), restrict and object to the processing of your personal data. To exercise these rights, contact us at the address below. You may also lodge a complaint with the French supervisory authority, the CNIL (www.cnil.fr), if you believe your data is not handled lawfully.',
+  'privacy.contact.title': 'Contact',
+  'privacy.contact.body':
+    'For any question about this policy or your data, write to [contact@ma-garde-sereine.fr].',
+  'privacy.changes.title': 'Changes to this policy',
+  'privacy.changes.body':
+    'We may update this policy as the app evolves. Significant changes will be signalled in the app.',
+  // Legal notice / mentions légales (/legal).
+  'seo.legal.title': 'Legal notice',
+  'seo.legal.description':
+    'Legal information for Ma Garde Sereine: publisher, hosting and terms of use.',
+  'legal.page.title': 'Legal notice',
+  'legal.page.lead':
+    'The information below identifies the publisher and host of Ma Garde Sereine, in accordance with French law. Ma Garde Sereine is in beta.',
+  'legal.publisher.title': 'Publisher',
+  'legal.publisher.body':
+    'Ma Garde Sereine is a free, non-commercial application published by an individual, [name], residing in France, reachable at [contact@ma-garde-sereine.fr]. Publication director: [name]. There is no company or legal entity behind the service at this stage.',
+  'legal.host.title': 'Hosting',
+  'legal.host.body':
+    'The site is hosted by Vercel Inc., 440 N Barranca Avenue #4133, Covina, CA 91723, United States — https://vercel.com.',
+  'legal.ip.title': 'Intellectual property',
+  'legal.ip.body':
+    'The Ma Garde Sereine name, interface and content are protected. Any reproduction without permission is prohibited.',
+  'legal.liability.title': 'Liability',
+  'legal.liability.body':
+    'The application is in beta. The figures it prepares are an aid, not official payroll advice: always check the amounts before declaring them to pajemploi. Ma Garde Sereine is not affiliated with pajemploi or URSSAF and does not replace their official calculations, and cannot be held liable for a declaration made on the basis of unverified figures.',
+  'legal.contact.title': 'Contact',
+  'legal.contact.body':
+    'For any request, write to [contact@ma-garde-sereine.fr].',
+  'legal.lastUpdated': 'Last updated: [date]',
 } as const
 
 export type TranslationKey = keyof typeof en
@@ -1035,6 +1249,212 @@ const fr: Record<TranslationKey, string> = {
     'Toutes les déclarations, congés et données du contrat seront perdus.',
   'contract.delete.prompt': 'Pour confirmer, saisissez',
   'contract.delete.verb': 'supprimer',
+  'beta.tag': 'Bêta',
+  'beta.banner':
+    'Application en bêta : nous continuons de valider les calculs. Vérifiez toujours les montants avant de déclarer.',
+  'beta.banner.dismiss': 'Masquer le bandeau',
+  'landing.nav.features': 'Fonctionnalités',
+  'landing.nav.login': 'Se connecter',
+  'landing.nav.register': 'Créer un compte',
+  'landing.hero.title': "La garde partagée, l'esprit tranquille.",
+  'landing.hero.subtitle':
+    "Ma Garde Sereine vous accompagne pour gérer le contrat de votre garde à domicile et préparer sereinement votre déclaration pajemploi chaque mois. Vous gardez l'essentiel en tête : la relation avec la personne qui veille sur vos enfants.",
+  'landing.hero.ctaPrimary': 'Créer un compte',
+  'landing.hero.ctaSecondary': 'Découvrir les fonctionnalités',
+  'landing.value.lessStress.title': 'Moins de charge mentale',
+  'landing.value.lessStress.body':
+    "Fini les tableurs et les calculs de dernière minute. Vos heures, vos taux et vos absences sont réunis au même endroit, prêts à l'emploi.",
+  'landing.value.management.title': 'Une gestion simple au quotidien',
+  'landing.value.management.body':
+    'Contrat, planning hebdomadaire, congés payés : tout se met à jour facilement, sans jargon et sans y passer vos soirées.',
+  'landing.value.declaration.title': 'La déclaration, sans prise de tête',
+  'landing.value.declaration.body':
+    "Chaque mois, l'application prépare une déclaration par famille à partir de votre planning. Vous n'avez plus qu'à vérifier et reporter les montants sur pajemploi.",
+  'landing.value.human.title': "L'humain avant l'administratif",
+  'landing.value.human.body':
+    'En allégeant la partie administrative, vous consacrez votre énergie à ce qui compte vraiment : une relation de confiance avec votre garde.',
+  'landing.value.pay.title': 'Anticipez ce que vous allez payer',
+  'landing.value.pay.body':
+    'Heures normales, majorées, jours fériés, avantages : le montant du mois se dessine au fil des jours, sans mauvaise surprise en fin de mois.',
+  'landing.features.sectionTitle':
+    "Tout ce qu'il faut pour une garde bien gérée",
+  'landing.features.sectionSubtitle':
+    'Du contrat à la déclaration mensuelle, Ma Garde Sereine suit votre organisation réelle, y compris en garde partagée entre deux familles.',
+  'landing.features.link': 'Voir toutes les fonctionnalités',
+  'landing.teaser.contracts.title': 'Un contrat clair et à jour',
+  'landing.teaser.contracts.body':
+    'Taux horaire net, présence de nuit, planning et congés annuels : votre contrat est cadré et versionné à chaque changement.',
+  'landing.teaser.sharedCare.title': 'Pensé pour la garde partagée',
+  'landing.teaser.sharedCare.body':
+    "Une seule garde, deux familles. Invitez l'autre famille et laissez l'application répartir les heures équitablement.",
+  'landing.teaser.declaration.title': 'Une déclaration par famille',
+  'landing.teaser.declaration.body':
+    "L'application majore les heures supplémentaires puis répartit les heures entre les familles, pour que chacune déclare sa part.",
+  'landing.teaser.holidays.title': 'Jours fériés et taux minimum',
+  'landing.teaser.holidays.body':
+    "Majorations des jours fériés travaillés et alerte si le taux passe sous le minimum net conseillé par l'URSSAF.",
+  'landing.teaser.inHome.title': 'Pensé pour la garde à domicile',
+  'landing.teaser.inHome.body':
+    "Conçu pour la garde d'enfants à domicile et la convention IDCC 3239, pas pour l'assistante maternelle agréée.",
+  'landing.how.title': 'Comment ça marche',
+  'landing.how.step1.title': 'Posez le cadre',
+  'landing.how.step1.body':
+    'Créez le contrat de votre garde : taux net, planning hebdomadaire, congés payés et, le cas échéant, la seconde famille.',
+  'landing.how.step2.title': 'Suivez le mois',
+  'landing.how.step2.body':
+    'Le mois se remplit à partir de votre planning. Notez simplement les absences, les jours fériés et les ajustements.',
+  'landing.how.step3.title': 'Récupérez chaque déclaration',
+  'landing.how.step3.body':
+    "L'application prépare la déclaration de chaque famille. Vérifiez les montants, puis reportez-les sur pajemploi.",
+  'landing.cta.title': "Envie de gérer votre garde l'esprit léger ?",
+  'landing.cta.body':
+    'Créez votre compte et préparez votre première déclaration en quelques minutes.',
+  'landing.cta.button': 'Créer mon compte',
+  'landing.footer.tagline': 'La garde partagée à domicile, gérée sereinement.',
+  'landing.footer.rights': 'Tous droits réservés.',
+  'seo.landing.title':
+    'Ma Garde Sereine — Gérez votre garde partagée & pajemploi',
+  'seo.landing.description':
+    'Simplifiez la garde partagée à domicile : planning, mensualisation, congés payés et déclaration pajemploi de votre nounou. Application en bêta.',
+  'seo.features.title': 'Fonctionnalités — planning, paie nounou & pajemploi',
+  'seo.features.description':
+    'Planning de garde, mensualisation, congés payés, convention collective (IDCC 3239) et déclaration pajemploi : toutes les fonctionnalités.',
+  'features.page.title': 'Les fonctionnalités de Ma Garde Sereine',
+  'features.page.subtitle':
+    "Un outil pensé pour les familles qui emploient une garde à domicile, seules ou en garde partagée. Voici en détail ce qu'il fait pour vous, et où il reste prudent.",
+  'features.contracts.title': 'Le contrat, votre point de référence',
+  'features.contracts.body':
+    "Tout part du contrat de votre garde. Vous y définissez sa rémunération et son organisation de travail, et chaque modification est conservée dans une nouvelle version. Vous gardez ainsi une trace claire de ce qui s'applique, et depuis quand.",
+  'features.contracts.b1':
+    'Taux horaire net versionné, avec taux de présence de nuit',
+  'features.contracts.b2':
+    'Transport, indemnités kilométriques et avantages en nature',
+  'features.contracts.b3': 'Planning hebdomadaire récurrent',
+  'features.contracts.b4': 'Nombre de jours de congés payés convenus par an',
+  'features.sharedCare.title': 'La garde partagée, gérée à deux',
+  'features.sharedCare.body':
+    "Une garde partagée, c'est une seule garde pour deux familles, et deux déclarations distinctes. L'application relie les deux familles autour de la même garde et répartit les heures entre elles. Vous pouvez même préparer le dossier pour une famille et le lui transmettre ensuite : elle le récupère quand elle est prête.",
+  'features.sharedCare.b1': 'Plusieurs familles rattachées à une même garde',
+  'features.sharedCare.b2': "Invitation de l'autre famille en quelques clics",
+  'features.sharedCare.b3':
+    'Répartition à parts égales ou au prorata des enfants présents',
+  'features.sharedCare.b4':
+    'Répartition contractuelle, indépendante du lieu de garde',
+  'features.declaration.title': 'La déclaration mensuelle, préparée pour vous',
+  'features.declaration.body':
+    "Chaque famille effectue sa propre déclaration à pajemploi. À partir de votre planning, l'application prépare un brouillon par famille : elle majore d'abord les heures supplémentaires selon la convention IDCC 3239, puis répartit les heures entre les familles. Le brouillon suit votre planning jusqu'à ce que vous le figiez ; il reste modifiable durant une courte période après le dépôt.",
+  'features.declaration.b1':
+    'Un brouillon par famille, calé sur votre planning',
+  'features.declaration.b2':
+    'Majoration des heures sup. : 0-40h normales, 41-48h +25%, 49h et plus +50%',
+  'features.declaration.b3':
+    'Répartition des heures au choix : à parts égales ou au prorata des enfants',
+  'features.declaration.b4':
+    'Dépôt qui fige la déclaration, avec courte fenêtre de correction',
+  'features.holidays.title': 'Jours fériés, mensualisation et taux minimum',
+  'features.holidays.body':
+    "Les détails qui compliquent la paie sont pris en compte. La mensualisation lisse vos heures sur l'année pour un salaire mensuel stable, les jours fériés sont traités selon qu'ils sont travaillés ou chômés, et un repère vous signale un taux inférieur au minimum conseillé, sans jamais vous l'imposer.",
+  'features.holidays.b1':
+    'Mensualisation : heures hebdomadaires × 52 ÷ 12 pour un salaire mensuel fixe',
+  'features.holidays.b2': 'Jour férié ordinaire travaillé majoré de +10%',
+  'features.holidays.b3': '1er mai travaillé majoré de +100%',
+  'features.holidays.b4':
+    "Alerte informative si le taux net passe sous le minimum conseillé par l'URSSAF",
+  'features.inHome.title': 'Fait pour la garde à domicile',
+  'features.inHome.body':
+    "Ma Garde Sereine se concentre sur un cas précis : la garde d'enfants à domicile, régie par la convention collective IDCC 3239. Cette spécialisation nous permet de coller à vos règles, notamment le suivi des congés payés sur la période de référence du 1er juin au 31 mai.",
+  'features.inHome.b1': "Dédié à la garde d'enfants au domicile des parents",
+  'features.inHome.b2': 'Aligné sur la convention collective IDCC 3239',
+  'features.inHome.b3': 'Suivi du solde de congés payés du 1er juin au 31 mai',
+  'features.inHome.b4': 'Un seul métier bien traité, plutôt que tout à moitié',
+  'features.cta.title': 'Envie de tester par vous-même ?',
+  'features.cta.body':
+    'Créez votre compte et configurez votre première garde en quelques minutes. Vos retours nous aident à fiabiliser les calculs.',
+  'features.cta.button': 'Créer un compte',
+  'landing.nav.pricing': 'Tarifs',
+  'landing.nav.privacy': 'Confidentialité',
+  'landing.nav.legal': 'Mentions légales',
+  'landing.footer.product': 'Produit',
+  'landing.footer.legal': 'Informations',
+  'landing.how.eyebrow': 'Étape par étape',
+  'landing.features.eyebrow': 'Ce que vous pouvez gérer',
+  'landing.value.eyebrow': 'Les bénéfices',
+  'landing.value.sectionTitle':
+    'Pourquoi les familles choisissent Ma Garde Sereine',
+  'seo.pricing.title': 'Tarifs — gratuit pendant la bêta',
+  'seo.pricing.description':
+    'Ma Garde Sereine est gratuit pendant la bêta : gérez votre garde partagée à domicile, les contrats et les déclarations pajemploi sans frais.',
+  'pricing.page.title': 'Un tarif simple pendant la bêta',
+  'pricing.page.subtitle':
+    "Ma Garde Sereine est gratuit pour le moment. Profitez de toutes les fonctionnalités et aidez-nous à l'améliorer.",
+  'pricing.plan.name': 'Bêta',
+  'pricing.plan.price': 'Gratuit',
+  'pricing.plan.period': 'pendant la bêta',
+  'pricing.plan.description':
+    "Accès complet à tout ce que l'application propose aujourd'hui, sans frais.",
+  'pricing.plan.b1': 'Contrats, plannings et suivi des congés payés',
+  'pricing.plan.b2': 'Garde partagée entre deux familles',
+  'pricing.plan.b3': 'Déclaration mensuelle préparée pour chaque famille',
+  'pricing.plan.b4': 'Jours fériés, mensualisation et alertes de taux minimum',
+  'pricing.plan.b5': 'Gardes, familles et déclarations sans limite',
+  'pricing.note':
+    "Le tarif pourra évoluer à la fin de la bêta. Le cas échéant, nous vous préviendrons bien à l'avance — rien ne devient payant sans vous avertir.",
+  'pricing.cta.button': 'Créer un compte gratuit',
+  'seo.privacy.title': 'Politique de confidentialité',
+  'seo.privacy.description':
+    'Comment Ma Garde Sereine collecte, utilise et protège les données que vous saisissez pour gérer votre nounou et vos déclarations.',
+  'privacy.page.title': 'Politique de confidentialité',
+  'privacy.page.lead':
+    'Cette page explique quelles données Ma Garde Sereine traite, pourquoi, et les droits dont vous disposez. Ma Garde Sereine est en version bêta et cette politique pourra être mise à jour.',
+  'privacy.controller.title': 'Responsable de traitement',
+  'privacy.controller.body':
+    "Le responsable du traitement de vos données est [nom de l'éditeur], joignable à [contact@ma-garde-sereine.fr]. Pour toute question relative à la protection des données, écrivez-nous à cette adresse.",
+  'privacy.collect.title': 'Données collectées',
+  'privacy.collect.body':
+    'Nous collectons les informations de compte que vous fournissez (e-mail et mot de passe — le mot de passe est stocké de façon chiffrée et jamais accessible en clair) et les données que vous saisissez pour faire fonctionner le service : familles, prénoms des enfants, gardes, contrats, plannings, absences et déclarations mensuelles. Les prénoms des enfants sont des données relatives à des mineurs : nous les limitons au strict nécessaire et ne les utilisons à aucune autre fin.',
+  'privacy.purpose.title': 'Utilisation des données et base légale',
+  'privacy.purpose.body':
+    "Vos données servent uniquement à fournir le service : calcul des plannings, du solde de congés payés et de la déclaration mensuelle que chaque famille reporte sur pajemploi. Elles ne sont ni vendues ni utilisées à des fins publicitaires. La base légale de ce traitement est l'exécution du contrat de service que vous acceptez en créant un compte (article 6.1.b du RGPD) ; certaines données peuvent être conservées pour respecter nos obligations légales.",
+  'privacy.sharing.title': 'Destinataires et partage',
+  'privacy.sharing.body':
+    "En garde partagée, un contrat relie deux familles ; chaque famille ne voit que ses propres montants, ceux de l'autre famille ne sont jamais exposés. Vos données ne sont partagées qu'avec les prestataires nécessaires au fonctionnement du service — principalement notre hébergeur Vercel, agissant comme sous-traitant — et avec aucun tiers publicitaire ou courtier en données.",
+  'privacy.hosting.title': 'Hébergement, transferts et conservation',
+  'privacy.hosting.body':
+    "L'application et sa base de données sont hébergées par Vercel. L'hébergement étant assuré aux États-Unis, vos données peuvent y être transférées ; ce transfert est encadré par les clauses contractuelles types de la Commission européenne et l'adhésion de Vercel au Data Privacy Framework UE–États-Unis. Les données sont conservées tant que votre compte est actif, puis effacées dans les 30 jours suivant sa suppression, sauf lorsque la loi impose une conservation plus longue. Un compte inactif depuis [X] mois peut être supprimé après information préalable.",
+  'privacy.cookies.title': 'Cookies et stockage local',
+  'privacy.cookies.body':
+    "Ma Garde Sereine utilise uniquement le stockage local de votre navigateur pour des besoins strictement nécessaires (connexion, préférences de langue et de thème). Nous n'utilisons aucun cookie de mesure d'audience ni traceur publicitaire ; aucun consentement n'est donc requis.",
+  'privacy.rights.title': 'Vos droits',
+  'privacy.rights.body':
+    "Conformément au RGPD, vous disposez d'un droit d'accès, de rectification, d'effacement, de portabilité, de limitation et d'opposition sur vos données personnelles. Pour exercer ces droits, contactez-nous à l'adresse ci-dessous. Vous pouvez également introduire une réclamation auprès de la CNIL (www.cnil.fr) si vous estimez que le traitement de vos données n'est pas conforme.",
+  'privacy.contact.title': 'Contact',
+  'privacy.contact.body':
+    'Pour toute question sur cette politique ou vos données, écrivez à [contact@ma-garde-sereine.fr].',
+  'privacy.changes.title': 'Modifications',
+  'privacy.changes.body':
+    "Nous pouvons mettre à jour cette politique à mesure que l'application évolue. Les changements importants seront signalés dans l'application.",
+  'seo.legal.title': 'Mentions légales',
+  'seo.legal.description':
+    "Informations légales de Ma Garde Sereine : éditeur, hébergement et conditions d'utilisation.",
+  'legal.page.title': 'Mentions légales',
+  'legal.page.lead':
+    "Les informations ci-dessous identifient l'éditeur et l'hébergeur de Ma Garde Sereine, conformément à la loi française. Ma Garde Sereine est en version bêta.",
+  'legal.publisher.title': 'Éditeur',
+  'legal.publisher.body':
+    "Ma Garde Sereine est une application gratuite et non commerciale éditée par un particulier, [nom], résidant en France, joignable à [contact@ma-garde-sereine.fr]. Directeur de la publication : [nom]. Aucune société ni personne morale n'est à ce stade à l'origine du service.",
+  'legal.host.title': 'Hébergeur',
+  'legal.host.body':
+    'Le site est hébergé par Vercel Inc., 440 N Barranca Avenue #4133, Covina, CA 91723, États-Unis — https://vercel.com.',
+  'legal.ip.title': 'Propriété intellectuelle',
+  'legal.ip.body':
+    "Le nom Ma Garde Sereine, l'interface et le contenu sont protégés. Toute reproduction sans autorisation est interdite.",
+  'legal.liability.title': 'Responsabilité',
+  'legal.liability.body':
+    "L'application est en bêta. Les montants qu'elle prépare sont une aide, et non un conseil de paie officiel : vérifiez toujours les montants avant de les déclarer sur pajemploi. Ma Garde Sereine n'est ni affilié ni lié à pajemploi ou à l'URSSAF et ne remplace pas leurs calculs officiels ; nous ne pouvons être tenus responsables d'une déclaration effectuée sur la base de montants non vérifiés.",
+  'legal.contact.title': 'Contact',
+  'legal.contact.body':
+    'Pour toute demande, écrivez à [contact@ma-garde-sereine.fr].',
+  'legal.lastUpdated': 'Dernière mise à jour : [date]',
 }
 
 export const translations: Record<Language, Record<TranslationKey, string>> = {

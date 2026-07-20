@@ -1,4 +1,5 @@
 import { screen } from '@testing-library/react'
+import { Outlet } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '@/src/App'
 import { useAuth } from '@/src/auth/AuthContext'
@@ -9,6 +10,19 @@ vi.mock('@/src/api/family', () => ({
   getMyInvitations: vi.fn(() => Promise.resolve([])),
 }))
 vi.mock('@/src/pages/Home', () => ({ default: () => <p>home</p> }))
+vi.mock('@/src/pages/Landing', () => ({ default: () => <p>landing</p> }))
+vi.mock('@/src/pages/Features', () => ({ default: () => <p>features</p> }))
+vi.mock('@/src/pages/Pricing', () => ({ default: () => <p>pricing</p> }))
+vi.mock('@/src/pages/Privacy', () => ({ default: () => <p>privacy</p> }))
+vi.mock('@/src/pages/LegalNotice', () => ({ default: () => <p>legal</p> }))
+vi.mock('@/src/components/landing/PublicLayout', () => ({
+  PublicLayout: () => (
+    <div>
+      public-shell
+      <Outlet />
+    </div>
+  ),
+}))
 vi.mock('@/src/pages/LoginPage', () => ({ default: () => <p>login</p> }))
 vi.mock('@/src/pages/RegisterPage', () => ({ default: () => <p>register</p> }))
 vi.mock('@/src/pages/Planning', () => ({ default: () => <p>planning</p> }))
@@ -43,16 +57,44 @@ describe('App routing', () => {
     expect(screen.getByText('register')).toBeInTheDocument()
   })
 
-  it('renders home at / when authenticated', () => {
+  it('shows the public landing at / for anonymous visitors', () => {
+    setAuthenticated(false)
+    renderAt('/')
+    expect(screen.getByText('landing')).toBeInTheDocument()
+  })
+
+  it('sends signed-in visitors from / to their dashboard', () => {
     setAuthenticated(true)
     renderAt('/')
     expect(screen.getByText('home')).toBeInTheDocument()
   })
 
-  it('redirects unauthenticated users away from /', () => {
+  it('renders the dashboard at /dashboard when authenticated', () => {
+    setAuthenticated(true)
+    renderAt('/dashboard')
+    expect(screen.getByText('home')).toBeInTheDocument()
+  })
+
+  it('keeps the dashboard behind the login', () => {
     setAuthenticated(false)
-    renderAt('/')
+    renderAt('/dashboard')
     expect(screen.getByText('login')).toBeInTheDocument()
+  })
+
+  it('renders the features page for anyone', () => {
+    setAuthenticated(false)
+    renderAt('/features')
+    expect(screen.getByText('features')).toBeInTheDocument()
+  })
+
+  it('renders the public pricing, privacy and legal pages', () => {
+    setAuthenticated(false)
+    renderAt('/pricing')
+    expect(screen.getByText('pricing')).toBeInTheDocument()
+    renderAt('/privacy')
+    expect(screen.getByText('privacy')).toBeInTheDocument()
+    renderAt('/legal')
+    expect(screen.getByText('legal')).toBeInTheDocument()
   })
 
   it('renders the declarations page', () => {
@@ -67,7 +109,7 @@ describe('App routing', () => {
     expect(screen.getByText('login')).toBeInTheDocument()
   })
 
-  it('redirects unknown routes to /', () => {
+  it('redirects unknown routes to the dashboard', () => {
     setAuthenticated(true)
     renderAt('/nowhere')
     expect(screen.getByText('home')).toBeInTheDocument()

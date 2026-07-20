@@ -32,7 +32,8 @@ function isSupported(value: string): value is Language {
   return (LANGUAGES as readonly string[]).includes(value)
 }
 
-// Pick the first browser-preferred language we support, else fall back to English.
+// Pick the first browser-preferred language we support, else fall back to the
+// default (French).
 export function detectLanguage(): Language {
   const candidates = navigator.languages?.length
     ? navigator.languages

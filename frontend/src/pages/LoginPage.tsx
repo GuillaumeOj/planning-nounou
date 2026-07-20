@@ -11,7 +11,7 @@ export default function LoginPage() {
       variant="login"
       onSubmit={async (credentials) => {
         await login(credentials)
-        navigate('/')
+        navigate('/dashboard')
       }}
     />
   )

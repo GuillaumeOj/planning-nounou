@@ -10,6 +10,7 @@ import {
 import { getDeclarations } from '@/src/api/declarations'
 import { getFamilies } from '@/src/api/family'
 import { useAuth } from '@/src/auth/AuthContext'
+import { BetaBanner } from '@/src/components/BetaBanner'
 import { formatDate } from '@/src/components/DateField'
 import { DeclarationStatusBadge } from '@/src/components/DeclarationStatusBadge'
 import { type Figure, FigureGroup } from '@/src/components/FigureGroup'
@@ -231,6 +232,7 @@ export default function Home() {
 
   return (
     <main className="flex flex-1 flex-col gap-6 p-4 sm:p-10">
+      <BetaBanner />
       <div className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
           {t('home.title')}

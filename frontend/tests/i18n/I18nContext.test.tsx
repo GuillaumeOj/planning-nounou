@@ -50,9 +50,9 @@ describe('detectLanguage', () => {
     expect(detectLanguage()).toBe('fr')
   })
 
-  it('falls back to English when nothing matches', () => {
+  it('falls back to French when nothing matches', () => {
     setLanguages(['de-DE', 'es-ES'])
-    expect(detectLanguage()).toBe('en')
+    expect(detectLanguage()).toBe('fr')
   })
 
   it('uses navigator.language when the languages list is empty', () => {
