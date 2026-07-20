@@ -13,6 +13,7 @@ import { useAuth } from '@/src/auth/AuthContext'
 import { formatDate } from '@/src/components/DateField'
 import { DeclarationStatusBadge } from '@/src/components/DeclarationStatusBadge'
 import { type Figure, FigureGroup } from '@/src/components/FigureGroup'
+import { PersonAvatar } from '@/src/components/PersonAvatar'
 import { SectionCard } from '@/src/components/SectionCard'
 import { Label } from '@/src/components/ui/label'
 import {
@@ -170,6 +171,11 @@ function ContractCard({
   return (
     <SectionCard
       title={`${contract.nanny.first_name} ${contract.nanny.last_name}`}
+      avatar={
+        <PersonAvatar
+          name={`${contract.nanny.first_name} ${contract.nanny.last_name}`}
+        />
+      }
     >
       {balance ? (
         <PaidLeave balance={balance} />

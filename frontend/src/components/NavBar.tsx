@@ -17,6 +17,7 @@ import { getMyContractInvitations } from '@/src/api/contracts'
 import { getMyInvitations } from '@/src/api/family'
 import { useAuth } from '@/src/auth/AuthContext'
 import { AppearanceControls } from '@/src/components/AppearanceControls'
+import { PersonAvatar } from '@/src/components/PersonAvatar'
 import { Button } from '@/src/components/ui/button'
 import { useI18n } from '@/src/i18n/I18nContext'
 import { APP_NAME } from '@/src/lib/brand'
@@ -249,7 +250,10 @@ export function NavBar() {
             aria-label={t('nav.account')}
             onClick={() => setMenuOpen((open) => !open)}
           >
-            <span className="truncate">{displayName}</span>
+            <span className="flex min-w-0 items-center gap-2">
+              <PersonAvatar name={displayName} size="sm" />
+              <span className="truncate">{displayName}</span>
+            </span>
             <ChevronUp size={16} aria-hidden="true" />
           </button>
         </div>

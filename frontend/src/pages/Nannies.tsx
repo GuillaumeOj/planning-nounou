@@ -40,6 +40,7 @@ import { DateField, formatDate } from '@/src/components/DateField'
 import { DayWindowFields } from '@/src/components/DayWindowFields'
 import { FormErrors } from '@/src/components/FormErrors'
 import { Modal } from '@/src/components/Modal'
+import { PersonAvatar } from '@/src/components/PersonAvatar'
 import { SectionCard } from '@/src/components/SectionCard'
 import { Button } from '@/src/components/ui/button'
 import { Card, CardContent } from '@/src/components/ui/card'
@@ -1389,18 +1390,23 @@ export default function Nannies() {
                   className="flex flex-col gap-3 py-3 first:pt-0 last:pb-0"
                 >
                   <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-                    <div className="flex min-w-0 flex-col gap-0.5">
-                      <span className="font-medium break-words">
-                        {contract.nanny.first_name} {contract.nanny.last_name}
-                      </span>
-                      <span className="text-sm text-muted-foreground">
-                        {formatDate(contract.starting_date, lang)} →{' '}
-                        {contract.ending_date
-                          ? formatDate(contract.ending_date, lang)
-                          : t('nanny.ongoing')}
-                        {' · '}
-                        {contract.paid_leave_days} {t('contract.daysOff')}
-                      </span>
+                    <div className="flex min-w-0 items-center gap-3">
+                      <PersonAvatar
+                        name={`${contract.nanny.first_name} ${contract.nanny.last_name}`}
+                      />
+                      <div className="flex min-w-0 flex-col gap-0.5">
+                        <span className="font-medium break-words">
+                          {contract.nanny.first_name} {contract.nanny.last_name}
+                        </span>
+                        <span className="text-sm text-muted-foreground">
+                          {formatDate(contract.starting_date, lang)} →{' '}
+                          {contract.ending_date
+                            ? formatDate(contract.ending_date, lang)
+                            : t('nanny.ongoing')}
+                          {' · '}
+                          {contract.paid_leave_days} {t('contract.daysOff')}
+                        </span>
+                      </div>
                     </div>
                     <div className="flex shrink-0 gap-1">
                       <Button
