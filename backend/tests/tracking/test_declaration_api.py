@@ -22,7 +22,7 @@ import pytest
 from django.urls import reverse
 from django.utils import timezone
 
-from accounts.models import Child
+from accounts.models import Child, Family, FamilyMembership
 from tracking.declarations import first_of_month
 from tracking.models import (
     ContractChild,
@@ -137,6 +137,43 @@ def test_windows_are_replaced_wholesale_on_update(client, owner, family, wired):
     )
     assert resp.status_code == 200
     assert [w["weekday"] for w in resp.data["windows"]] == [2]
+
+
+def test_a_co_employers_presence_is_editable_until_their_family_is_claimed(client, owner, wired):
+    """`owner` set up the co-employer's family (unclaimed) and shared the contract.
+    Until someone claims it, `owner` manages it — so, routed through that family,
+    `owner` may put its children on the contract and set their presence."""
+    b = Family.objects.create(name="Sitter side", created_by=owner)
+    ContractShare.objects.create(contract=wired, family=b)
+    child = Child.objects.create(family=b, first_name="Hugo")
+    client.force_authenticate(user=owner)
+
+    resp = client.post(
+        children_url(b, wired),
+        {
+            "child": str(child.id),
+            "windows": [{"weekday": 0, "start_time": "16:30", "end_time": "18:00"}],
+        },
+        format="json",
+    )
+    assert resp.status_code == 201, resp.data
+    assert str(resp.data["family_id"]) == str(b.id)
+
+
+def test_a_co_employers_presence_is_no_longer_editable_once_claimed(client, owner, outsider, wired):
+    """The moment the co-employer claims the family, an owner membership exists:
+    `owner` no longer manages it, and the write their old rights allowed is a 403.
+    The line is the backend's `can_manage`, not the UI's."""
+    b = Family.objects.create(name="Sitter side", created_by=owner)
+    ContractShare.objects.create(contract=wired, family=b)
+    child = Child.objects.create(family=b, first_name="Hugo")
+    link = ContractChild.objects.create(contract=wired, child=child)
+    FamilyMembership.objects.create(family=b, user=outsider, role=FamilyMembership.Role.OWNER)
+    client.force_authenticate(user=owner)
+
+    url = reverse("tracking:contract-child", args=[b.id, wired.id, link.id])
+    resp = client.patch(url, {"windows": []}, format="json")
+    assert resp.status_code == 403
 
 
 # --- exceptional hours: read all, write your own ------------------------------

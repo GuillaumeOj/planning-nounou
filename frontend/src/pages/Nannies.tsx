@@ -35,7 +35,7 @@ import {
 } from '@/src/api/contracts'
 import { createContractChild } from '@/src/api/declarations'
 import { extractErrorMessages } from '@/src/api/errors'
-import { type Family, getFamilies } from '@/src/api/family'
+import { canManageFamily, type Family, getFamilies } from '@/src/api/family'
 import { ConfirmButton } from '@/src/components/ConfirmButton'
 import { ConfirmByTypingDialog } from '@/src/components/ConfirmByTypingDialog'
 import { ContractChildrenSection } from '@/src/components/ContractChildrenSection'
@@ -953,13 +953,6 @@ function ScheduleSection({
 }
 
 // --- Attaching a family the user also manages -------------------------------
-
-// A user may attach a family to a contract directly (no email invite) only when
-// they manage it: one they own, or one they created and nobody has claimed yet.
-// Mirrors the backend's Family.can_manage.
-function canManageFamily(family: Family): boolean {
-  return family.role === 'owner' || (family.role === null && !family.is_claimed)
-}
 
 // The families the acting user could attach to this contract: ones they manage,
 // that are neither the acting family nor already on it.
@@ -1960,6 +1953,7 @@ export default function Nannies() {
                       <ContractChildrenSection
                         familyId={activeFamilyId}
                         contract={contract}
+                        families={families}
                       />
                       <SplitSection
                         familyId={activeFamilyId}

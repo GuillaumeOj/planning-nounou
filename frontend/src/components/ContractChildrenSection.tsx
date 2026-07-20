@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
 import { useState } from 'react'
 import { listChildren } from '@/src/api/children'
 import type { Contract } from '@/src/api/contracts'
@@ -11,6 +16,7 @@ import {
   updateContractChild,
 } from '@/src/api/declarations'
 import { extractErrorMessages } from '@/src/api/errors'
+import { canManageFamily, type Family } from '@/src/api/family'
 import { ConfirmButton } from '@/src/components/ConfirmButton'
 import { DayWindowFields } from '@/src/components/DayWindowFields'
 import { FormErrors } from '@/src/components/FormErrors'
@@ -157,14 +163,21 @@ function ChildFields({
 export function ContractChildrenSection({
   familyId,
   contract,
+  families,
 }: {
   familyId: string
   contract: Contract
+  families: Family[]
 }) {
   const { t, lang } = useI18n()
   const queryClient = useQueryClient()
   const [draft, setDraft] = useState<ChildDraft>(EMPTY_CHILD)
   const [editingId, setEditingId] = useState<string | 'new' | null>(null)
+  // The family the current form writes through. A write is scoped to a family's
+  // URL, so it is authorised against *that* family: editing a row uses the
+  // family that owns it; a new row uses the chosen child's family, resolved at
+  // save time (null until then).
+  const [actingFamilyId, setActingFamilyId] = useState<string | null>(null)
   const [errors, setErrors] = useState<string[]>([])
 
   const { data: entries } = useQuery({
@@ -172,12 +185,32 @@ export function ContractChildrenSection({
     queryFn: () => getContractChildren(familyId, contract.id),
   })
 
-  // Only this family's own children can be put on the contract; the other
-  // family puts its own on from its side.
-  const { data: children } = useQuery({
-    queryKey: ['children', familyId],
-    queryFn: () => listChildren(familyId),
+  // The families on this contract the acting user may manage: their own, plus
+  // any unclaimed family they set up on a co-employer's behalf — until that
+  // co-employer claims it. Their children can be put on the contract and have
+  // their presence edited, each routed through its own family so the backend's
+  // can_manage check draws the same line (and revokes it the moment B claims).
+  const manageableFamilies = contract.families.filter((cf) =>
+    families.some((f) => f.id === cf.id && canManageFamily(f)),
+  )
+  const manageableIds = new Set(manageableFamilies.map((f) => f.id))
+
+  const childQueries = useQueries({
+    queries: manageableFamilies.map((cf) => ({
+      queryKey: ['children', cf.id],
+      queryFn: () => listChildren(cf.id),
+    })),
   })
+  const childrenLoaded = childQueries.every((q) => q.isSuccess)
+  // Every child of a manageable family, tagged with the family that owns it so a
+  // new row can be routed through it.
+  const ownChildren = manageableFamilies.flatMap((cf, i) =>
+    (childQueries[i].data ?? []).map((c) => ({
+      id: c.id,
+      name: c.first_name,
+      familyId: cf.id,
+    })),
+  )
 
   const invalidate = () =>
     Promise.all([
@@ -189,15 +222,25 @@ export function ContractChildrenSection({
     ])
   const close = () => {
     setEditingId(null)
+    setActingFamilyId(null)
     setErrors([])
   }
 
   const mutation = useMutation({
     mutationFn: () => {
       const input = { child: draft.child, windows: draft.windows }
-      return editingId === 'new' || editingId === null
-        ? createContractChild(familyId, contract.id, input)
-        : updateContractChild(familyId, contract.id, editingId, input)
+      if (editingId === 'new' || editingId === null) {
+        const target = ownChildren.find((c) => c.id === draft.child)?.familyId
+        if (!target) throw new Error('No family owns the chosen child.')
+        return createContractChild(target, contract.id, input)
+      }
+      // actingFamilyId is pinned to the edited row's family when the form opens.
+      return updateContractChild(
+        actingFamilyId as string,
+        contract.id,
+        editingId,
+        input,
+      )
     },
     onSuccess: async () => {
       await invalidate()
@@ -206,13 +249,19 @@ export function ContractChildrenSection({
     onError: (err) => setErrors(extractErrorMessages(err, t('nanny.error'))),
   })
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => deleteContractChild(familyId, contract.id, id),
+    mutationFn: (entry: ContractChild) =>
+      deleteContractChild(entry.family_id, contract.id, entry.id),
     onSuccess: invalidate,
   })
 
-  const open = (mode: string | 'new', initial: ChildDraft) => {
+  const open = (
+    mode: string | 'new',
+    initial: ChildDraft,
+    family: string | null,
+  ) => {
     setDraft(initial)
     setEditingId(mode)
+    setActingFamilyId(family)
     setErrors([])
   }
   const submit = () => {
@@ -228,9 +277,9 @@ export function ContractChildrenSection({
   const taken = new Set(
     (entries ?? []).filter((e) => e.id !== editingId).map((e) => e.child),
   )
-  const childOptions = (children ?? [])
+  const childOptions = ownChildren
     .filter((c) => !taken.has(c.id))
-    .map((c) => ({ id: c.id, name: c.first_name }))
+    .map((c) => ({ id: c.id, name: c.name }))
 
   return (
     <SectionCard
@@ -260,30 +309,39 @@ export function ContractChildrenSection({
             </Button>
           </div>
         </div>
-      ) : children && children.length === 0 ? (
-        // Nothing to put on the contract: say so rather than offer a form whose
-        // only required field has no options.
-        <p className="text-sm text-muted-foreground">
-          {t('contractChild.noChildren')}
-        </p>
       ) : (
-        <Button
-          type="button"
-          variant="outline"
-          className="self-start"
-          disabled={childOptions.length === 0}
-          onClick={() => open('new', EMPTY_CHILD)}
-        >
-          {t('contractChild.add')}
-        </Button>
+        // The acting user only gets an add affordance for families they manage
+        // on this contract. A plain member of the family they are viewing manages
+        // none — so offer nothing (the rows below still render read-only) rather
+        // than a lie like "add a child to your family first".
+        manageableFamilies.length > 0 &&
+        (childrenLoaded && ownChildren.length === 0 ? (
+          // Nothing to put on the contract: say so rather than offer a form whose
+          // only required field has no options.
+          <p className="text-sm text-muted-foreground">
+            {t('contractChild.noChildren')}
+          </p>
+        ) : (
+          <Button
+            type="button"
+            variant="outline"
+            className="self-start"
+            disabled={childOptions.length === 0}
+            onClick={() => open('new', EMPTY_CHILD, null)}
+          >
+            {t('contractChild.add')}
+          </Button>
+        ))
       )}
 
       {entries && entries.length > 0 ? (
         <ul className="flex flex-col divide-y text-sm">
           {entries.map((entry) => {
-            // The other family's children are on the contract too — they are
-            // half of what the split divides — but they are not ours to edit.
-            const isOwn = entry.family_id === familyId
+            // A row is ours to edit when we manage the family that owns the
+            // child: our own family, or an unclaimed one we set up until it is
+            // claimed. Another claimed family's children are on the contract too
+            // — half of what the split divides — but are shown read-only.
+            const editable = manageableIds.has(entry.family_id)
             const presence = describePresence(entry.windows, t, lang)
             return (
               <li
@@ -294,13 +352,15 @@ export function ContractChildrenSection({
                   <span className="font-medium">{entry.first_name}</span>
                   <span className="text-muted-foreground">{presence}</span>
                 </span>
-                {isOwn && (
+                {editable && (
                   <span className="flex shrink-0 gap-1">
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={() => open(entry.id, entryToDraft(entry))}
+                      onClick={() =>
+                        open(entry.id, entryToDraft(entry), entry.family_id)
+                      }
                     >
                       {t('nanny.edit')}
                     </Button>
@@ -308,7 +368,7 @@ export function ContractChildrenSection({
                       trigger={t('nanny.delete')}
                       title={t('nanny.delete')}
                       description={t('contractChild.confirmDelete')}
-                      onConfirm={() => deleteMutation.mutate(entry.id)}
+                      onConfirm={() => deleteMutation.mutate(entry)}
                     />
                   </span>
                 )}

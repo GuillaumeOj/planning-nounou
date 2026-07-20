@@ -10,6 +10,7 @@ import {
   getContractChildren,
   updateContractChild,
 } from '@/src/api/declarations'
+import type { Family } from '@/src/api/family'
 import { ContractChildrenSection } from '@/src/components/ContractChildrenSection'
 import { renderWithProviders, selectOption } from '@/tests/utils'
 
@@ -31,8 +32,34 @@ const m = {
 
 const OWN_FAMILY = 'fam-1'
 const OTHER_FAMILY = 'fam-2'
+// A family the acting user set up on a co-employer's behalf: unclaimed, so they
+// manage it until it is claimed.
+const UNCLAIMED_FAMILY = 'fam-3'
 
-const contract = { id: 'contract-1' } as Contract
+const contractFamily = (id: string) => ({
+  id,
+  name: id,
+  is_originator: id === OWN_FAMILY,
+})
+
+// Everything shares this one contract by default; cross-family tests pass their
+// own `families` list to widen who the user manages.
+const contract = {
+  id: 'contract-1',
+  families: [contractFamily(OWN_FAMILY), contractFamily(OTHER_FAMILY)],
+} as Contract
+
+const fam = (o: Partial<Family> & Pick<Family, 'id'>): Family => ({
+  name: o.id,
+  role: 'owner',
+  is_claimed: true,
+  created_at: '2026-01-01',
+  ...o,
+})
+
+// The acting user owns their own family; that is all they manage unless a test
+// says otherwise.
+const OWNS_ONE = [fam({ id: OWN_FAMILY })]
 
 const child = (o: Partial<ContractChild> = {}): ContractChild => ({
   id: 'cc-1',
@@ -43,18 +70,29 @@ const child = (o: Partial<ContractChild> = {}): ContractChild => ({
   ...o,
 })
 
-const render = () =>
+const render = (families: Family[] = OWNS_ONE, c: Contract = contract) =>
   renderWithProviders(
-    <ContractChildrenSection familyId={OWN_FAMILY} contract={contract} />,
+    <ContractChildrenSection
+      familyId={OWN_FAMILY}
+      contract={c}
+      families={families}
+    />,
   )
 
 beforeEach(() => {
   vi.clearAllMocks()
   m.entries.mockResolvedValue([])
-  m.children.mockResolvedValue([
-    { id: 'kid-1', first_name: 'Léa' },
-    { id: 'kid-2', first_name: 'Noé' },
-  ])
+  // Each family's own children. OWN_FAMILY has two; the unclaimed one has Hugo.
+  m.children.mockImplementation((id: string) =>
+    Promise.resolve(
+      id === UNCLAIMED_FAMILY
+        ? [{ id: 'kid-9', first_name: 'Hugo' }]
+        : [
+            { id: 'kid-1', first_name: 'Léa' },
+            { id: 'kid-2', first_name: 'Noé' },
+          ],
+    ),
+  )
 })
 
 describe('ContractChildrenSection', () => {
@@ -213,6 +251,102 @@ describe('ContractChildrenSection', () => {
     // One Edit and one Delete: the own row's, never the other's.
     expect(screen.getAllByRole('button', { name: 'Edit' })).toHaveLength(1)
     expect(screen.getAllByRole('button', { name: 'Delete' })).toHaveLength(1)
+  })
+
+  // A plain member of the family they are viewing manages no family here, so
+  // the section offers no way to add — and must not claim the family is empty.
+  it('offers no add affordance when the user manages no family here', async () => {
+    m.entries.mockResolvedValue([child()])
+    render([fam({ id: OWN_FAMILY, role: 'member' })])
+
+    // The read-only row still shows; the add area does not.
+    expect(await screen.findByText('Léa')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Add a child' }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('Add a child to your family first.'),
+    ).not.toBeInTheDocument()
+  })
+
+  // Until a co-employer claims the family the user set up for them, the user
+  // manages it — so they can edit its children's presence, and the write is
+  // routed through that family, not the family whose page they are on.
+  const withUnclaimed = [
+    fam({ id: OWN_FAMILY }),
+    fam({ id: UNCLAIMED_FAMILY, role: null, is_claimed: false }),
+  ]
+  const contractWithUnclaimed = {
+    id: 'contract-1',
+    families: [contractFamily(OWN_FAMILY), contractFamily(UNCLAIMED_FAMILY)],
+  } as Contract
+
+  it('edits an unclaimed family’s child, routed through that family', async () => {
+    m.entries.mockResolvedValue([
+      child({
+        id: 'cc-9',
+        child: 'kid-9',
+        first_name: 'Hugo',
+        family_id: UNCLAIMED_FAMILY,
+      }),
+    ])
+    m.update.mockResolvedValue(child())
+    render(withUnclaimed, contractWithUnclaimed)
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() =>
+      expect(m.update).toHaveBeenCalledWith(
+        UNCLAIMED_FAMILY,
+        'contract-1',
+        'cc-9',
+        { child: 'kid-9', windows: [] },
+      ),
+    )
+  })
+
+  it('adds an unclaimed family’s child, routed through that family', async () => {
+    m.create.mockResolvedValue(child())
+    render(withUnclaimed, contractWithUnclaimed)
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Add a child' }),
+    )
+    await selectOption('Child', 'Hugo')
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() =>
+      expect(m.create).toHaveBeenCalledWith(UNCLAIMED_FAMILY, 'contract-1', {
+        child: 'kid-9',
+        windows: [],
+      }),
+    )
+  })
+
+  // Once the co-employer claims the family, the user no longer manages it: the
+  // row goes read-only, matching the backend, which would now refuse the write.
+  it('stops offering to edit a family once it is claimed', async () => {
+    m.entries.mockResolvedValue([
+      child({
+        id: 'cc-9',
+        child: 'kid-9',
+        first_name: 'Hugo',
+        family_id: UNCLAIMED_FAMILY,
+      }),
+    ])
+    render(
+      [
+        fam({ id: OWN_FAMILY }),
+        fam({ id: UNCLAIMED_FAMILY, role: null, is_claimed: true }),
+      ],
+      contractWithUnclaimed,
+    )
+
+    expect(await screen.findByText('Hugo')).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Edit' }),
+    ).not.toBeInTheDocument()
   })
 })
 
