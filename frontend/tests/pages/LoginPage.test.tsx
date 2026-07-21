@@ -5,6 +5,12 @@ import { useAuth } from '@/src/auth/AuthContext'
 import LoginPage from '@/src/pages/LoginPage'
 import { makeAuth, renderWithProviders } from '@/tests/utils'
 
+async function logIn() {
+  await userEvent.type(screen.getByLabelText('Email'), 'x@example.com')
+  await userEvent.type(screen.getByLabelText('Password'), 'secret-pass')
+  await userEvent.click(screen.getByRole('button', { name: 'Log in' }))
+}
+
 const mockNavigate = vi.fn()
 vi.mock('react-router-dom', async (importOriginal) => {
   const actual = await importOriginal<typeof import('react-router-dom')>()
@@ -62,5 +68,29 @@ describe('LoginPage', () => {
     expect(
       screen.getByRole('link', { name: 'Forgot your password?' }),
     ).toHaveAttribute('href', '/forgot-password')
+  })
+
+  it('returns to a safe ?next= target after login', async () => {
+    login.mockResolvedValue(undefined)
+    renderWithProviders(<LoginPage />, {
+      route: `/login?next=${encodeURIComponent('/contract-invite/abc')}`,
+    })
+
+    await logIn()
+
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith('/contract-invite/abc'),
+    )
+  })
+
+  it('ignores an off-site ?next= and falls back to the dashboard', async () => {
+    login.mockResolvedValue(undefined)
+    renderWithProviders(<LoginPage />, {
+      route: `/login?next=${encodeURIComponent('https://evil.example.com')}`,
+    })
+
+    await logIn()
+
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/dashboard'))
   })
 })

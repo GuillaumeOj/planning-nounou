@@ -9,7 +9,11 @@ import { I18nProvider } from '@/src/i18n/I18nContext'
 vi.mock('@/src/api/auth', () => ({ resendActivation: vi.fn() }))
 const mockResend = vi.mocked(resendActivation)
 
-function renderNotice(props: { email: string; inline?: boolean }) {
+function renderNotice(props: {
+  email: string
+  inline?: boolean
+  next?: string
+}) {
   return render(
     <I18nProvider>
       <MemoryRouter>
@@ -32,6 +36,17 @@ describe('VerifyEmailNotice', () => {
     expect(
       screen.getByRole('link', { name: 'Back to log in' }),
     ).toHaveAttribute('href', '/login')
+  })
+
+  it('carries a next target into the back-to-login link', () => {
+    renderNotice({ email: 'new@example.com', next: '/contract-invite/abc' })
+
+    expect(
+      screen.getByRole('link', { name: 'Back to log in' }),
+    ).toHaveAttribute(
+      'href',
+      `/login?next=${encodeURIComponent('/contract-invite/abc')}`,
+    )
   })
 
   it('resends the activation email on demand', async () => {

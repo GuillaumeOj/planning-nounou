@@ -113,6 +113,16 @@ export interface MyContractInvitation {
   expires_at: string
 }
 
+// Public, token-addressed preview shown on the /contract-invite/:token landing page
+// (works signed out, so an invitee can see who invited them before authenticating).
+export interface ContractInvitationPreview {
+  email: string
+  status: string
+  nanny_first_name: string
+  nanny_last_name: string
+  expires_at: string
+}
+
 export interface MinimumWage {
   net_hourly_rate: string | null
 }
@@ -344,4 +354,14 @@ export async function acceptContractInvitation(
 
 export async function declineContractInvitation(token: string): Promise<void> {
   await api.post(`/contract-invitations/${token}/decline/`)
+}
+
+// Public preview of a contract invitation by token — backs the invite-landing page.
+export async function getContractInvitationPreview(
+  token: string,
+): Promise<ContractInvitationPreview> {
+  const { data } = await api.get<ContractInvitationPreview>(
+    `/contract-invitations/${token}/`,
+  )
+  return data
 }

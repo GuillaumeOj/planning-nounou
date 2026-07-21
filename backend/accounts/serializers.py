@@ -1,3 +1,4 @@
+from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 from djoser.serializers import SetUsernameSerializer as DjoserSetUsernameSerializer
 from djoser.serializers import UserCreateSerializer as DjoserUserCreateSerializer
@@ -5,6 +6,7 @@ from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
 from .models import Family, FamilyMembership, Invitation, User
+from .notifications import send_family_invitation_email
 
 
 def _case_insensitive_unique_email() -> UniqueValidator:
@@ -161,10 +163,10 @@ class FamilyMembershipSerializer(serializers.ModelSerializer):
 class InvitationSerializer(serializers.ModelSerializer):
     """Create and list invitations for a family.
 
-    Exposes ``token`` read-only so managers can build a shareable invite link
-    (there is no invite email backend yet). Only family managers can reach this
-    endpoint, and they are the ones who send invites, so surfacing it to them is
-    acceptable; the public preview endpoint never exposes it.
+    Creating one emails the invitee a Brevo-hosted invite link (see
+    accounts/notifications.py). ``token`` is still exposed read-only so a manager can
+    re-share the link manually if needed; only family managers reach this endpoint and
+    the public preview never exposes the token.
     """
 
     class Meta:
@@ -189,11 +191,18 @@ class InvitationSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data: dict) -> Invitation:
-        return Invitation.objects.create(
-            family=self.context["family"],
-            invited_by=self.context["request"].user,
-            **validated_data,
-        )
+        # Send within the request, but inside the same transaction as the insert: a
+        # delivery failure rolls the invitation back so the manager can retry cleanly.
+        # A committed-but-unsent pending row would otherwise trip the duplicate-pending
+        # guard above and block re-inviting the same address.
+        with transaction.atomic():
+            invitation = Invitation.objects.create(
+                family=self.context["family"],
+                invited_by=self.context["request"].user,
+                **validated_data,
+            )
+            send_family_invitation_email(invitation)
+        return invitation
 
 
 class InvitationPreviewSerializer(serializers.ModelSerializer):

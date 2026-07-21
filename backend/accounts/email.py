@@ -13,20 +13,9 @@ reliable language signal and no per-user language needs to be stored.
 """
 
 from django.conf import settings
-from django.utils.translation import get_language
 from djoser import email as djoser_email
 
-# The active language comes from get_language(), set by LocaleMiddleware from the
-# request's Accept-Language (the SPA always sends an explicit fr/en). FALLBACK_LANGUAGE
-# only guards the degenerate case where get_language() yields nothing; note that an
-# unsupported/missing header resolves to LANGUAGE_CODE ("en") upstream, not to French.
-FALLBACK_LANGUAGE = "fr"
-SUPPORTED_LANGUAGES = ("fr", "en")
-
-
-def _language() -> str:
-    lang = (get_language() or FALLBACK_LANGUAGE).split("-")[0].lower()
-    return lang if lang in SUPPORTED_LANGUAGES else FALLBACK_LANGUAGE
+from .notifications import active_language
 
 
 class _BrevoTemplateEmail(djoser_email.BaseDjoserEmail):
@@ -59,7 +48,7 @@ class _BrevoTemplateEmail(djoser_email.BaseDjoserEmail):
         # nulls the request. We render no body (it lives in the Brevo template), so we only
         # pick the template id for the active language and attach the merge params.
         context = self.get_context_data()
-        self.template_id = settings.BREVO_TEMPLATE_IDS[self.template_key][_language()]
+        self.template_id = settings.BREVO_TEMPLATE_IDS[self.template_key][active_language()]
         self.merge_global_data = self.get_merge_data(context)
 
 

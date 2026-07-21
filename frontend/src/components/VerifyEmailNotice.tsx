@@ -14,15 +14,23 @@ interface VerifyEmailNoticeProps {
   // Render without the page/card chrome, for embedding inside another card
   // (e.g. the invitation claim flow).
   inline?: boolean
+  // Where to send the user after they log in, carried through from registration
+  // (e.g. a contract invite). Appended to the "back to login" link when set.
+  next?: string
 }
 
 // Shown after registration (standalone or via an invite claim): the account is
 // created but inactive until the user follows the activation link we emailed.
-export function VerifyEmailNotice({ email, inline }: VerifyEmailNoticeProps) {
+export function VerifyEmailNotice({
+  email,
+  inline,
+  next,
+}: VerifyEmailNoticeProps) {
   const { t } = useI18n()
   const [errors, setErrors] = useState<string[]>([])
   const [resent, setResent] = useState(false)
   const [busy, setBusy] = useState(false)
+  const loginTo = next ? `/login?next=${encodeURIComponent(next)}` : '/login'
 
   const lead = (
     <>
@@ -56,7 +64,7 @@ export function VerifyEmailNotice({ email, inline }: VerifyEmailNoticeProps) {
       <p className="text-center text-sm text-muted-foreground">
         <Link
           className="font-medium text-primary underline-offset-4 hover:underline"
-          to="/login"
+          to={loginTo}
         >
           {t('verify.backToLogin')}
         </Link>

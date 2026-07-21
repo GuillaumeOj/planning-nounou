@@ -25,6 +25,9 @@ vi.mock('@/src/components/landing/PublicLayout', () => ({
 }))
 vi.mock('@/src/pages/LoginPage', () => ({ default: () => <p>login</p> }))
 vi.mock('@/src/pages/RegisterPage', () => ({ default: () => <p>register</p> }))
+vi.mock('@/src/pages/ContractInvitePage', () => ({
+  default: () => <p>contract-invite</p>,
+}))
 vi.mock('@/src/pages/Planning', () => ({ default: () => <p>planning</p> }))
 vi.mock('@/src/pages/Declarations', () => ({
   default: () => <p>declarations</p>,
@@ -55,6 +58,12 @@ describe('App routing', () => {
     setAuthenticated(false)
     renderAt('/register')
     expect(screen.getByText('register')).toBeInTheDocument()
+  })
+
+  it('renders the contract-invite landing publicly (no login wall)', () => {
+    setAuthenticated(false)
+    renderAt('/contract-invite/tok-123')
+    expect(screen.getByText('contract-invite')).toBeInTheDocument()
   })
 
   it('shows the public landing at / for anonymous visitors', () => {
