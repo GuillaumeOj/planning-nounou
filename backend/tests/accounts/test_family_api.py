@@ -39,8 +39,8 @@ def test_families_are_mounted_at_api_root(client, owner):
     client.force_authenticate(user=owner)
 
     assert client.get("/api/families/").status_code == 200
-    # The auth endpoints stay under /api/auth/.
-    assert client.get("/api/auth/me/").status_code == 200
+    # The auth endpoints stay under /api/auth/ (djoser).
+    assert client.get("/api/auth/users/me/").status_code == 200
 
 
 # --- Family creation --------------------------------------------------------
@@ -198,7 +198,7 @@ def test_new_user_claims_family_via_registration(client, owner):
     )
 
     resp = client.post(
-        reverse("accounts:register"),
+        "/api/auth/users/",
         {
             "email": "newbie@example.com",
             "password": VALID_PASSWORD,
@@ -218,7 +218,7 @@ def test_new_user_claims_family_via_registration(client, owner):
 
 def test_register_with_bad_token_rejected(client):
     resp = client.post(
-        reverse("accounts:register"),
+        "/api/auth/users/",
         {"email": "x@example.com", "password": VALID_PASSWORD, "invitation_token": "nope"},
         format="json",
     )

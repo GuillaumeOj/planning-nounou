@@ -84,7 +84,7 @@ describe('api client interceptors', () => {
     const response = await api.get('/secure/')
 
     expect(post).toHaveBeenCalledWith(
-      expect.stringContaining('/auth/token/refresh/'),
+      expect.stringContaining('/auth/jwt/refresh/'),
       {
         refresh: 'r1',
       },

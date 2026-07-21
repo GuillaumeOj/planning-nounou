@@ -1,45 +1,28 @@
-from django.contrib.auth.password_validation import validate_password
 from django.utils.translation import gettext_lazy as _
+from djoser.serializers import SetUsernameSerializer as DjoserSetUsernameSerializer
+from djoser.serializers import UserCreateSerializer as DjoserUserCreateSerializer
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
 from .models import Family, FamilyMembership, Invitation, User
 
 
+def _case_insensitive_unique_email() -> UniqueValidator:
+    """Our case-insensitive unique-email validator with a translated message.
+
+    Replaces the model's default (case-sensitive) validator. Shared by
+    registration and the email-change flow.
+    """
+    return UniqueValidator(
+        queryset=User.objects.all(),
+        lookup="iexact",
+        message=_("A user with this email already exists."),
+    )
+
+
 def unique_email_field() -> serializers.EmailField:
-    """An email field with a case-insensitive uniqueness check.
-
-    Replaces the model's default (case-sensitive) validator and carries our
-    translated message. Shared by registration and the email-change flow.
-    """
-    return serializers.EmailField(
-        validators=[
-            UniqueValidator(
-                queryset=User.objects.all(),
-                lookup="iexact",
-                message=_("A user with this email already exists."),
-            )
-        ]
-    )
-
-
-class CurrentPasswordMixin(serializers.Serializer):
-    """Adds a `current_password` field that must match the requesting user's.
-
-    Used to guard sensitive account changes (email, password) behind a
-    re-authentication step.
-    """
-
-    current_password = serializers.CharField(
-        write_only=True,
-        style={"input_type": "password"},
-    )
-
-    def validate_current_password(self, value: str) -> str:
-        user = self.context["request"].user
-        if not user.check_password(value):
-            raise serializers.ValidationError(_("The current password is incorrect."))
-        return value
+    """An email field carrying the case-insensitive uniqueness check above."""
+    return serializers.EmailField(validators=[_case_insensitive_unique_email()])
 
 
 class ProfileSerializer(serializers.ModelSerializer):
@@ -66,17 +49,20 @@ def resolve_invitation_or_raise(token: str) -> Invitation:
     return invitation
 
 
-class RegisterSerializer(serializers.ModelSerializer):
+class RegisterSerializer(DjoserUserCreateSerializer):
+    """djoser's user-create serializer, extended for our two custom needs:
+
+    case-insensitive-unique email (with our i18n message) and the optional
+    ``invitation_token`` that joins the new account to the invited family on
+    creation. Password validation and the inactive-until-activated handling are
+    inherited from djoser.
+    """
+
     email = unique_email_field()
-    password = serializers.CharField(
-        write_only=True,
-        style={"input_type": "password"},
-    )
     # Optional: when set, the new account joins the invited family on creation.
     invitation_token = serializers.CharField(write_only=True, required=False)
 
-    class Meta:
-        model = User
+    class Meta(DjoserUserCreateSerializer.Meta):
         fields = ("id", "email", "password", "first_name", "last_name", "invitation_token")
         read_only_fields = ("id",)
         extra_kwargs = {
@@ -84,54 +70,39 @@ class RegisterSerializer(serializers.ModelSerializer):
             "last_name": {"required": False},
         }
 
-    def validate_password(self, value: str) -> str:
-        validate_password(value)
-        return value
-
     def validate_invitation_token(self, value: str) -> str:
         # Validate up front so registration fails cleanly on a bad token.
         resolve_invitation_or_raise(value)
         return value
 
-    def create(self, validated_data: dict) -> User:
-        password = validated_data.pop("password")
-        token = validated_data.pop("invitation_token", None)
-        user = User.objects.create_user(password=password, **validated_data)
+    def validate(self, attrs: dict) -> dict:
+        # djoser's base validate builds ``User(**attrs)`` to run password
+        # validation; the non-model invitation_token would break that, so set it
+        # aside and reuse it in perform_create.
+        self._invitation_token = attrs.pop("invitation_token", None)
+        return super().validate(attrs)
+
+    def perform_create(self, validated_data: dict) -> User:
+        user = super().perform_create(validated_data)
+        # validate() sets this; default None guards a save() without validation.
+        token = getattr(self, "_invitation_token", None)
         if token:
-            # Re-resolve inside create; still actionable barring a race.
+            # Re-resolve here; still actionable barring a race.
             resolve_invitation_or_raise(token).accept(user)
         return user
 
 
-class ChangeEmailSerializer(CurrentPasswordMixin):
-    """Change the authenticated user's email, guarded by the current password."""
+class SetEmailSerializer(DjoserSetUsernameSerializer):
+    """djoser's change-email serializer (guarded by ``current_password``) with our
+    case-insensitive-unique email validator and translated message re-applied."""
 
-    email = unique_email_field()
-
-    def save(self, **kwargs) -> User:
-        user = self.context["request"].user
-        user.email = self.validated_data["email"]
-        user.save(update_fields=["email"])
-        return user
-
-
-class ChangePasswordSerializer(CurrentPasswordMixin):
-    """Change the authenticated user's password, guarded by the current password."""
-
-    new_password = serializers.CharField(
-        write_only=True,
-        style={"input_type": "password"},
-    )
-
-    def validate_new_password(self, value: str) -> str:
-        validate_password(value, user=self.context["request"].user)
-        return value
-
-    def save(self, **kwargs) -> User:
-        user = self.context["request"].user
-        user.set_password(self.validated_data["new_password"])
-        user.save(update_fields=["password"])
-        return user
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        # djoser renames the login field to ``new_email``; swap its default
+        # (case-sensitive) uniqueness validator for our case-insensitive one.
+        field = self.fields["new_email"]
+        field.validators = [v for v in field.validators if not isinstance(v, UniqueValidator)]
+        field.validators.append(_case_insensitive_unique_email())
 
 
 class FamilySerializer(serializers.ModelSerializer):

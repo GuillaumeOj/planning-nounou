@@ -55,4 +55,12 @@ describe('LoginPage', () => {
     )
     expect(mockNavigate).not.toHaveBeenCalled()
   })
+
+  it('offers a forgot-password link', () => {
+    renderPage()
+
+    expect(
+      screen.getByRole('link', { name: 'Forgot your password?' }),
+    ).toHaveAttribute('href', '/forgot-password')
+  })
 })

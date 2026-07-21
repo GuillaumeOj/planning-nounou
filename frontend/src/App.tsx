@@ -1,13 +1,14 @@
-import type { ReactNode } from 'react'
 import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { ProtectedRoute } from '@/src/auth/ProtectedRoute'
 import { RedirectAuthenticated } from '@/src/auth/RedirectAuthenticated'
 import { PublicLayout } from '@/src/components/landing/PublicLayout'
 import { NavBar } from '@/src/components/NavBar'
 import { SettingsBar } from '@/src/components/SettingsBar'
+import ActivatePage from '@/src/pages/ActivatePage'
 import Declarations from '@/src/pages/Declarations'
 import Family from '@/src/pages/Family'
 import Features from '@/src/pages/Features'
+import ForgotPasswordPage from '@/src/pages/ForgotPasswordPage'
 import Home from '@/src/pages/Home'
 import InvitePage from '@/src/pages/InvitePage'
 import Landing from '@/src/pages/Landing'
@@ -18,14 +19,17 @@ import Planning from '@/src/pages/Planning'
 import Pricing from '@/src/pages/Pricing'
 import Privacy from '@/src/pages/Privacy'
 import RegisterPage from '@/src/pages/RegisterPage'
+import ResetPasswordPage from '@/src/pages/ResetPasswordPage'
 import SettingsPage from '@/src/pages/SettingsPage'
 
 // Auth pages have no navbar; the appearance controls live in a small top bar.
-function AuthLayout({ children }: { children: ReactNode }) {
+// A layout route (like AppLayout) so each auth page renders through the shared
+// SettingsBar without hand-wrapping.
+function AuthLayout() {
   return (
     <>
       <SettingsBar />
-      {children}
+      <Outlet />
     </>
   )
 }
@@ -53,31 +57,21 @@ function AppLayout() {
 function App() {
   return (
     <Routes>
-      <Route
-        path="/login"
-        element={
-          <AuthLayout>
-            <LoginPage />
-          </AuthLayout>
-        }
-      />
-      <Route
-        path="/register"
-        element={
-          <AuthLayout>
-            <RegisterPage />
-          </AuthLayout>
-        }
-      />
-      {/* Invitation landing: works signed in (accept) or signed out (claim). */}
-      <Route
-        path="/invite/:token"
-        element={
-          <AuthLayout>
-            <InvitePage />
-          </AuthLayout>
-        }
-      />
+      {/* Auth pages (no navbar, just the appearance controls). */}
+      <Route element={<AuthLayout />}>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        {/* Password reset request + confirmation (links come from the reset email). */}
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route
+          path="/reset-password/:uid/:token"
+          element={<ResetPasswordPage />}
+        />
+        {/* Email verification landing (link comes from the activation email). */}
+        <Route path="/activate/:uid/:token" element={<ActivatePage />} />
+        {/* Invitation landing: works signed in (accept) or signed out (claim). */}
+        <Route path="/invite/:token" element={<InvitePage />} />
+      </Route>
       {/* Public marketing surface. The landing owns "/"; a signed-in visitor is
           sent on to their dashboard. The features page stays public for all. */}
       <Route element={<PublicLayout />}>

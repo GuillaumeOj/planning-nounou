@@ -103,12 +103,7 @@ describe('SettingsPage — profile', () => {
 
 describe('SettingsPage — email', () => {
   it('confirms with the password in a dialog and changes the email', async () => {
-    mockChangeEmail.mockResolvedValue({
-      id: '1',
-      email: 'new@example.com',
-      first_name: 'Ada',
-      last_name: 'Lovelace',
-    })
+    mockChangeEmail.mockResolvedValue(undefined)
     renderPage()
 
     await userEvent.type(screen.getByLabelText('New email'), 'new@example.com')
@@ -128,10 +123,17 @@ describe('SettingsPage — email', () => {
     await waitFor(() =>
       expect(mockChangeEmail).toHaveBeenCalledWith({
         current_password: 'my-current-pass',
-        email: 'new@example.com',
+        new_email: 'new@example.com',
       }),
     )
-    expect(refreshUser).toHaveBeenCalled()
+    // set_email replies 204, so the page updates the cached user locally with
+    // the new email — no refetch round-trip.
+    expect(refreshUser).toHaveBeenCalledWith({
+      id: '1',
+      email: 'new@example.com',
+      first_name: 'Ada',
+      last_name: 'Lovelace',
+    })
     expect(await screen.findByText('Email updated.')).toBeInTheDocument()
     expect(
       screen.queryByRole('dialog', { name: 'Confirm your password' }),

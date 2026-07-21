@@ -14,8 +14,8 @@ const baseURL = import.meta.env.VITE_API_URL ?? '/api'
 export const api = axios.create({ baseURL })
 
 // Single source for the token-refresh endpoint (used by the interceptor below
-// and by api/auth.ts).
-export const AUTH_REFRESH_PATH = '/auth/token/refresh/'
+// and by api/auth.ts). djoser mounts SimpleJWT under /auth/jwt/.
+export const AUTH_REFRESH_PATH = '/auth/jwt/refresh/'
 
 // Attach the bearer access token to every outgoing request when present.
 api.interceptors.request.use((config) => {

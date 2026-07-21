@@ -26,8 +26,13 @@ function renderPage() {
 }
 
 describe('RegisterPage', () => {
-  it('registers and navigates to the dashboard on success', async () => {
-    register.mockResolvedValue(undefined)
+  it('registers and shows the verify-email step on success', async () => {
+    register.mockResolvedValue({
+      id: '1',
+      email: 'new@example.com',
+      first_name: '',
+      last_name: '',
+    })
     renderPage()
 
     await userEvent.type(screen.getByLabelText('Email'), 'new@example.com')
@@ -40,7 +45,10 @@ describe('RegisterPage', () => {
         password: 'secret-pass',
       }),
     )
-    expect(mockNavigate).toHaveBeenCalledWith('/dashboard')
+    // No auto-login: the account is inactive until the email is verified.
+    expect(await screen.findByText('Check your email')).toBeInTheDocument()
+    expect(screen.getByText('new@example.com')).toBeInTheDocument()
+    expect(mockNavigate).not.toHaveBeenCalled()
   })
 
   it('shows an error message when registration fails', async () => {

@@ -1,11 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  activate,
   changeEmail,
   changePassword,
+  confirmPasswordReset,
   getMe,
   login,
+  logout,
   refresh,
   register,
+  requestPasswordReset,
+  resendActivation,
   updateProfile,
 } from '@/src/api/auth'
 import { api } from '@/src/api/client'
@@ -23,7 +28,7 @@ describe('auth api', () => {
 
     const result = await login({ email: 'x@example.com', password: 'pw' })
 
-    expect(post).toHaveBeenCalledWith('/auth/login/', {
+    expect(post).toHaveBeenCalledWith('/auth/jwt/create/', {
       email: 'x@example.com',
       password: 'pw',
     })
@@ -38,7 +43,7 @@ describe('auth api', () => {
 
     const result = await register({ email: 'x@example.com', password: 'pw' })
 
-    expect(post).toHaveBeenCalledWith('/auth/register/', {
+    expect(post).toHaveBeenCalledWith('/auth/users/', {
       email: 'x@example.com',
       password: 'pw',
     })
@@ -53,7 +58,7 @@ describe('auth api', () => {
 
     await register({ email: 'x@example.com', password: 'pw' }, 'tok123')
 
-    expect(post).toHaveBeenCalledWith('/auth/register/', {
+    expect(post).toHaveBeenCalledWith('/auth/users/', {
       email: 'x@example.com',
       password: 'pw',
       invitation_token: 'tok123',
@@ -68,8 +73,19 @@ describe('auth api', () => {
 
     const result = await refresh('r1')
 
-    expect(post).toHaveBeenCalledWith('/auth/token/refresh/', { refresh: 'r1' })
+    expect(post).toHaveBeenCalledWith('/auth/jwt/refresh/', { refresh: 'r1' })
     expect(result).toEqual({ access: 'new' })
+  })
+
+  it('logout blacklists the refresh token', async () => {
+    const post = vi
+      .spyOn(api, 'post')
+      // biome-ignore lint/suspicious/noExplicitAny: canned axios response
+      .mockResolvedValue({ data: {} } as any)
+
+    await logout('r1')
+
+    expect(post).toHaveBeenCalledWith('/auth/jwt/blacklist/', { refresh: 'r1' })
   })
 
   it('getMe fetches the current user', async () => {
@@ -80,7 +96,7 @@ describe('auth api', () => {
 
     const result = await getMe()
 
-    expect(get).toHaveBeenCalledWith('/auth/me/')
+    expect(get).toHaveBeenCalledWith('/auth/users/me/')
     expect(result).toMatchObject({ email: 'x@example.com' })
   })
 
@@ -95,41 +111,99 @@ describe('auth api', () => {
       last_name: 'Lovelace',
     })
 
-    expect(patch).toHaveBeenCalledWith('/auth/me/', {
+    expect(patch).toHaveBeenCalledWith('/auth/users/me/', {
       first_name: 'Ada',
       last_name: 'Lovelace',
     })
     expect(result).toMatchObject({ first_name: 'Ada' })
   })
 
-  it('changeEmail puts the payload and returns the user', async () => {
-    const put = vi
-      .spyOn(api, 'put')
+  it('changeEmail posts new_email guarded by the current password', async () => {
+    const post = vi
+      .spyOn(api, 'post')
       // biome-ignore lint/suspicious/noExplicitAny: canned axios response
-      .mockResolvedValue({ data: { id: '1', email: 'new@example.com' } } as any)
+      .mockResolvedValue({ data: '' } as any)
 
-    const result = await changeEmail({
+    await changeEmail({
       current_password: 'pw',
-      email: 'new@example.com',
+      new_email: 'new@example.com',
     })
 
-    expect(put).toHaveBeenCalledWith('/auth/email/', {
+    expect(post).toHaveBeenCalledWith('/auth/users/set_email/', {
       current_password: 'pw',
-      email: 'new@example.com',
+      new_email: 'new@example.com',
     })
-    expect(result).toMatchObject({ email: 'new@example.com' })
   })
 
-  it('changePassword puts the payload', async () => {
-    const put = vi
-      .spyOn(api, 'put')
+  it('changePassword posts the payload', async () => {
+    const post = vi
+      .spyOn(api, 'post')
       // biome-ignore lint/suspicious/noExplicitAny: canned axios response
       .mockResolvedValue({ data: '' } as any)
 
     await changePassword({ current_password: 'pw', new_password: 'newpw' })
 
-    expect(put).toHaveBeenCalledWith('/auth/password/', {
+    expect(post).toHaveBeenCalledWith('/auth/users/set_password/', {
       current_password: 'pw',
+      new_password: 'newpw',
+    })
+  })
+
+  it('activate posts the uid and token', async () => {
+    const post = vi
+      .spyOn(api, 'post')
+      // biome-ignore lint/suspicious/noExplicitAny: canned axios response
+      .mockResolvedValue({ data: '' } as any)
+
+    await activate({ uid: 'u1', token: 't1' })
+
+    expect(post).toHaveBeenCalledWith('/auth/users/activation/', {
+      uid: 'u1',
+      token: 't1',
+    })
+  })
+
+  it('resendActivation posts the email', async () => {
+    const post = vi
+      .spyOn(api, 'post')
+      // biome-ignore lint/suspicious/noExplicitAny: canned axios response
+      .mockResolvedValue({ data: '' } as any)
+
+    await resendActivation('x@example.com')
+
+    expect(post).toHaveBeenCalledWith('/auth/users/resend_activation/', {
+      email: 'x@example.com',
+    })
+  })
+
+  it('requestPasswordReset posts the email', async () => {
+    const post = vi
+      .spyOn(api, 'post')
+      // biome-ignore lint/suspicious/noExplicitAny: canned axios response
+      .mockResolvedValue({ data: '' } as any)
+
+    await requestPasswordReset('x@example.com')
+
+    expect(post).toHaveBeenCalledWith('/auth/users/reset_password/', {
+      email: 'x@example.com',
+    })
+  })
+
+  it('confirmPasswordReset posts the uid, token and new password', async () => {
+    const post = vi
+      .spyOn(api, 'post')
+      // biome-ignore lint/suspicious/noExplicitAny: canned axios response
+      .mockResolvedValue({ data: '' } as any)
+
+    await confirmPasswordReset({
+      uid: 'u1',
+      token: 't1',
+      new_password: 'newpw',
+    })
+
+    expect(post).toHaveBeenCalledWith('/auth/users/reset_password_confirm/', {
+      uid: 'u1',
+      token: 't1',
       new_password: 'newpw',
     })
   })

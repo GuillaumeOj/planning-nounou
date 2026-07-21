@@ -141,8 +141,13 @@ describe('InvitePage', () => {
       mockPreview.mockResolvedValue(PREVIEW)
     })
 
-    it('registers and claims, then navigates to the families', async () => {
-      register.mockResolvedValue(undefined)
+    it('registers and claims, then shows the verify-email step', async () => {
+      register.mockResolvedValue({
+        id: '1',
+        email: 'invitee@example.com',
+        first_name: '',
+        last_name: '',
+      })
       renderPage()
 
       const email = await screen.findByLabelText('Email')
@@ -158,7 +163,9 @@ describe('InvitePage', () => {
           'tok-123',
         ),
       )
-      expect(await screen.findByText('family page')).toBeInTheDocument()
+      // Membership is granted at registration, but the account is inactive until
+      // the email is verified, so we show the "check your email" step.
+      expect(await screen.findByText('Check your email')).toBeInTheDocument()
     })
 
     it('shows an error when registration fails', async () => {

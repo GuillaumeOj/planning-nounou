@@ -48,6 +48,13 @@ services:
       DJANGO_ALLOWED_HOSTS: "localhost,127.0.0.1,0.0.0.0,mgs-dev.local,mgs-api.local,.orb.local"
       CORS_ALLOWED_ORIGINS: "http://localhost:5175,https://mgs-dev.local"
       CSRF_TRUSTED_ORIGINS: "https://mgs-dev.local,https://mgs-api.local,https://*.orb.local"
+      # Auth emails (djoser activation / password reset). Dev keeps Django's console
+      # backend (the default), so links print to this container's log — no Brevo key
+      # needed. FRONTEND_DOMAIN is where the SPA serves the /activate and /reset-password
+      # pages the emailed links point at. In prod set EMAIL_BACKEND=anymail.backends.
+      # brevo.EmailBackend + BREVO_API_KEY + a verified DEFAULT_FROM_EMAIL on Vercel.
+      FRONTEND_DOMAIN: "mgs-dev.local"
+      DEFAULT_FROM_EMAIL: "no-reply@mgs-dev.local"
     volumes:
       - ./backend:/app
       # Preserve the container's Linux virtualenv (don't let the host .venv shadow it).

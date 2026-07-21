@@ -734,6 +734,41 @@ const en = {
   'legal.contact.body':
     'For any request, write to [contact@ma-garde-sereine.fr].',
   'legal.lastUpdated': 'Last updated: [date]',
+  // Password reset entry point on the login card.
+  'login.forgotLink': 'Forgot your password?',
+  // Email verification notice shown after registration.
+  'verify.title': 'Check your email',
+  'verify.lead': 'We sent a verification link to',
+  'verify.hint':
+    'Click the link in that email to activate your account, then log in.',
+  'verify.resend': 'Resend the email',
+  'verify.resending': 'Sending…',
+  'verify.resent': 'Verification email sent again.',
+  'verify.resendError': 'Could not resend the email',
+  'verify.backToLogin': 'Back to log in',
+  // Forgot-password request page.
+  'forgot.title': 'Reset your password',
+  'forgot.subtitle': "Enter your email and we'll send you a reset link.",
+  'forgot.submit': 'Send reset link',
+  'forgot.submitting': 'Sending…',
+  'forgot.error': 'Could not send the reset link',
+  'forgot.sent':
+    'If an account exists for that email, a reset link is on its way.',
+  'forgot.backToLogin': 'Back to log in',
+  // Reset-password confirmation page.
+  'reset.title': 'Choose a new password',
+  'reset.subtitle': 'Enter a new password for your account.',
+  'reset.password': 'New password',
+  'reset.submit': 'Update password',
+  'reset.submitting': 'Updating…',
+  'reset.error': 'Could not reset your password. The link may have expired.',
+  'reset.done': 'Your password has been updated. You can now log in.',
+  'reset.toLogin': 'Go to log in',
+  // Email-activation landing page.
+  'activate.verifying': 'Activating your account…',
+  'activate.success': 'Your account is now active. You can log in.',
+  'activate.error': 'This activation link is invalid or has expired.',
+  'activate.toLogin': 'Go to log in',
 } as const
 
 export type TranslationKey = keyof typeof en
@@ -1455,6 +1490,40 @@ const fr: Record<TranslationKey, string> = {
   'legal.contact.body':
     'Pour toute demande, écrivez à [contact@ma-garde-sereine.fr].',
   'legal.lastUpdated': 'Dernière mise à jour : [date]',
+  'login.forgotLink': 'Mot de passe oublié ?',
+  'verify.title': 'Vérifiez votre e-mail',
+  'verify.lead': 'Nous avons envoyé un lien de vérification à',
+  'verify.hint':
+    'Cliquez sur le lien dans cet e-mail pour activer votre compte, puis connectez-vous.',
+  'verify.resend': "Renvoyer l'e-mail",
+  'verify.resending': 'Envoi…',
+  'verify.resent': 'E-mail de vérification renvoyé.',
+  'verify.resendError': "Impossible de renvoyer l'e-mail",
+  'verify.backToLogin': 'Retour à la connexion',
+  'forgot.title': 'Réinitialisez votre mot de passe',
+  'forgot.subtitle':
+    'Saisissez votre e-mail et nous vous enverrons un lien de réinitialisation.',
+  'forgot.submit': 'Envoyer le lien',
+  'forgot.submitting': 'Envoi…',
+  'forgot.error': "Impossible d'envoyer le lien de réinitialisation",
+  'forgot.sent':
+    'Si un compte existe pour cet e-mail, un lien de réinitialisation est en route.',
+  'forgot.backToLogin': 'Retour à la connexion',
+  'reset.title': 'Choisissez un nouveau mot de passe',
+  'reset.subtitle': 'Saisissez un nouveau mot de passe pour votre compte.',
+  'reset.password': 'Nouveau mot de passe',
+  'reset.submit': 'Mettre à jour',
+  'reset.submitting': 'Mise à jour…',
+  'reset.error':
+    'Impossible de réinitialiser votre mot de passe. Le lien a peut-être expiré.',
+  'reset.done':
+    'Votre mot de passe a été mis à jour. Vous pouvez maintenant vous connecter.',
+  'reset.toLogin': 'Aller à la connexion',
+  'activate.verifying': 'Activation de votre compte…',
+  'activate.success':
+    'Votre compte est maintenant actif. Vous pouvez vous connecter.',
+  'activate.error': "Ce lien d'activation est invalide ou a expiré.",
+  'activate.toLogin': 'Aller à la connexion',
 }
 
 export const translations: Record<Language, Record<TranslationKey, string>> = {
