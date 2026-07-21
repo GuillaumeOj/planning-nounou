@@ -205,14 +205,46 @@ needed — the browser stays same-origin. Django-on-Vercel is auto-detected (Ver
   `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS`.
 - Static files (incl. admin) are collected automatically and served from the Vercel CDN.
 
-### 3. Migrations
+### 3. Running commands against prod (migrations, seeds, …)
 
-Migrations never run in the serverless runtime, and pooled (PgBouncer) connections are unreliable
-for DDL — run them from your machine against Neon's **direct** connection:
+Nothing runs in the serverless runtime — there's no shell on the deployment. One-off commands run
+**from your machine** against the production database, using the prod env pulled from Vercel.
+
+Pull it first (decrypts the values into `backend/.vercel/.env.production.local`):
 
 ```bash
 cd backend
-vercel pull                              # writes env (incl. DATABASE_URL_UNPOOLED) to .env.local
-DATABASE_URL="$(grep DATABASE_URL_UNPOOLED .env.local | cut -d= -f2-)" \
-  uv run python manage.py migrate
+vercel pull --environment=production     # writes .vercel/.env.production.local
 ```
+
+Then run the command, loading that file with `uv run --env-file`. Two gotchas, both learned the
+hard way:
+
+- **Load with `--env-file`, never `grep … | cut`.** Vercel wraps values in double quotes
+  (`DATABASE_URL_UNPOOLED="postgres://…?sslmode=require"`); `cut` keeps those quotes, so a stray
+  `"` leaks into the connection string and django-environ fails with *"Engine not recognized from
+  url"*. `--env-file` parses dotenv properly and does no shell expansion.
+- **`SECRET_KEY` pulls back empty and is required.** It's a *Sensitive* Vercel var, so the pull
+  blanks it. The file also carries `VERCEL_ENV=production`, which makes `settings.py` demand a
+  non-empty `SECRET_KEY` (no dev fallback). Pass a throwaway one inline — the value is irrelevant
+  for commands that sign nothing, and an inline var overrides the file's empty value:
+
+```bash
+SECRET_KEY=throwaway \
+  uv run --env-file .vercel/.env.production.local \
+  python manage.py seed_bank_holidays 2026
+```
+
+The file's `DATABASE_URL` is the **pooled** endpoint — fine for ORM commands like the seeds above.
+**Migrations** need the **direct/unpooled** connection (pooled PgBouncer is unreliable for DDL), so
+override `DATABASE_URL` with the unpooled URL just for `migrate`:
+
+```bash
+DATABASE_URL="$(grep '^DATABASE_URL_UNPOOLED=' .vercel/.env.production.local | cut -d= -f2- | tr -d '"')" \
+SECRET_KEY=throwaway \
+  uv run --env-file .vercel/.env.production.local \
+  python manage.py migrate
+```
+
+`.vercel/` is git-ignored; the pulled file holds plaintext connection strings, so don't commit or
+share it.
