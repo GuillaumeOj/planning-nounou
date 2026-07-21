@@ -155,9 +155,10 @@ DJOSER = {
     "PASSWORD_RESET_CONFIRM_RETYPE": False,
     # Email verification: new accounts are inactive until they follow the link.
     "SEND_ACTIVATION_EMAIL": True,
-    "SEND_CONFIRMATION_EMAIL": False,
-    "PASSWORD_CHANGED_EMAIL_CONFIRMATION": False,
-    "USERNAME_CHANGED_EMAIL_CONFIRMATION": False,
+    # Security/confirmation emails — each maps to a branded Brevo template below.
+    "SEND_CONFIRMATION_EMAIL": True,
+    "PASSWORD_CHANGED_EMAIL_CONFIRMATION": True,
+    "USERNAME_CHANGED_EMAIL_CONFIRMATION": True,
     # Never expose other users through the /users/ collection.
     "HIDE_USERS": True,
     # JWT only — no DRF authtoken model (keeps rest_framework.authtoken uninstalled).
@@ -178,6 +179,16 @@ DJOSER = {
         "user": "accounts.serializers.ProfileSerializer",
         "current_user": "accounts.serializers.ProfileSerializer",
         "set_username": "accounts.serializers.SetEmailSerializer",
+    },
+    # Send Brevo-hosted, per-language templates instead of djoser's packaged HTML.
+    # The classes pick the template id by the request's active language (see
+    # accounts/email.py + BREVO_TEMPLATE_IDS below).
+    "EMAIL": {
+        "activation": "accounts.email.ActivationEmail",
+        "confirmation": "accounts.email.ConfirmationEmail",
+        "password_reset": "accounts.email.PasswordResetEmail",
+        "password_changed_confirmation": "accounts.email.PasswordChangedConfirmationEmail",
+        "username_changed_confirmation": "accounts.email.UsernameChangedConfirmationEmail",
     },
     "PERMISSIONS": {
         # Don't let a plain user enumerate accounts via the list endpoint.
@@ -203,6 +214,18 @@ EMAIL_BACKEND = (
 )
 ANYMAIL = {"BREVO_API_KEY": env("BREVO_API_KEY") if ON_VERCEL else env("BREVO_API_KEY", default="")}
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="no-reply@mgs-dev.local")
+
+# Brevo transactional template ids per auth email, keyed by language. The templates
+# themselves live in the Brevo account (designed in the dashboard, `mgs-<key>-<lang>`);
+# accounts/email.py selects the id for the request's active language (fr fallback).
+# Single Brevo account, so the ids are pinned here rather than per-environment env vars.
+BREVO_TEMPLATE_IDS = {
+    "activation": {"fr": 1, "en": 2},
+    "confirmation": {"fr": 3, "en": 4},
+    "password_reset": {"fr": 5, "en": 6},
+    "password_changed_confirmation": {"fr": 7, "en": 8},
+    "email_changed_confirmation": {"fr": 9, "en": 10},
+}
 
 
 # Password validation
