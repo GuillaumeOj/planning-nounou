@@ -10,63 +10,17 @@ from rest_framework.response import Response
 
 from .models import Family, FamilyMembership, Invitation, User
 from .permissions import IsFamilyManager, IsFamilyMember
+
+# Account/session endpoints (register, login, me, email, password, reset,
+# activation, logout) are now provided by djoser + SimpleJWT — see accounts/urls.py.
+# Only the family/membership/invitation views live in this module.
 from .serializers import (
-    ChangeEmailSerializer,
-    ChangePasswordSerializer,
     FamilyMembershipSerializer,
     FamilySerializer,
     InvitationPreviewSerializer,
     InvitationSerializer,
     MyInvitationSerializer,
-    ProfileSerializer,
-    RegisterSerializer,
 )
-
-
-class RegisterView(generics.CreateAPIView):
-    """Create a new user account. Open to anonymous callers."""
-
-    queryset = User.objects.all()
-    serializer_class = RegisterSerializer
-    permission_classes = [permissions.AllowAny]
-
-
-class MeView(generics.RetrieveUpdateAPIView):
-    """Return the current user and update their names (email stays read-only)."""
-
-    serializer_class = ProfileSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get_object(self) -> User:
-        # IsAuthenticated guarantees an authenticated User here, but the request
-        # type is the broader AbstractBaseUser | AnonymousUser union.
-        return cast(User, self.request.user)
-
-
-class ChangeEmailView(generics.GenericAPIView):
-    """Change the current user's email after verifying the current password."""
-
-    serializer_class = ChangeEmailSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def put(self, request: Request) -> Response:
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
-        return Response(ProfileSerializer(user).data)
-
-
-class ChangePasswordView(generics.GenericAPIView):
-    """Change the current user's password after verifying the current password."""
-
-    serializer_class = ChangePasswordSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def put(self, request: Request) -> Response:
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 def _is_last_owner(family: Family, membership: FamilyMembership) -> bool:

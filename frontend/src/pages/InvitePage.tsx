@@ -13,6 +13,7 @@ import { FormErrors } from '@/src/components/FormErrors'
 import { TextField } from '@/src/components/TextField'
 import { Button } from '@/src/components/ui/button'
 import { Card, CardContent } from '@/src/components/ui/card'
+import { VerifyEmailNotice } from '@/src/components/VerifyEmailNotice'
 import { useI18n } from '@/src/i18n/I18nContext'
 import { roleLabel } from '@/src/lib/roleLabel'
 
@@ -151,12 +152,15 @@ function RespondActions({ token }: { token: string }) {
   )
 }
 
-// Register a new account and claim the invitation in one step.
+// Register a new account and claim the invitation in one step. The account is
+// created inactive: membership is granted immediately, but the user must verify
+// their email before they can log in, so we show the "check your email" step
+// rather than navigating into the app.
 function ClaimForm({ token, email }: { token: string; email: string }) {
   const { t } = useI18n()
-  const navigate = useNavigate()
   const { register } = useAuth()
   const [errors, setErrors] = useState<string[]>([])
+  const [registeredEmail, setRegisteredEmail] = useState<string | null>(null)
 
   const form = useForm({
     defaultValues: { email, password: '' },
@@ -164,12 +168,16 @@ function ClaimForm({ token, email }: { token: string; email: string }) {
       setErrors([])
       try {
         await register({ email: value.email, password: value.password }, token)
-        navigate('/family')
+        setRegisteredEmail(value.email)
       } catch (err) {
         setErrors(extractErrorMessages(err, t('invite.error')))
       }
     },
   })
+
+  if (registeredEmail) {
+    return <VerifyEmailNotice email={registeredEmail} inline />
+  }
 
   return (
     <div className="flex flex-col gap-4">

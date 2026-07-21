@@ -145,9 +145,10 @@ function EmailSection() {
     setErrors([])
     setSubmitting(true)
     try {
-      await refreshUser(
-        await changeEmail({ current_password: password, email: newEmail }),
-      )
+      // set_email replies 204 (no body); update the cached user locally with the
+      // new email rather than spending a round-trip to refetch it.
+      await changeEmail({ current_password: password, new_email: newEmail })
+      await refreshUser(user ? { ...user, email: newEmail } : undefined)
       setDialogOpen(false)
       setNewEmail('')
       setPassword('')

@@ -11,20 +11,29 @@ import type { Credentials, User } from '@/src/api/auth'
 import {
   getMe,
   login as loginRequest,
+  logout as logoutRequest,
   register as registerRequest,
 } from '@/src/api/auth'
-import { clearTokens, getAccessToken, setTokens } from '@/src/auth/tokenStorage'
+import {
+  clearTokens,
+  getAccessToken,
+  getRefreshToken,
+  setTokens,
+} from '@/src/auth/tokenStorage'
 
 export interface AuthContextValue {
   user: User | null
   isAuthenticated: boolean
   isLoading: boolean
   login: (credentials: Credentials) => Promise<void>
-  // An optional invitation token joins the new account to a family on signup.
+  // Creates the account and returns it. The account is inactive until the user
+  // verifies their email, so this does NOT log them in — the caller shows a
+  // "check your email" step. An optional invitation token joins the new account
+  // to a family on signup.
   register: (
     credentials: Credentials,
     invitationToken?: string,
-  ) => Promise<void>
+  ) => Promise<User>
   logout: () => void
   // Update the cached user after a profile or email change. Pass the updated
   // user when the caller already has it (e.g. an endpoint that returns it) to
@@ -60,20 +69,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (
       credentials: Credentials,
       invitationToken?: string,
-    ): Promise<void> => {
-      // Registration returns the user but no tokens, so log in for the tokens and
-      // reuse the returned user instead of a second round-trip to getMe().
-      const newUser = await registerRequest(credentials, invitationToken)
-      const tokens = await loginRequest(credentials)
-      setTokens(tokens)
-      setUser(newUser)
+    ): Promise<User> => {
+      // No auto-login: the new account is inactive until email verification.
+      return registerRequest(credentials, invitationToken)
     },
     [],
   )
 
   const logout = useCallback((): void => {
+    // Clear the local session immediately; blacklisting the refresh token is
+    // best-effort and must not delay logout, so fire it without awaiting.
+    const refresh = getRefreshToken()
     clearTokens()
     setUser(null)
+    if (refresh) {
+      void logoutRequest(refresh).catch(() => {
+        // Ignore: a failed/expired blacklist call is harmless — the tokens are
+        // already gone locally.
+      })
+    }
   }, [])
 
   const refreshUser = useCallback(async (updated?: User): Promise<void> => {

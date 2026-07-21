@@ -61,6 +61,9 @@ INSTALLED_APPS = [
     # Third-party
     "rest_framework",
     "rest_framework_simplejwt",
+    "rest_framework_simplejwt.token_blacklist",
+    "djoser",
+    "anymail",
     "corsheaders",
     # Local
     "accounts",
@@ -138,6 +141,68 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=15),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
 }
+
+
+# djoser — battle-tested auth flows (registration, activation, password reset,
+# set email/password) layered on the SimpleJWT tokens above. The custom email
+# `User`, the `invitation_token` claim hook and our case-insensitive-unique-email
+# messages are preserved via the serializer overrides below.
+DJOSER = {
+    "LOGIN_FIELD": "email",
+    # The SPA sends a single password field on each of these flows (no retype).
+    "USER_CREATE_PASSWORD_RETYPE": False,
+    "SET_PASSWORD_RETYPE": False,
+    "PASSWORD_RESET_CONFIRM_RETYPE": False,
+    # Email verification: new accounts are inactive until they follow the link.
+    "SEND_ACTIVATION_EMAIL": True,
+    "SEND_CONFIRMATION_EMAIL": False,
+    "PASSWORD_CHANGED_EMAIL_CONFIRMATION": False,
+    "USERNAME_CHANGED_EMAIL_CONFIRMATION": False,
+    # Never expose other users through the /users/ collection.
+    "HIDE_USERS": True,
+    # JWT only — no DRF authtoken model (keeps rest_framework.authtoken uninstalled).
+    "TOKEN_MODEL": None,
+    # SPA routes the activation / reset links point at (see frontend App.tsx).
+    "ACTIVATION_URL": "activate/{uid}/{token}",
+    "PASSWORD_RESET_CONFIRM_URL": "reset-password/{uid}/{token}",
+    # We never surface djoser's "reset your login email by email link" flow — email
+    # changes go through set_email, guarded by the current password. Its confirm URL
+    # is set only so the router-mounted view can't 500 on a missing setting; the two
+    # username-reset endpoints are locked to staff below, so the flow is effectively off.
+    "USERNAME_RESET_CONFIRM_URL": "reset-username/{uid}/{token}",
+    "EMAIL_FRONTEND_PROTOCOL": env("FRONTEND_PROTOCOL", default="https"),
+    "EMAIL_FRONTEND_DOMAIN": env("FRONTEND_DOMAIN", default="mgs-dev.local"),
+    "EMAIL_FRONTEND_SITE_NAME": env("SITE_NAME", default="Ma Garde Sereine"),
+    "SERIALIZERS": {
+        "user_create": "accounts.serializers.RegisterSerializer",
+        "user": "accounts.serializers.ProfileSerializer",
+        "current_user": "accounts.serializers.ProfileSerializer",
+        "set_username": "accounts.serializers.SetEmailSerializer",
+    },
+    "PERMISSIONS": {
+        # Don't let a plain user enumerate accounts via the list endpoint.
+        "user_list": ["rest_framework.permissions.IsAdminUser"],
+        # Close djoser's unintended public email-reset-by-link routes (see above);
+        # locking both to staff disables the flow without a custom URLconf.
+        "username_reset": ["rest_framework.permissions.IsAdminUser"],
+        "username_reset_confirm": ["rest_framework.permissions.IsAdminUser"],
+    },
+}
+
+
+# Email — activation and password-reset messages are rendered by djoser and
+# delivered through Brevo's transactional API via django-anymail. On Vercel the
+# default is the Brevo backend and BREVO_API_KEY is required (no default → startup
+# fails loudly if it's missing), so a misconfigured deploy can't silently drop every
+# auth email to the console — the same fail-loud pattern as SECRET_KEY/ADMIN_PATH.
+# Local dev defaults to the console backend, so the whole flow is testable with no key.
+EMAIL_BACKEND = (
+    env("EMAIL_BACKEND", default="anymail.backends.brevo.EmailBackend")
+    if ON_VERCEL
+    else env("EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend")
+)
+ANYMAIL = {"BREVO_API_KEY": env("BREVO_API_KEY") if ON_VERCEL else env("BREVO_API_KEY", default="")}
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="no-reply@mgs-dev.local")
 
 
 # Password validation

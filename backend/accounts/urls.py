@@ -1,6 +1,6 @@
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.views import TokenBlacklistView
 
 from . import views
 
@@ -16,15 +16,25 @@ member_detail = views.FamilyMemberViewSet.as_view({"delete": "destroy"})
 invitation_list = views.InvitationViewSet.as_view({"get": "list", "post": "create"})
 invitation_detail = views.InvitationViewSet.as_view({"delete": "destroy"})
 
-# Account/session endpoints live under /api/auth/; the family domain lives at the
-# /api/ root alongside the other resources (e.g. /api/nannies/).
+# Account/session endpoints live under /api/auth/, provided by djoser (user CRUD,
+# activation, password reset, set email/password) and SimpleJWT (jwt/create,
+# jwt/refresh, jwt/verify). The family domain lives at the /api/ root alongside the
+# other resources (e.g. /api/nannies/).
+#
+# Resulting surface:
+#   POST   /api/auth/users/                     register (accepts invitation_token)
+#   GET/PATCH/DELETE /api/auth/users/me/        current user
+#   POST   /api/auth/users/set_password/        change password (current_password guard)
+#   POST   /api/auth/users/set_email/           change email    (current_password guard)
+#   POST   /api/auth/users/activation/          verify email
+#   POST   /api/auth/users/resend_activation/
+#   POST   /api/auth/users/reset_password/      + reset_password_confirm/
+#   POST   /api/auth/jwt/create/  refresh/  verify/  blacklist/  (login/refresh/logout)
 auth_patterns = [
-    path("register/", views.RegisterView.as_view(), name="register"),
-    path("login/", TokenObtainPairView.as_view(), name="login"),
-    path("token/refresh/", TokenRefreshView.as_view(), name="token-refresh"),
-    path("me/", views.MeView.as_view(), name="me"),
-    path("email/", views.ChangeEmailView.as_view(), name="change-email"),
-    path("password/", views.ChangePasswordView.as_view(), name="change-password"),
+    path("", include("djoser.urls")),
+    path("", include("djoser.urls.jwt")),
+    # Real logout: blacklist the refresh token (token_blacklist app).
+    path("jwt/blacklist/", TokenBlacklistView.as_view(), name="jwt-blacklist"),
 ]
 
 urlpatterns = [

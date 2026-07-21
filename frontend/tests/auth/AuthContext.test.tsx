@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   getMe,
   login as loginRequest,
+  logout as logoutRequest,
   register as registerRequest,
 } from '@/src/api/auth'
 import { AuthProvider, useAuth } from '@/src/auth/AuthContext'
@@ -12,11 +13,13 @@ import { clearTokens, getAccessToken, setTokens } from '@/src/auth/tokenStorage'
 vi.mock('@/src/api/auth', () => ({
   login: vi.fn(),
   register: vi.fn(),
+  logout: vi.fn(),
   getMe: vi.fn(),
 }))
 
 const mockLogin = vi.mocked(loginRequest)
 const mockRegister = vi.mocked(registerRequest)
+const mockLogout = vi.mocked(logoutRequest)
 const mockGetMe = vi.mocked(getMe)
 
 const USER = { id: '1', email: 'x@example.com', first_name: '', last_name: '' }
@@ -120,10 +123,8 @@ describe('AuthProvider', () => {
     expect(getAccessToken()).toBe('a')
   })
 
-  it('register logs the user in afterwards', async () => {
+  it('register does NOT log the user in (email verification required)', async () => {
     mockRegister.mockResolvedValue(USER)
-    mockLogin.mockResolvedValue({ access: 'a', refresh: 'r' })
-    mockGetMe.mockResolvedValue(USER)
     renderHarness()
     await waitFor(() =>
       expect(screen.getByTestId('state')).toHaveTextContent('anon'),
@@ -131,19 +132,22 @@ describe('AuthProvider', () => {
 
     await userEvent.click(screen.getByText('register'))
 
+    // The account is inactive until verified, so the session stays anonymous
+    // and login is never called on its behalf.
     await waitFor(() =>
-      expect(screen.getByTestId('state')).toHaveTextContent(
-        'auth:x@example.com',
+      expect(mockRegister).toHaveBeenCalledWith(
+        { email: 'x@example.com', password: 'pw' },
+        undefined,
       ),
     )
-    expect(mockRegister).toHaveBeenCalledWith(
-      { email: 'x@example.com', password: 'pw' },
-      undefined,
-    )
+    expect(screen.getByTestId('state')).toHaveTextContent('anon')
+    expect(mockLogin).not.toHaveBeenCalled()
+    expect(getAccessToken()).toBeNull()
   })
 
-  it('logout clears the session', async () => {
+  it('logout blacklists the refresh token and clears the session', async () => {
     mockLogin.mockResolvedValue({ access: 'a', refresh: 'r' })
+    mockLogout.mockResolvedValue(undefined)
     mockGetMe.mockResolvedValue(USER)
     renderHarness()
     await userEvent.click(screen.getByText('login'))
@@ -156,6 +160,7 @@ describe('AuthProvider', () => {
     await waitFor(() =>
       expect(screen.getByTestId('state')).toHaveTextContent('anon'),
     )
+    expect(mockLogout).toHaveBeenCalledWith('r')
     expect(getAccessToken()).toBeNull()
   })
 })
