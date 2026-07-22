@@ -164,6 +164,8 @@ const en = {
   'weekday.sun': 'Sunday',
   'common.edited': 'edited',
   'contract.paidLeave': 'Paid-leave days per year',
+  'contract.paidLeaveHint':
+    'Legal minimum: 30 working days (5 weeks) per year — a family may agree more.',
   'contract.daysOff': 'days off/year',
   'contract.split': 'How the hours are shared',
   'contract.splitHint':
@@ -952,6 +954,8 @@ const fr: Record<TranslationKey, string> = {
   'weekday.sun': 'Dimanche',
   'common.edited': 'modifié',
   'contract.paidLeave': 'Jours de congés payés par an',
+  'contract.paidLeaveHint':
+    'Minimum légal : 30 jours ouvrables (5 semaines) par an — une famille peut convenir davantage.',
   'contract.daysOff': 'jours de congés/an',
   'contract.split': 'Répartition des heures',
   'contract.splitHint':

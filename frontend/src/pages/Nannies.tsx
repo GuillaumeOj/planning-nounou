@@ -71,6 +71,8 @@ const URSSAF_MIN =
   'https://www.urssaf.fr/accueil/particulier/particulier-employeur/embaucher-un-salarie/remunerer-salarie-domicile.html#ancre-les-montants-minimums'
 const URSSAF_IND =
   'https://www.urssaf.fr/accueil/particulier/particulier-employeur/embaucher-un-salarie/remunerer-salarie-domicile.html#ancre-les-indemnites'
+const URSSAF_LEAVE =
+  'https://www.urssaf.fr/accueil/particulier/particulier-employeur/gerer-les-absences/gestion-conges-payes.html'
 
 type MoneyKey =
   | 'net_hourly_rate'
@@ -1582,6 +1584,19 @@ function ContractWizard({
                 setPaidLeave(e.target.value)
               }}
             />
+            {/* The default is the statutory floor, not a ceiling, and it is not
+                enforced — a family may agree more. Flag it as the legal minimum. */}
+            <span className="text-xs text-muted-foreground">
+              {t('contract.paidLeaveHint')}{' '}
+              <a
+                className="underline"
+                href={URSSAF_LEAVE}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {t('terms.source')}
+              </a>
+            </span>
           </div>
         )}
 
