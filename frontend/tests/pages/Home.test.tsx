@@ -71,11 +71,20 @@ function makeContract(
 // one-shot dashboard (contracts with paid-leave + recent declarations baked in).
 const FAMILIES = '*/api/families/'
 const DASHBOARD = '*/api/families/fam-1/dashboard/'
+// Home also renders the year-ahead forecast chart, which fires its own request.
+const SIMULATION = '*/api/families/fam-1/simulation/'
 
 function setup(contracts: DashboardContractRead[] = [makeContract()]) {
   server.use(
     http.get(FAMILIES, () => HttpResponse.json([family])),
     http.get(DASHBOARD, () => HttpResponse.json({ contracts })),
+    http.get(SIMULATION, () =>
+      HttpResponse.json({
+        period_start: '2026-07-01',
+        period_end: '2027-06-01',
+        contracts: [],
+      }),
+    ),
   )
 }
 

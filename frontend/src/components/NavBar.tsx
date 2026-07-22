@@ -8,6 +8,7 @@ import {
   LifeBuoy,
   Menu,
   Settings,
+  TrendingUp,
   Users,
   UsersRound,
   X,
@@ -173,6 +174,12 @@ export function NavBar() {
             <NavLink to="/dashboard" end className={linkClass}>
               <HomeIcon size={18} aria-hidden="true" />
               {t('nav.home')}
+            </NavLink>
+          </li>
+          <li>
+            <NavLink to="/simulation" className={linkClass}>
+              <TrendingUp size={18} aria-hidden="true" />
+              {t('nav.simulation')}
             </NavLink>
           </li>
           <li>

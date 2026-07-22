@@ -3071,6 +3071,48 @@ paths:
               schema:
                 $ref: '#/components/schemas/Planning'
           description: ''
+  /families/{family_pk}/simulation/:
+    get:
+      operationId: families_simulation_retrieve
+      description: |-
+        The payment simulation for the acting family, in one response.
+
+        Every shared contract comes back with a month-by-month projection of what the
+        family pays — the net wage, the transport and kilométrage, the benefits in kind
+        and, on a reference period's closing month, the congés-payés « rappel de 1/10 »
+        top-up — over the requested window (the current année de référence, 1 June–31 May,
+        by default). The same figures the declarations endpoint computes, summed into one
+        outlay per month and narrowed to the acting family's share.
+      parameters:
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: query
+        name: from
+        schema:
+          type: string
+        description: First month of the window as YYYY-MM. Defaults to the current
+          reference period's start (1 June).
+      - in: query
+        name: to
+        schema:
+          type: string
+        description: Last month of the window as YYYY-MM. Defaults to the current
+          reference period's end (31 May), or eleven months after `from`.
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Simulation'
+          description: ''
   /families/{id}/:
     get:
       operationId: families_retrieve
@@ -5442,6 +5484,154 @@ components:
       required:
       - current_password
       - new_password
+    Simulation:
+      type: object
+      description: |-
+        The payment-simulation payload: the window it covers, and every contract the
+        acting family shares with its month-by-month projection of what the family pays.
+      properties:
+        period_start:
+          type: string
+          format: date
+          readOnly: true
+        period_end:
+          type: string
+          format: date
+          readOnly: true
+        contracts:
+          type: array
+          items:
+            $ref: '#/components/schemas/SimulationContract'
+          readOnly: true
+      required:
+      - period_start
+      - period_end
+      - contracts
+    SimulationContract:
+      type: object
+      description: |-
+        A contract with its month-by-month payment simulation for the acting family.
+
+        ``months`` (built in the view and attached as ``simulation_months``) is the per-month
+        breakdown; ``total`` is what the family pays across the whole window — the footer of
+        the detail table and the height of a contract's stack on the graph. Only the months
+        the contract was live for appear, so a chart draws no bar where there is no contract.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        nanny:
+          allOf:
+          - $ref: '#/components/schemas/NannyBrief'
+          readOnly: true
+        starting_date:
+          type: string
+          format: date
+        ending_date:
+          type: string
+          format: date
+          nullable: true
+        split_method:
+          $ref: '#/components/schemas/SplitMethodEnum'
+        paid_leave_days:
+          type: integer
+          maximum: 32767
+          minimum: 0
+        notes:
+          type: string
+        families:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContractFamily'
+          readOnly: true
+        current_terms:
+          allOf:
+          - $ref: '#/components/schemas/ContractTerms'
+          nullable: true
+          readOnly: true
+        current_schedule:
+          allOf:
+          - $ref: '#/components/schemas/ContractSchedule'
+          nullable: true
+          readOnly: true
+        months:
+          type: array
+          items:
+            $ref: '#/components/schemas/SimulationMonth'
+          readOnly: true
+        total:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+      required:
+      - id
+      - nanny
+      - starting_date
+      - ending_date
+      - split_method
+      - paid_leave_days
+      - notes
+      - families
+      - current_terms
+      - current_schedule
+      - months
+      - total
+    SimulationMonth:
+      type: object
+      description: |-
+        One month of the payment simulation: which month, each component the acting
+        family pays, and their total.
+
+        Documentation-only — the dicts are built in the view from
+        :class:`contracts.declarations_repo.SimulatedMonth`. Decimals are strings (the whole
+        engine's money convention) so no float rounding creeps in on the way to the client.
+        ``paid_leave_rappel`` is zero every month but a reference period's close; ``total``
+        is the sum of every other field — the figure the graph plots and the table foots.
+      properties:
+        month:
+          type: string
+          readOnly: true
+          description: The month as YYYY-MM.
+        net_wage:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        transport:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        mileage:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        benefits_in_kind:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        paid_leave_rappel:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        total:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+      required:
+      - month
+      - net_wage
+      - transport
+      - mileage
+      - benefits_in_kind
+      - paid_leave_rappel
+      - total
     Source:
       type: object
       description: 'A citation: what the rule is called, where it lives, and what

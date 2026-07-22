@@ -411,6 +411,15 @@ def first_of_month(anchor: date, offset_months: int = 0) -> date:
     return date(year, month_index + 1, 1)
 
 
+def months_inclusive(start: date, end: date) -> int:
+    """The count of months from `start`'s month through `end`'s, inclusive.
+
+    One when they share a month, twelve for a 1 June → 31 May année de référence; a
+    negative span (end before start) clamps to zero. Day-of-month is ignored.
+    """
+    return max(0, (end.year - start.year) * MONTHS_PER_YEAR + (end.month - start.month) + 1)
+
+
 def days_between(start: date, end: date) -> Iterable[date]:
     day = start
     while day <= end:

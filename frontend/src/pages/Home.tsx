@@ -9,6 +9,7 @@ import { BetaBanner } from '@/src/components/BetaBanner'
 import { formatDate } from '@/src/components/DateField'
 import { DeclarationStatusBadge } from '@/src/components/DeclarationStatusBadge'
 import { type Figure, FigureGroup } from '@/src/components/FigureGroup'
+import { PaymentForecastChart } from '@/src/components/PaymentForecastChart'
 import { PersonAvatar } from '@/src/components/PersonAvatar'
 import { SectionCard } from '@/src/components/SectionCard'
 import { Label } from '@/src/components/ui/label'
@@ -195,13 +196,19 @@ export default function Home() {
               {t('home.noContracts')}
             </p>
           ) : (
-            // Card grid (brand guide p.6): contracts flow into columns on wider
-            // screens, one per column on a phone.
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-5">
-              {contractList.map((contract) => (
-                <ContractCard key={contract.id} contract={contract} />
-              ))}
-            </div>
+            <>
+              {/* The year-ahead payment forecast, one stacked bar per month. Its
+                  own request (a rolling 12-month window), so it stays independent
+                  of the recent-months dashboard above. */}
+              <PaymentForecastChart familyId={activeFamilyId} />
+              {/* Card grid (brand guide p.6): contracts flow into columns on wider
+                  screens, one per column on a phone. */}
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-5">
+                {contractList.map((contract) => (
+                  <ContractCard key={contract.id} contract={contract} />
+                ))}
+              </div>
+            </>
           )}
         </>
       )}

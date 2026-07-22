@@ -918,3 +918,61 @@ class PlanningSerializer(serializers.Serializer):
 
     contracts = PlanningContractSerializer(many=True, read_only=True)
     holidays = BankHolidaySerializer(many=True, read_only=True)
+
+
+class SimulationMonthSerializer(serializers.Serializer):
+    """One month of the payment simulation: which month, each component the acting
+    family pays, and their total.
+
+    Documentation-only — the dicts are built in the view from
+    :class:`contracts.declarations_repo.SimulatedMonth`. Decimals are strings (the whole
+    engine's money convention) so no float rounding creeps in on the way to the client.
+    ``paid_leave_rappel`` is zero every month but a reference period's close; ``total``
+    is the sum of every other field — the figure the graph plots and the table foots.
+    """
+
+    month = serializers.CharField(read_only=True, help_text="The month as YYYY-MM.")
+    net_wage = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    transport = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    mileage = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    benefits_in_kind = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    paid_leave_rappel = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    total = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+
+
+class SimulationContractSerializer(ContractSerializer):
+    """A contract with its month-by-month payment simulation for the acting family.
+
+    ``months`` (built in the view and attached as ``simulation_months``) is the per-month
+    breakdown; ``total`` is what the family pays across the whole window — the footer of
+    the detail table and the height of a contract's stack on the graph. Only the months
+    the contract was live for appear, so a chart draws no bar where there is no contract.
+    """
+
+    months = serializers.SerializerMethodField()
+    total = serializers.SerializerMethodField()
+
+    class Meta(ContractSerializer.Meta):
+        fields = (
+            *ContractSerializer.Meta.fields,
+            "months",
+            "total",
+        )
+
+    @extend_schema_field(SimulationMonthSerializer(many=True))
+    def get_months(self, obj: Contract) -> list[dict]:
+        rows = obj.simulation_months  # ty: ignore[unresolved-attribute]
+        return cast(list[dict], SimulationMonthSerializer(rows, many=True).data)
+
+    @extend_schema_field(serializers.DecimalField(max_digits=12, decimal_places=2))
+    def get_total(self, obj: Contract) -> Decimal:
+        return obj.simulation_total  # ty: ignore[unresolved-attribute]
+
+
+class SimulationSerializer(serializers.Serializer):
+    """The payment-simulation payload: the window it covers, and every contract the
+    acting family shares with its month-by-month projection of what the family pays."""
+
+    period_start = serializers.DateField(read_only=True)
+    period_end = serializers.DateField(read_only=True)
+    contracts = SimulationContractSerializer(many=True, read_only=True)

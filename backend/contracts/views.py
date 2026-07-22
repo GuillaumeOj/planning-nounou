@@ -1,4 +1,5 @@
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 from typing import cast
 
 from django.db.models import Prefetch, Q
@@ -22,11 +23,12 @@ from rest_framework.serializers import BaseSerializer
 
 from accounts.models import Family, User
 from accounts.views import FamilyScopedMixin
-from contracts.declarations import first_of_month, month_bounds
+from contracts.declarations import first_of_month, month_bounds, months_inclusive
 from contracts.declarations_repo import (
     declarations_for,
     file_declaration,
     paid_leave_balance,
+    simulate_range,
     tenth_reconciliation_total,
 )
 from contracts.models import (
@@ -40,6 +42,7 @@ from contracts.models import (
     ExceptionalPresence,
     MonthlyDeclaration,
 )
+from contracts.paid_leave import reference_period
 from contracts.serializers import (
     ContractChildSerializer,
     ContractInvitationPreviewSerializer,
@@ -55,6 +58,7 @@ from contracts.serializers import (
     MyContractInvitationSerializer,
     PaidLeaveBalanceSerializer,
     PlanningSerializer,
+    SimulationSerializer,
 )
 from reference.models import BankHoliday
 
@@ -749,4 +753,97 @@ class FamilyPlanningView(FamilyScopedMixin, generics.GenericAPIView):
         grid_start, grid_end = _calendar_grid(month)
         holidays = BankHoliday.objects.filter(date__range=(grid_start, grid_end))
         serializer = self.get_serializer({"contracts": contracts, "holidays": holidays})
+        return Response(serializer.data)
+
+
+_MAX_SIMULATION_MONTHS = 24
+
+
+def _parse_year_month(raw: str, field: str) -> date:
+    """A ``YYYY-MM`` query param as the first of that month. Malformed is a 400."""
+    try:
+        return datetime.strptime(raw, "%Y-%m").date().replace(day=1)
+    except ValueError:
+        raise ValidationError({field: _("Give a month as YYYY-MM.")}) from None
+
+
+@extend_schema(
+    parameters=[
+        OpenApiParameter(
+            "from",
+            OpenApiTypes.STR,
+            OpenApiParameter.QUERY,
+            required=False,
+            description=(
+                "First month of the window as YYYY-MM. Defaults to the current "
+                "reference period's start (1 June)."
+            ),
+        ),
+        OpenApiParameter(
+            "to",
+            OpenApiTypes.STR,
+            OpenApiParameter.QUERY,
+            required=False,
+            description=(
+                "Last month of the window as YYYY-MM. Defaults to the current "
+                "reference period's end (31 May), or eleven months after `from`."
+            ),
+        ),
+    ],
+    responses=SimulationSerializer,
+)
+class FamilySimulationView(FamilyScopedMixin, generics.GenericAPIView):
+    """The payment simulation for the acting family, in one response.
+
+    Every shared contract comes back with a month-by-month projection of what the
+    family pays — the net wage, the transport and kilométrage, the benefits in kind
+    and, on a reference period's closing month, the congés-payés « rappel de 1/10 »
+    top-up — over the requested window (the current année de référence, 1 June–31 May,
+    by default). The same figures the declarations endpoint computes, summed into one
+    outlay per month and narrowed to the acting family's share.
+    """
+
+    serializer_class = SimulationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _window(self) -> tuple[date, date]:
+        raw_from = self.request.query_params.get("from")
+        raw_to = self.request.query_params.get("to")
+        if not raw_from and not raw_to:
+            # The current année de référence: 1 June of this period through 31 May.
+            start, end = reference_period(timezone.localdate())
+            return start, end.replace(day=1)
+        start = (
+            _parse_year_month(raw_from, "from") if raw_from else timezone.localdate().replace(day=1)
+        )
+        # A lone `from` rolls a year forward, which is what the Home graph asks for.
+        end = _parse_year_month(raw_to, "to") if raw_to else first_of_month(start, 11)
+        if end < start:
+            raise ValidationError({"to": _("The window's end cannot be before its start.")})
+        if months_inclusive(start, end) > _MAX_SIMULATION_MONTHS:
+            raise ValidationError({"to": _("The window cannot span more than 24 months.")})
+        return start, end
+
+    def get(self, request: Request, *args, **kwargs) -> Response:
+        family = self.get_family()
+        start, end = self._window()
+        contracts = list(_contract_base_queryset(family))
+        for contract in contracts:
+            rows = simulate_range(contract, start, end).get(family.id, [])
+            contract.simulation_months = [
+                {
+                    "month": sm.month.strftime("%Y-%m"),
+                    "net_wage": sm.breakdown.net_wage,
+                    "transport": sm.breakdown.transport,
+                    "mileage": sm.breakdown.mileage,
+                    "benefits_in_kind": sm.breakdown.benefits_in_kind,
+                    "paid_leave_rappel": sm.breakdown.paid_leave_rappel,
+                    "total": sm.breakdown.total,
+                }
+                for sm in rows
+            ]
+            contract.simulation_total = sum((sm.breakdown.total for sm in rows), Decimal("0"))
+        serializer = self.get_serializer(
+            {"period_start": start, "period_end": end, "contracts": contracts}
+        )
         return Response(serializer.data)

@@ -8,6 +8,7 @@ import {
   Rocket,
   ShieldCheck,
   TreePalm,
+  TrendingUp,
   UserPlus,
   Users,
 } from 'lucide-react'
@@ -369,7 +370,12 @@ export const HELP_ARTICLES: HelpArticle[] = [
       fr: 'La mensualisation, le taux horaire net, les heures majorées et la répartition entre familles.',
       en: 'Monthly averaging, the net hourly rate, overtime, and the split between families.',
     },
-    related: ['conges-payes', 'heures-exceptionnelles', 'declarer-le-mois'],
+    related: [
+      'conges-payes',
+      'simulation-des-paiements',
+      'heures-exceptionnelles',
+      'declarer-le-mois',
+    ],
     body: {
       fr: [
         {
@@ -445,7 +451,11 @@ export const HELP_ARTICLES: HelpArticle[] = [
       fr: "L'acquisition des congés, la période de référence et leur impact sur le salaire.",
       en: 'How leave accrues, the reference period, and its effect on the salary.',
     },
-    related: ['conges-sans-solde', 'calcul-du-salaire'],
+    related: [
+      'conges-sans-solde',
+      'calcul-du-salaire',
+      'simulation-des-paiements',
+    ],
     body: {
       fr: [
         {
@@ -536,6 +546,125 @@ export const HELP_ARTICLES: HelpArticle[] = [
           text: 'Remaining = accrued − taken. It can go negative if leave is booked ahead.',
         },
         { kind: 'links', items: [PAJEMPLOI_LINK.en, CCN_LINK.en] },
+      ],
+    },
+  },
+  {
+    slug: 'simulation-des-paiements',
+    category: 'pay-leave',
+    icon: TrendingUp,
+    title: {
+      fr: 'Simuler ce que vous allez payer',
+      en: 'Simulate what you will pay',
+    },
+    summary: {
+      fr: 'Le graphique des 12 prochains mois sur l’accueil et le détail mois par mois de ce que vous versez.',
+      en: 'The 12-month graph on the home page and the month-by-month detail of what you pay.',
+    },
+    related: ['calcul-du-salaire', 'conges-payes', 'declarer-le-mois'],
+    body: {
+      fr: [
+        {
+          kind: 'p',
+          text: 'Deux vues répondent à une seule question : combien allez-vous payer votre nounou, mois après mois ? Ce sont des estimations, calculées à partir du contrat (planning et taux en vigueur) — et non des déclarations : les chiffres à reporter dans Pajemploi restent dans la section Déclarations.',
+        },
+        {
+          kind: 'heading',
+          text: 'Le graphique des 12 prochains mois — accueil',
+        },
+        {
+          kind: 'p',
+          text: 'Sur l’accueil, un graphique projette les 12 prochains mois : une barre par mois, dont la hauteur est le total que vous versez ce mois-là. En garde partagée, chaque nounou a sa couleur et les contrats s’empilent, pour lire d’un coup d’œil la charge du mois et la part de chacun.',
+        },
+        {
+          kind: 'heading',
+          text: 'Le détail mois par mois — section Simulation',
+        },
+        {
+          kind: 'p',
+          text: 'La page Simulation reprend la période de référence (1er juin – 31 mai) : une ligne par mois, une colonne par poste (salaire net, transport, kilométrage, avantages en nature, rappel de congés payés 1/10), et un total en bas de chaque colonne comme pour l’ensemble de la période.',
+        },
+        { kind: 'heading', text: 'Ce que « payé » comprend' },
+        {
+          kind: 'p',
+          text: 'Le montant réunit tout ce que vous décaissez : le salaire net (heures majorées, présence de nuit et jours fériés travaillés compris), le transport, le kilométrage, la valeur des avantages en nature, et — sur le mois de clôture de la période (mai, ou le dernier mois du contrat) — le rappel de congés payés 1/10.',
+        },
+        {
+          kind: 'note',
+          tone: 'info',
+          text: 'Ces montants correspondent à ce que vous versez à la nounou. Ils n’incluent pas les cotisations sociales que Pajemploi vous prélèvera en plus (l’application ne calcule pas les cotisations) : le coût total pour votre famille sera donc supérieur.',
+        },
+        { kind: 'heading', text: 'Une projection, pas une facture' },
+        {
+          kind: 'p',
+          text: 'Les mois à venir sont valorisés d’après le planning et les taux en vigueur, comme le serait un vrai mois. Les mois déjà passés reflètent ce qui est saisi (congés posés, heures exceptionnelles, kilométrage déclaré). Le kilométrage des mois futurs reste à zéro : il rembourse une distance réellement parcourue, qui ne se devine pas.',
+        },
+        {
+          kind: 'p',
+          text: 'Les montants sont ceux de votre famille : en garde partagée, chacune ne voit que sa propre part.',
+        },
+        {
+          kind: 'note',
+          tone: 'info',
+          text: 'Le rappel de 1/10 n’apparaît que sur le mois de clôture ; son calcul est détaillé dans « Comment les congés payés sont calculés ».',
+        },
+        {
+          kind: 'links',
+          items: [
+            { href: '/dashboard', label: 'Ouvrir le tableau de bord' },
+            { href: '/simulation', label: 'Ouvrir la simulation' },
+          ],
+        },
+      ],
+      en: [
+        {
+          kind: 'p',
+          text: 'Two views answer a single question: how much will you pay your nanny, month by month? These are estimates, computed from the contract (the schedule and rates in force) — not declarations: the figures to enter in Pajemploi stay in the Declarations section.',
+        },
+        { kind: 'heading', text: 'The 12-month graph — home page' },
+        {
+          kind: 'p',
+          text: 'On the home page, a graph projects the next 12 months: one bar per month, its height the total you pay that month. In shared care each nanny has their own colour and the contracts stack, so you read the month’s load and each nanny’s share at a glance.',
+        },
+        {
+          kind: 'heading',
+          text: 'The month-by-month detail — Simulation section',
+        },
+        {
+          kind: 'p',
+          text: 'The Simulation page covers the reference period (1 June – 31 May): one row per month, one column per component (net wage, transport, mileage, benefits in kind, paid-leave 1/10 top-up), and a total at the foot of each column and for the whole period.',
+        },
+        { kind: 'heading', text: 'What “paid” includes' },
+        {
+          kind: 'p',
+          text: 'The amount is everything you disburse: the net wage (overtime, night presence and worked public holidays included), transport, mileage, the value of benefits in kind, and — on the period’s closing month (May, or the contract’s final month) — the paid-leave 1/10 top-up.',
+        },
+        {
+          kind: 'note',
+          tone: 'info',
+          text: 'These amounts are what you pay the nanny. They do not include the social contributions Pajemploi will additionally collect from you (the app does not compute contributions), so your family’s total cost will be higher.',
+        },
+        { kind: 'heading', text: 'A projection, not an invoice' },
+        {
+          kind: 'p',
+          text: 'Future months are priced from the schedule and rates in force, exactly as a real month would be. Past months reflect what is on file (leave booked, exceptional hours, mileage entered). Mileage for future months stays at zero: it reimburses distance actually driven, which cannot be guessed.',
+        },
+        {
+          kind: 'p',
+          text: 'The amounts are your family’s: in shared care each family sees only its own share.',
+        },
+        {
+          kind: 'note',
+          tone: 'info',
+          text: 'The 1/10 top-up shows only on the closing month; its calculation is detailed in “How paid leave is calculated”.',
+        },
+        {
+          kind: 'links',
+          items: [
+            { href: '/dashboard', label: 'Open the dashboard' },
+            { href: '/simulation', label: 'Open the simulation' },
+          ],
+        },
       ],
     },
   },

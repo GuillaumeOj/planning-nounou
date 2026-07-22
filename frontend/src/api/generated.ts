@@ -944,6 +944,19 @@ const injectedRtkApi = api
         }),
         providesTags: ["families"],
       }),
+      familiesSimulationRetrieve: build.query<
+        FamiliesSimulationRetrieveApiResponse,
+        FamiliesSimulationRetrieveApiArg
+      >({
+        query: (queryArg) => ({
+          url: `/families/${queryArg.familyPk}/simulation/`,
+          params: {
+            from: queryArg["from"],
+            to: queryArg.to,
+          },
+        }),
+        providesTags: ["families"],
+      }),
       familiesRetrieve: build.query<
         FamiliesRetrieveApiResponse,
         FamiliesRetrieveApiArg
@@ -1614,6 +1627,15 @@ export type FamiliesPlanningRetrieveApiArg = {
   familyPk: string;
   /** Month as YYYY-MM. Defaults to the current month. */
   month?: string;
+};
+export type FamiliesSimulationRetrieveApiResponse =
+  /** status 200  */ SimulationRead;
+export type FamiliesSimulationRetrieveApiArg = {
+  familyPk: string;
+  /** First month of the window as YYYY-MM. Defaults to the current reference period's start (1 June). */
+  from?: string;
+  /** Last month of the window as YYYY-MM. Defaults to the current reference period's end (31 May), or eleven months after `from`. */
+  to?: string;
 };
 export type FamiliesRetrieveApiResponse = /** status 200  */ FamilyRead;
 export type FamiliesRetrieveApiArg = {
@@ -2322,6 +2344,44 @@ export type PlanningRead = {
   contracts: PlanningContractRead[];
   holidays: BankHolidayRead[];
 };
+export type Simulation = {};
+export type SimulationContract = {
+  starting_date: string;
+  ending_date: string | null;
+  split_method: SplitMethodEnum;
+  paid_leave_days: number;
+  notes: string;
+};
+export type SimulationMonth = {};
+export type SimulationMonthRead = {
+  /** The month as YYYY-MM. */
+  month: string;
+  net_wage: string;
+  transport: string;
+  mileage: string;
+  benefits_in_kind: string;
+  paid_leave_rappel: string;
+  total: string;
+};
+export type SimulationContractRead = {
+  id: string;
+  nanny: NannyBriefRead;
+  starting_date: string;
+  ending_date: string | null;
+  split_method: SplitMethodEnum;
+  paid_leave_days: number;
+  notes: string;
+  families: ContractFamilyRead[];
+  current_terms: ContractTermsRead | null;
+  current_schedule: ContractScheduleRead | null;
+  months: SimulationMonthRead[];
+  total: string;
+};
+export type SimulationRead = {
+  period_start: string;
+  period_end: string;
+  contracts: SimulationContractRead[];
+};
 export type PatchedFamilyRequest = {
   name?: string;
 };
@@ -2447,6 +2507,7 @@ export const {
   useFamiliesMembersListQuery,
   useFamiliesMembersDestroyMutation,
   useFamiliesPlanningRetrieveQuery,
+  useFamiliesSimulationRetrieveQuery,
   useFamiliesRetrieveQuery,
   useFamiliesUpdateMutation,
   useFamiliesPartialUpdateMutation,

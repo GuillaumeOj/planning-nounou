@@ -24,6 +24,7 @@ import Privacy from '@/src/pages/Privacy'
 import RegisterPage from '@/src/pages/RegisterPage'
 import ResetPasswordPage from '@/src/pages/ResetPasswordPage'
 import SettingsPage from '@/src/pages/SettingsPage'
+import Simulation from '@/src/pages/Simulation'
 
 // Auth pages have no navbar; the appearance controls live in a small top bar.
 // A layout route (like AppLayout) so each auth page renders through the shared
@@ -103,6 +104,7 @@ function App() {
       </Route>
       <Route element={<AppLayout />}>
         <Route path="/dashboard" element={<Home />} />
+        <Route path="/simulation" element={<Simulation />} />
         <Route path="/planning" element={<Planning />} />
         <Route path="/declarations" element={<Declarations />} />
         <Route path="/nannies" element={<Nannies />} />

@@ -38,6 +38,7 @@ from django.utils import timezone
 from contracts import declarations as dec
 from contracts import paid_leave as pl
 from contracts import paid_leave_tenth as plt
+from contracts import simulation as sim
 from contracts.models import (
     Contract,
     ContractChild,
@@ -693,6 +694,108 @@ def file_declaration(row: MonthlyDeclaration, user) -> MonthlyDeclaration:
     row.filed_by = user
     row.save(update_fields=["status", "filed_at", "filed_by"])
     return row
+
+
+@dataclass(frozen=True, slots=True)
+class SimulatedMonth:
+    """One month of the payment simulation for a family: which month, and the
+    breakdown of what it pays that month (see :mod:`contracts.simulation`)."""
+
+    month: date
+    breakdown: sim.MonthlyPayBreakdown
+
+
+def _months_in(start: date, end: date) -> list[date]:
+    """First-of-month dates from ``start``'s month through ``end``'s, inclusive."""
+    start = start.replace(day=1)
+    return [dec.first_of_month(start, offset) for offset in range(dec.months_inclusive(start, end))]
+
+
+def _kilometers_by_month(contract: Contract, months: list[date]) -> dict[date, dict[UUID, Decimal]]:
+    """Kilometres already entered per (month, family) across the window, in one query.
+
+    Past months read the real kilométrage on their declarations, so the simulation
+    prices their mileage as it actually stands; future months have no declaration and
+    so no kilométrage to project (it reimburses distance actually driven).
+    """
+    out: dict[date, dict[UUID, Decimal]] = {}
+    for row in MonthlyDeclaration.objects.filter(contract=contract, month__in=months):
+        out.setdefault(row.month, {})[row.family_id] = row.kilometers
+    return out
+
+
+def simulate_range(
+    contract: Contract, start_month: date, end_month: date
+) -> dict[UUID, list[SimulatedMonth]]:
+    """Each family's month-by-month payment across ``[start_month, end_month]``.
+
+    The simulation behind the Home graph and the reference-period table: the whole
+    window is loaded **once** (:func:`_load_contract_period`), then the pay engine runs
+    for each month over the in-memory dataclasses — four families cost what one does,
+    and twelve months a handful of queries rather than one load per month. Only the
+    months the contract is actually live for are returned, per family, most-distant-
+    first order preserved from the window.
+
+    Prices each month exactly as :func:`declarations_for` would — future months from the
+    schedule and terms in force, past months with their kilométrage on file — and, on a
+    reference period's closing month (May, or the contract's final month), folds in the
+    congés-payés « rappel de 1/10 » top-up so the graph and table show the year's real
+    outlay, the annual settlement included.
+    """
+    months = _months_in(start_month, end_month)
+    if not months:
+        return {}
+
+    period = _load_contract_period(contract, months[0], months[-1])
+    if not period.family_ids:
+        return {}
+
+    start_first = contract.starting_date.replace(day=1)
+    end_first = contract.ending_date.replace(day=1) if contract.ending_date else None
+
+    km_by_month = _kilometers_by_month(contract, months)
+
+    # The rappel is a whole-year reconciliation, so it is computed only for the window's
+    # closing months (usually a single May) and read per family from there.
+    rappel_by_month: dict[date, dict[UUID, Decimal]] = {}
+    for month in months:
+        if _closes_reference_period(contract, month) and (
+            month >= start_first and (end_first is None or month <= end_first)
+        ):
+            rappel_by_month[month] = {
+                family_id: rec.rappel_net
+                for family_id, rec in tenth_reconciliation(contract, on=month).items()
+            }
+
+    out: dict[UUID, list[SimulatedMonth]] = {fid: [] for fid in period.family_ids}
+    for month in months:
+        # A month before the contract started, or after it ended, is paid nothing.
+        if month < start_first or (end_first is not None and month > end_first):
+            continue
+        data = dec.ContractMonth(
+            month=month,
+            starting_date=contract.starting_date,
+            ending_date=contract.ending_date,
+            split_method=contract.split_method,
+            family_ids=period.family_ids,
+            children=period.children,
+            schedules=period.schedules,
+            terms=period.terms,
+            leaves=period.leaves,
+            exceptional=period.exceptional,
+            overrides=period.overrides,
+            holidays=period.holidays,
+            kilometers=km_by_month.get(month),
+        )
+        rappels = rappel_by_month.get(month, {})
+        for family_id, result in dec.compute_month(data).items():
+            breakdown = sim.breakdown_of(
+                result, paid_leave_rappel=rappels.get(family_id, Decimal("0"))
+            )
+            # ``out`` already holds every family_id in period.family_ids, which is the
+            # exact key set compute_month returns, so a plain index is safe.
+            out[family_id].append(SimulatedMonth(month=month, breakdown=breakdown))
+    return out
 
 
 def group_windows_by_weekday(children: tuple[dec.ChildPresence, ...]):

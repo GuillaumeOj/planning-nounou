@@ -61,6 +61,13 @@ urlpatterns = [
         views.FamilyPlanningView.as_view(),
         name="family-planning",
     ),
+    # A projection of what the family pays each month over a window (the current
+    # année de référence by default): the Home graph and the detail table.
+    path(
+        "families/<uuid:family_pk>/simulation/",
+        views.FamilySimulationView.as_view(),
+        name="family-simulation",
+    ),
     # A family's shared contracts.
     path("families/<uuid:family_pk>/contracts/", contract_list, name="family-contracts"),
     path(
