@@ -1,6 +1,6 @@
 import { api } from '@/src/api/client'
 
-export type LeaveType = 'paid' | 'unpaid' | 'sickness'
+export type LeaveType = 'paid' | 'unpaid' | 'sickness' | 'maternity'
 export type LeavePortion = 'full_day' | 'half_day' | 'hourly'
 
 // A nanny's day(s) off under a contract. `hours` is a DRF decimal string (or

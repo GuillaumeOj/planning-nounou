@@ -4,8 +4,14 @@ from rest_framework import generics, permissions
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from reference.models import BankHoliday, MinimumWage
+from reference.models import BankHoliday, MinimumWage, PaidLeaveAllowance
 from reference.serializers import BankHolidaySerializer
+
+
+def _on_from_query(request: Request):
+    """The ``?on=YYYY-MM-DD`` date the client asked about, or today if absent/unparseable."""
+    raw = request.query_params.get("on")
+    return (parse_date(raw) if raw else None) or timezone.localdate()
 
 
 class MinimumWageView(generics.GenericAPIView):
@@ -16,10 +22,18 @@ class MinimumWageView(generics.GenericAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request: Request) -> Response:
-        raw = request.query_params.get("on")
-        on = (parse_date(raw) if raw else None) or timezone.localdate()
-        rate = MinimumWage.applicable_on(on)
+        rate = MinimumWage.applicable_on(_on_from_query(request))
         return Response({"net_hourly_rate": f"{rate:.2f}" if rate is not None else None})
+
+
+class PaidLeaveAllowanceView(generics.GenericAPIView):
+    """The default annual paid-leave days in force on a given date (?on=YYYY-MM-DD,
+    default today). The contract form pre-fills its ``paid_leave_days`` from it."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request: Request) -> Response:
+        return Response({"annual_days": PaidLeaveAllowance.applicable_on(_on_from_query(request))})
 
 
 class BankHolidayListView(generics.ListAPIView):

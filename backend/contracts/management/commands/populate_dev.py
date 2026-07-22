@@ -495,6 +495,17 @@ class Command(BaseCommand):
             start_date=sick,
             end_date=sick + timedelta(days=1),
         )
+        # A maternity absence, like sickness, deducts and draws IJSS — a multi-week
+        # span so the demo shows a longer deducting leave than the sick day above.
+        maternity = today - timedelta(days=rng.randint(60, 110))
+        Leave.objects.create(
+            contract=contract,
+            created_by=owner,
+            leave_type=Leave.LeaveType.MATERNITY,
+            start_date=maternity,
+            end_date=maternity + timedelta(days=rng.randint(14, 21)),
+            notes="Congé maternité",
+        )
         # Hourly leaves are only legal on an unpaid one (see Leave.clean).
         Leave.objects.create(
             contract=contract,
@@ -556,6 +567,8 @@ class Command(BaseCommand):
                 effective_from=date(year + offset, 1, 1),
                 defaults={"net_hourly_rate": net_hourly_rate},
             )
+        # PaidLeaveAllowance is seeded by migration 0004 (a single national figure,
+        # unlike the illustrative dev rates above), so there is nothing to top up here.
 
     # --- output -----------------------------------------------------------
 

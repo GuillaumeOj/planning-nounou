@@ -14,9 +14,10 @@ here look wrong and are not:
   jours fériés than March and the salary is identical. The planning hides working
   blocks on a holiday; pay must not.
 * **Paid leave deducts nothing.** 52 weeks = 47 worked + 5 of paid leave, so the
-  leave is already inside the base. ``UNPAID`` and ``SICKNESS`` deduct (both
-  suspend the paid relationship for the hours not worked); *paid* leave does not.
-  "She was off all week on congés and got paid the same" is the design working.
+  leave is already inside the base. ``UNPAID``, ``SICKNESS`` and ``MATERNITY``
+  deduct (each suspends the paid relationship for the hours not worked); *paid*
+  leave does not. "She was off all week on congés and got paid the same" is the
+  design working.
 * **The week is banded before it is split.** Splitting a 45h week 30/15 leaves
   both families under the 40h threshold and the majoration silently disappears.
   The nanny worked 45h; band her week, then split each band. The ruling lives in
@@ -101,14 +102,15 @@ MONTHS_PER_YEAR = 12
 #: does not implement rather than a different week count.
 WEEKS_PER_YEAR = 52
 
-#: Which leave types reduce the declared hours. Unpaid absence and sickness both
-#: suspend the *paid* relationship for the hours not worked — the nanny does not
-#: work them and the employer does not pay them (in sickness she draws IJSS, and
-#: any maintien de salaire is a separate indemnity this module does not model) —
-#: so both deduct, via the art. 152.1 ratio, shared across the families by the
-#: same per-family attendance each would have had. Paid leave (congés payés) is
-#: the exception: it is already inside the mensualised base and must not deduct.
-DEDUCTING_LEAVE_TYPES = frozenset({"unpaid", "sickness"})
+#: Which leave types reduce the declared hours. Unpaid, sickness and maternity
+#: absences each suspend the *paid* relationship for the hours not worked — the
+#: nanny does not work them and the employer does not pay them (in sickness and
+#: maternity she draws IJSS, and any maintien de salaire is a separate indemnity
+#: this module does not model) — so all deduct, via the art. 152.1 ratio, shared
+#: across the families by the same per-family attendance each would have had. Paid
+#: leave (congés payés) is the exception: it is already inside the mensualised base
+#: and must not deduct.
+DEDUCTING_LEAVE_TYPES = frozenset({"unpaid", "sickness", "maternity"})
 
 HOUR_QUANTUM = Decimal("0.01")
 MONEY_QUANTUM = Decimal("0.01")
@@ -1325,10 +1327,10 @@ def attendance_ratios(
 ) -> dict[UUID, Fraction]:
     """Each family's art. 152.1 attendance ratio — 1 when nothing deducts.
 
-    Only the deducting leaves (unpaid, sickness) move it below 1; paid leave and a
-    day the nanny does not work leave planned == worked. So ``any(ratio < 1)`` is
-    exactly "an unpaid or sickness absence reduced this month's hours", which is
-    what the declaration flags so the lower figure does not read as a mistake.
+    Only the deducting leaves (unpaid, sickness, maternity) move it below 1; paid
+    leave and a day the nanny does not work leave planned == worked. So
+    ``any(ratio < 1)`` is exactly "a deducting absence reduced this month's hours",
+    which is what the declaration flags so the lower figure does not read as a mistake.
     """
     attendance = month_attendance(data, banded_by_date)
     return {
@@ -1400,7 +1402,7 @@ def compute_month(data: ContractMonth) -> dict[UUID, FamilyResult]:
 
     ratios = attendance_ratios(data, banded_by_date)
     if any(ratio < 1 for ratio in ratios.values()):
-        # An unpaid or sickness absence has pulled the hours below the contractual
+        # An unpaid, sickness or maternity absence has pulled the hours below the contractual
         # base. Say so on the declaration: a lower figure than usual is exactly the
         # kind of thing a parent reads as a bug, and the reduction is shared across
         # the families (each by the attendance it would have had).

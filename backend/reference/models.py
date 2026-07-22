@@ -13,18 +13,37 @@ from config.models import UUIDModel
 NON_NEGATIVE = [MinValueValidator(Decimal("0"))]
 
 
-class MinimumWage(UUIDModel):
+class EffectiveDatedReference(UUIDModel):
+    """A single global reference value that takes effect from a date, kept with history.
+
+    The value in force on a date is the latest row whose ``effective_from`` has
+    passed — the same "latest snapshot ≤ date" shape ``_common.current_snapshot``
+    applies per contract, here for admin-managed national figures. A change is a new
+    dated row, so the old value is never lost. Subclasses add one value field and a
+    typed ``applicable_on`` that reads it via :meth:`_row_on`.
+    """
+
+    effective_from = models.DateField(unique=True)
+
+    class Meta:
+        abstract = True
+        ordering: ClassVar[list[str]] = ["-effective_from"]
+
+    @classmethod
+    def _row_on(cls, on: date | None = None):
+        """The row in force on `on` (default today), or None."""
+        on = on or timezone.localdate()
+        return cls.objects.filter(effective_from__lte=on).order_by("-effective_from").first()
+
+
+class MinimumWage(EffectiveDatedReference):
     """The recommended minimum net hourly rate, effective from a date.
 
     Global (national URSSAF figure), managed in the admin so it can be updated —
     with history — as URSSAF re-indexes it. The API surfaces it as a soft warning.
     """
 
-    effective_from = models.DateField(unique=True)
     net_hourly_rate = models.DecimalField(max_digits=6, decimal_places=2, validators=NON_NEGATIVE)
-
-    class Meta:
-        ordering: ClassVar[list[str]] = ["-effective_from"]
 
     def __str__(self) -> str:
         return f"{self.net_hourly_rate} € from {self.effective_from}"
@@ -32,9 +51,30 @@ class MinimumWage(UUIDModel):
     @classmethod
     def applicable_on(cls, on: date | None = None) -> Decimal | None:
         """The minimum net hourly rate in force on `on` (default today), or None."""
-        on = on or timezone.localdate()
-        row = cls.objects.filter(effective_from__lte=on).order_by("-effective_from").first()
+        row = cls._row_on(on)
         return row.net_hourly_rate if row else None
+
+
+class PaidLeaveAllowance(EffectiveDatedReference):
+    """The default number of annual paid-leave days a new contract starts with.
+
+    Global and admin-managed with history, like :class:`MinimumWage`: the contract
+    form pre-fills its ``paid_leave_days`` from the value in force so a family does
+    not have to know the figure, and can still override it. The branch's statutory
+    entitlement is 30 jours ouvrables (garde d'enfants à domicile, CCN 3239). A new
+    dated row records a change without losing what the old default was.
+    """
+
+    annual_days = models.PositiveSmallIntegerField()
+
+    def __str__(self) -> str:
+        return f"{self.annual_days} days from {self.effective_from}"
+
+    @classmethod
+    def applicable_on(cls, on: date | None = None) -> int | None:
+        """The default paid-leave days in force on `on` (default today), or None."""
+        row = cls._row_on(on)
+        return row.annual_days if row else None
 
 
 class BankHoliday(UUIDModel):

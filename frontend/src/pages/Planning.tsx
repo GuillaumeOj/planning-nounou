@@ -115,6 +115,7 @@ const LEAVE_TYPE_KEYS: Record<LeaveType, TranslationKey> = {
   paid: 'leaves.type.paid',
   unpaid: 'leaves.type.unpaid',
   sickness: 'leaves.type.sickness',
+  maternity: 'leaves.type.maternity',
 }
 
 // A special event on a day — a leave, exceptional hours, or an exceptional

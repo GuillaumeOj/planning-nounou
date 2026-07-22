@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { type Child, listChildren } from '@/src/api/children'
 import {
   acceptContractInvitation,
@@ -25,6 +25,7 @@ import {
   getContractTerms,
   getMinimumWage,
   getMyContractInvitations,
+  getPaidLeaveDefault,
   type Nanny,
   revokeContractInvitation,
   type ScheduleBlock,
@@ -1371,6 +1372,20 @@ function ContractWizard({
     queryFn: () => listChildren(familyId),
   })
 
+  // Pre-fill the paid-leave field with the branch default so a family need not
+  // know the figure; they can still overwrite it. `leaveTouched` flips the moment
+  // the user edits the field, so a late-arriving default never clobbers what they
+  // typed — including an intentional "0", which a falsy check would miss.
+  const { data: paidLeaveDefault } = useQuery({
+    queryKey: ['paid-leave-default'],
+    queryFn: getPaidLeaveDefault,
+  })
+  const leaveTouched = useRef(false)
+  useEffect(() => {
+    if (leaveTouched.current || paidLeaveDefault?.annual_days == null) return
+    setPaidLeave(String(paidLeaveDefault.annual_days))
+  }, [paidLeaveDefault])
+
   const toggleChild = (id: string) =>
     setChildIds((prev) =>
       prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id],
@@ -1562,7 +1577,10 @@ function ContractWizard({
               id="wizard-leave"
               inputMode="numeric"
               value={paidLeave}
-              onChange={(e) => setPaidLeave(e.target.value)}
+              onChange={(e) => {
+                leaveTouched.current = true
+                setPaidLeave(e.target.value)
+              }}
             />
           </div>
         )}

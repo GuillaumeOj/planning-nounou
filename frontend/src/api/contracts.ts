@@ -135,6 +135,17 @@ export async function getMinimumWage(on?: string): Promise<MinimumWage> {
   return data
 }
 
+// The default number of annual paid-leave days a new contract pre-fills from;
+// global and admin-managed. `annual_days` is null only if no default is seeded.
+export interface PaidLeaveDefault {
+  annual_days: number | null
+}
+
+export async function getPaidLeaveDefault(): Promise<PaidLeaveDefault> {
+  const { data } = await api.get<PaidLeaveDefault>('/paid-leave-default/')
+  return data
+}
+
 // The nanny's congés-payés standing for the current reference period (1 June–31
 // May). Days are DRF decimal strings; `remaining` can be negative when leave is
 // booked ahead of what has accrued. Computed on the backend, never stored.

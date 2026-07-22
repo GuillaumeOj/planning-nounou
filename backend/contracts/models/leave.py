@@ -31,18 +31,19 @@ class Leave(UUIDModel):
     gone. Add them back when something actually segments the day — it is one
     column.
 
-    An **unpaid** absence and a **sickness** absence both deduct — the hours are
-    not worked and the employer does not pay them (in sickness the nanny draws
-    IJSS, and any maintien de salaire is a separate indemnity, not declared
-    hours). *Paid* leave does not deduct: it is already inside the mensualised
-    salary (52 weeks = 47 worked + 5 of paid leave), so deducting it would take it
-    off the nanny twice — see ``docs/shared-care-pay.md``.
+    An **unpaid**, a **sickness** and a **maternity** absence all deduct — the
+    hours are not worked and the employer does not pay them (in sickness and
+    maternity the nanny draws IJSS, and any maintien de salaire is a separate
+    indemnity, not declared hours). *Paid* leave does not deduct: it is already
+    inside the mensualised salary (52 weeks = 47 worked + 5 of paid leave), so
+    deducting it would take it off the nanny twice — see ``docs/shared-care-pay.md``.
     """
 
     class LeaveType(models.TextChoices):
         PAID = "paid", _("Paid leave")
         UNPAID = "unpaid", _("Unpaid leave")
         SICKNESS = "sickness", _("Sickness leave")
+        MATERNITY = "maternity", _("Maternity leave")
 
     class Portion(models.TextChoices):
         FULL_DAY = "full_day", _("Whole day")

@@ -205,8 +205,8 @@ def test_rerunning_resets_rather_than_piles_up():
     # or a re-run doubles it.
     # Two solo contracts (1 share each) + two two-family contracts (2 each) = 6.
     assert ContractShare.objects.count() == 6
-    # Four contracts, four leaves each.
-    assert Leave.objects.count() == 16
+    # Four contracts, five leaves each.
+    assert Leave.objects.count() == 20
     demo = f"@{DEMO_DOMAIN}"
     for model, path in (
         (ContractChild, "contract__created_by__email__endswith"),

@@ -421,21 +421,21 @@ mensualisation working exactly as intended. Confirmed for this exact population 
 > d'enfants à domicile)** — Les congés sont rémunérés lorsqu'ils sont pris. Le salaire
 > mensualisé est versé tous les mois, y compris pendant les périodes de congés payés.
 
-**Unpaid absence and sickness both deduct**, via the same art. 152.1 ratio (§3, step 2),
-and the reduction is shared across the families by the presence each would have had that
-day — a shared Monday off comes off both, a Monday only one family used comes off only
-that one. The two are the same to the declaration: in each the hours are simply not worked
-and the employer does not pay them. Sickness adds nothing beyond that here — the nanny's
-IJSS, and any *maintien de salaire* the CCN's seniority conditions might owe, are separate
-indemnities paid outside the declared hours and are not modelled, exactly like the night
-and holiday indemnities are kept apart from the bands.
+**Unpaid, sickness and maternity absences all deduct**, via the same art. 152.1 ratio (§3,
+step 2), and the reduction is shared across the families by the presence each would have had
+that day — a shared Monday off comes off both, a Monday only one family used comes off only
+that one. All three are the same to the declaration: in each the hours are simply not worked
+and the employer does not pay them. Sickness and maternity add nothing beyond that here — the
+nanny's IJSS, and any *maintien de salaire* the CCN's seniority conditions might owe, are
+separate indemnities paid outside the declared hours and are not modelled, exactly like the
+night and holiday indemnities are kept apart from the bands.
 
 > [!IMPORTANT]
 > **A deducted month is flagged, on purpose.** A declaration whose hours sit below the
 > contractual base reads as a bug to a parent who does not know an absence caused it. So
 > `compute_month` raises `hours_reduced_for_absence` whenever any family's attendance ratio
-> falls below 1 — which happens for unpaid and sickness leave and nothing else (paid leave
-> and a day she never works both leave the ratio at 1) — and the UI shows it in the amber
+> falls below 1 — which happens for unpaid, sickness and maternity leave and nothing else
+> (paid leave and a day she never works both leave the ratio at 1) — and the UI shows it in the amber
 > warning box beside the figures. The signal is the whole point: the lower number is
 > correct, and saying why is what keeps it from looking wrong.
 

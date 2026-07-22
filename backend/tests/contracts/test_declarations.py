@@ -574,6 +574,25 @@ def test_sickness_deducts_the_hours_like_an_unpaid_absence():
     assert with_sick.normal_hours < without.normal_hours
 
 
+def test_maternity_deducts_the_hours_like_a_sick_absence():
+    # Maternity leave suspends the paid relationship like sickness — the nanny draws
+    # IJSS, not declared hours — so it deducts identically and paid leave does not.
+    blocks = [block(day, time(9, 0), time(17, 0)) for day in range(5)]
+    maternity = d.LeaveSpan("maternity", date(2026, 7, 13), date(2026, 7, 13), "full_day")
+    sick = d.LeaveSpan("sickness", date(2026, 7, 13), date(2026, 7, 13), "full_day")
+    with_maternity = d.compute_month(month(schedules=(schedule(*blocks),), leaves=(maternity,)))[
+        FAMILY_A
+    ]
+    with_sick = d.compute_month(month(schedules=(schedule(*blocks),), leaves=(sick,)))[FAMILY_A]
+    without = d.compute_month(month(schedules=(schedule(*blocks),)))[FAMILY_A]
+    assert with_maternity.normal_hours == with_sick.normal_hours
+    assert with_maternity.normal_hours < without.normal_hours
+    assert (
+        "hours_reduced_for_absence"
+        in d.compute_month(month(leaves=(maternity,)))[FAMILY_A].warnings
+    )
+
+
 def test_a_sick_day_shares_its_reduction_across_the_families():
     # The nanny is off, so every family that would have had her that day loses its
     # share of it. A shared Monday deducts from both, by the presence each had.

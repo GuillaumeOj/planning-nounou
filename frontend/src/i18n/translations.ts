@@ -194,6 +194,7 @@ const en = {
   'leaves.type.paid': 'Paid leave',
   'leaves.type.unpaid': 'Unpaid leave',
   'leaves.type.sickness': 'Sickness leave',
+  'leaves.type.maternity': 'Maternity leave',
   'leaves.startDate': 'From',
   'leaves.endDate': 'To',
   'leaves.portion': 'Duration',
@@ -329,7 +330,7 @@ const en = {
   'declaration.warning.split_without_children':
     'This contract splits the pay between families but lists no children, so there is nothing to split by.',
   'declaration.warning.hours_reduced_for_absence':
-    'The hours are lower than usual because of a sickness or unpaid absence this month. This is expected — the nanny is not paid for hours she did not work — and the reduction is shared between the families. Paid leave, by contrast, changes nothing.',
+    'The hours are lower than usual because of an absence the employer does not pay this month. This is expected — the nanny is not paid for hours she did not work — and the reduction is shared between the families. Paid leave, by contrast, changes nothing.',
   'declaration.warning.overlapping_solo_exceptional':
     'Two families recorded their own extra hours over the same time. Each is billed in full, so the nanny is paid for it twice. If this was care both families needed at once, mark it as shared care instead.',
   'declaration.warning.weekly_hours_over_maximum':
@@ -981,6 +982,7 @@ const fr: Record<TranslationKey, string> = {
   'leaves.type.paid': 'Congé payé',
   'leaves.type.unpaid': 'Congé sans solde',
   'leaves.type.sickness': 'Congé maladie',
+  'leaves.type.maternity': 'Congé maternité',
   'leaves.startDate': 'Du',
   'leaves.endDate': 'Au',
   'leaves.portion': 'Durée',
@@ -1120,7 +1122,7 @@ const fr: Record<TranslationKey, string> = {
   'declaration.warning.split_without_children':
     'Ce contrat partage la rémunération entre les familles mais ne liste aucun enfant : il n’y a rien pour répartir.',
   'declaration.warning.hours_reduced_for_absence':
-    'Les heures sont inférieures à d’habitude en raison d’une absence pour maladie ou sans solde ce mois-ci. C’est normal — la nounou n’est pas payée pour les heures non travaillées — et la réduction est partagée entre les familles. Les congés payés, eux, ne changent rien.',
+    'Les heures sont inférieures à d’habitude en raison d’une absence que l’employeur ne rémunère pas ce mois-ci. C’est normal — la nounou n’est pas payée pour les heures non travaillées — et la réduction est partagée entre les familles. Les congés payés, eux, ne changent rien.',
   'declaration.warning.overlapping_solo_exceptional':
     'Deux familles ont déclaré leurs propres heures supplémentaires sur le même créneau. Chacune est facturée en entier, donc la nounou est payée deux fois. S’il s’agissait d’une garde dont les deux familles avaient besoin en même temps, indiquez-la comme garde partagée.',
   'declaration.warning.weekly_hours_over_maximum':

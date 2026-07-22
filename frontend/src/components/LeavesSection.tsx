@@ -52,6 +52,7 @@ const LEAVE_TYPE_KEYS: Record<LeaveType, TranslationKey> = {
   paid: 'leaves.type.paid',
   unpaid: 'leaves.type.unpaid',
   sickness: 'leaves.type.sickness',
+  maternity: 'leaves.type.maternity',
 }
 
 const PORTION_KEYS: Record<LeavePortion, TranslationKey> = {

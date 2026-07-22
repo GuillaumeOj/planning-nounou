@@ -22,6 +22,7 @@ import {
   getContractTerms,
   getMinimumWage,
   getMyContractInvitations,
+  getPaidLeaveDefault,
   revokeContractInvitation,
   updateContractSchedule,
   updateContractTerms,
@@ -59,6 +60,7 @@ vi.mock('@/src/api/contracts', () => ({
   declineContractInvitation: vi.fn(),
   attachContractFamily: vi.fn(),
   getMinimumWage: vi.fn(),
+  getPaidLeaveDefault: vi.fn(),
 }))
 // The children section mounts with the other sections once a contract is
 // expanded, so its API surface has to be mocked even for the tests that never
@@ -91,6 +93,7 @@ const m = {
   acceptMyInvitation: vi.mocked(acceptContractInvitation),
   declineMyInvitation: vi.mocked(declineContractInvitation),
   minimum: vi.mocked(getMinimumWage),
+  paidLeaveDefault: vi.mocked(getPaidLeaveDefault),
   contractChildren: vi.mocked(getContractChildren),
   children: vi.mocked(listChildren),
   createContractChild: vi.mocked(createContractChild),
@@ -159,6 +162,7 @@ beforeEach(() => {
   m.invitations.mockResolvedValue([])
   m.myInvitations.mockResolvedValue([])
   m.minimum.mockResolvedValue({ net_hourly_rate: '10.07' })
+  m.paidLeaveDefault.mockResolvedValue({ annual_days: 30 })
   m.contractChildren.mockResolvedValue([])
   m.children.mockResolvedValue([])
 })
@@ -316,7 +320,11 @@ describe('onboarding wizard', () => {
     await user.click(screen.getByRole('button', { name: 'Add a time block' }))
     await user.click(screen.getByRole('button', { name: 'Next' })) // → children
     await user.click(screen.getByRole('button', { name: 'Next' })) // → days off
-    await user.type(screen.getByLabelText('Paid-leave days per year'), '25')
+    // The field is pre-filled with the branch default; overwrite it.
+    const leaveField = screen.getByLabelText('Paid-leave days per year')
+    await waitFor(() => expect(leaveField).toHaveValue('30'))
+    await user.clear(leaveField)
+    await user.type(leaveField, '25')
     await user.click(screen.getByRole('button', { name: 'Next' })) // → share
     await user.type(
       screen.getByLabelText(/Invite another family/),
@@ -430,10 +438,11 @@ describe('onboarding wizard', () => {
       await user.click(screen.getByRole('button', { name: 'Next' }))
     await user.click(screen.getByRole('button', { name: 'Create contract' }))
 
+    // Untouched, the paid-leave field keeps the branch default it pre-filled with.
     await waitFor(() =>
       expect(m.createContract).toHaveBeenCalledWith('1', {
         starting_date: '2026-02-03',
-        paid_leave_days: undefined,
+        paid_leave_days: 30,
         split_method: 'equal',
         nanny_id: '5',
       }),
