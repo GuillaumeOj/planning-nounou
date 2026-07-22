@@ -4,8 +4,8 @@ from rest_framework import generics, permissions
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from .models import BankHoliday, MinimumWage
-from .serializers import BankHolidaySerializer
+from reference.models import BankHoliday, MinimumWage
+from reference.serializers import BankHolidaySerializer
 
 
 class MinimumWageView(generics.GenericAPIView):

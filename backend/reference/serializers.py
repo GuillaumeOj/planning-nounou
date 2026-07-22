@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import BankHoliday
+from reference.models import BankHoliday
 
 
 class BankHolidaySerializer(serializers.ModelSerializer):

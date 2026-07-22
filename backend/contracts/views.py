@@ -15,9 +15,8 @@ from rest_framework.serializers import BaseSerializer
 
 from accounts.models import Family, User
 from accounts.views import FamilyScopedMixin
-
-from .declarations_repo import declarations_for, file_declaration, paid_leave_balance
-from .models import (
+from contracts.declarations_repo import declarations_for, file_declaration, paid_leave_balance
+from contracts.models import (
     Contract,
     ContractInvitation,
     ContractSchedule,
@@ -25,7 +24,7 @@ from .models import (
     ContractTerms,
     MonthlyDeclaration,
 )
-from .serializers import (
+from contracts.serializers import (
     ContractChildSerializer,
     ContractInvitationPreviewSerializer,
     ContractInvitationSerializer,

@@ -15,7 +15,7 @@ reliable language signal and no per-user language needs to be stored.
 from django.conf import settings
 from djoser import email as djoser_email
 
-from .notifications import active_language
+from accounts.notifications import active_language
 
 
 class _BrevoTemplateEmail(djoser_email.BaseDjoserEmail):

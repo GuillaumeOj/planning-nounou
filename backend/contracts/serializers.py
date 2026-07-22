@@ -9,11 +9,7 @@ from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
-from nannies.models import Nanny
-from nannies.serializers import NannyBriefSerializer
-from reference.models import MinimumWage
-
-from .models import (
+from contracts.models import (
     Contract,
     ContractChild,
     ContractChildWindow,
@@ -26,8 +22,11 @@ from .models import (
     MonthlyDeclaration,
     ScheduleBlock,
 )
-from .notifications import send_contract_invitation_email
-from .sources import source_for
+from contracts.notifications import send_contract_invitation_email
+from contracts.sources import source_for
+from nannies.models import Nanny
+from nannies.serializers import NannyBriefSerializer
+from reference.models import MinimumWage
 
 NON_NEGATIVE_DECIMAL = {"min_value": Decimal("0")}
 _MISSING = object()

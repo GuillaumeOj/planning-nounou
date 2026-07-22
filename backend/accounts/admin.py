@@ -1,9 +1,8 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DjangoUserAdmin
 
+from accounts.models import Family, FamilyMembership, Invitation, User
 from children.models import Child
-
-from .models import Family, FamilyMembership, Invitation, User
 
 
 @admin.register(User)

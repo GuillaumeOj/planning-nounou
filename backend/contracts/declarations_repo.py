@@ -33,11 +33,9 @@ from typing import TYPE_CHECKING
 from django.db import transaction
 from django.utils import timezone
 
-from reference.models import BankHoliday
-
-from . import declarations as dec
-from . import paid_leave as pl
-from .models import (
+from contracts import declarations as dec
+from contracts import paid_leave as pl
+from contracts.models import (
     Contract,
     ContractChild,
     ContractSchedule,
@@ -47,6 +45,7 @@ from .models import (
     Leave,
     MonthlyDeclaration,
 )
+from reference.models import BankHoliday
 
 if TYPE_CHECKING:
     from datetime import date

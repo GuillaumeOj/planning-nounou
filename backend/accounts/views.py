@@ -8,13 +8,13 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.request import Request
 from rest_framework.response import Response
 
-from .models import Family, FamilyMembership, Invitation, User
-from .permissions import IsFamilyManager, IsFamilyMember
+from accounts.models import Family, FamilyMembership, Invitation, User
+from accounts.permissions import IsFamilyManager, IsFamilyMember
 
 # Account/session endpoints (register, login, me, email, password, reset,
 # activation, logout) are now provided by djoser + SimpleJWT — see accounts/urls.py.
 # Only the family/membership/invitation views live in this module.
-from .serializers import (
+from accounts.serializers import (
     FamilyMembershipSerializer,
     FamilySerializer,
     InvitationPreviewSerializer,

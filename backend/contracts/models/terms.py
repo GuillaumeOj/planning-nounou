@@ -9,9 +9,8 @@ from django.db import models
 from django.utils import timezone
 
 from config.models import UUIDModel
-
-from ._common import NON_NEGATIVE
-from .contract import Contract
+from contracts.models._common import NON_NEGATIVE
+from contracts.models.contract import Contract
 
 
 class ContractTerms(UUIDModel):

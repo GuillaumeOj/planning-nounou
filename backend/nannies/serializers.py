@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Nanny
+from nannies.models import Nanny
 
 
 class NannyBriefSerializer(serializers.ModelSerializer):

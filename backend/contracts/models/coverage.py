@@ -8,9 +8,8 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from config.models import UUIDModel
-
-from .contract import Contract
-from .schedule import ScheduleBlock
+from contracts.models.contract import Contract
+from contracts.models.schedule import ScheduleBlock
 
 if TYPE_CHECKING:
     from django.db.models.fields.related_descriptors import RelatedManager

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import BankHoliday, MinimumWage
+from reference.models import BankHoliday, MinimumWage
 
 
 @admin.register(MinimumWage)
