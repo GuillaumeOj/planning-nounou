@@ -235,8 +235,8 @@ BREVO_TEMPLATE_IDS = {
     "email_changed_confirmation": {"fr": 9, "en": 10},
     # Invitations (not djoser flows) — sent from accounts/contracts serializers via
     # accounts/notifications.py. Same `mgs-<key>-<lang>` templates in the Brevo account.
-    "family_invitation": {"fr": 11, "en": 12},
-    "contract_invitation": {"fr": 13, "en": 14},
+    "family_invitation": {"fr": 12, "en": 13},
+    "contract_invitation": {"fr": 14, "en": 15},
 }
 
 
