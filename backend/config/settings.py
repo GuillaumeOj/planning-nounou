@@ -143,6 +143,14 @@ SIMPLE_JWT = {
 }
 
 
+# Frontend links baked into outgoing emails (auth links via djoser below, plus the
+# invitation emails in accounts/contracts). One source of truth so a deploy can't drift
+# the two apart; djoser reads these through its EMAIL_FRONTEND_* keys.
+FRONTEND_PROTOCOL = env("FRONTEND_PROTOCOL", default="https")
+FRONTEND_DOMAIN = env("FRONTEND_DOMAIN", default="mgs-dev.local")
+SITE_NAME = env("SITE_NAME", default="Ma Garde Sereine")
+
+
 # djoser — battle-tested auth flows (registration, activation, password reset,
 # set email/password) layered on the SimpleJWT tokens above. The custom email
 # `User`, the `invitation_token` claim hook and our case-insensitive-unique-email
@@ -171,9 +179,9 @@ DJOSER = {
     # is set only so the router-mounted view can't 500 on a missing setting; the two
     # username-reset endpoints are locked to staff below, so the flow is effectively off.
     "USERNAME_RESET_CONFIRM_URL": "reset-username/{uid}/{token}",
-    "EMAIL_FRONTEND_PROTOCOL": env("FRONTEND_PROTOCOL", default="https"),
-    "EMAIL_FRONTEND_DOMAIN": env("FRONTEND_DOMAIN", default="mgs-dev.local"),
-    "EMAIL_FRONTEND_SITE_NAME": env("SITE_NAME", default="Ma Garde Sereine"),
+    "EMAIL_FRONTEND_PROTOCOL": FRONTEND_PROTOCOL,
+    "EMAIL_FRONTEND_DOMAIN": FRONTEND_DOMAIN,
+    "EMAIL_FRONTEND_SITE_NAME": SITE_NAME,
     "SERIALIZERS": {
         "user_create": "accounts.serializers.RegisterSerializer",
         "user": "accounts.serializers.ProfileSerializer",
@@ -225,6 +233,10 @@ BREVO_TEMPLATE_IDS = {
     "password_reset": {"fr": 5, "en": 6},
     "password_changed_confirmation": {"fr": 7, "en": 8},
     "email_changed_confirmation": {"fr": 9, "en": 10},
+    # Invitations (not djoser flows) — sent from accounts/contracts serializers via
+    # accounts/notifications.py. Same `mgs-<key>-<lang>` templates in the Brevo account.
+    "family_invitation": {"fr": 12, "en": 13},
+    "contract_invitation": {"fr": 14, "en": 15},
 }
 
 

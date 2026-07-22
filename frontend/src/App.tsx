@@ -5,6 +5,7 @@ import { PublicLayout } from '@/src/components/landing/PublicLayout'
 import { NavBar } from '@/src/components/NavBar'
 import { SettingsBar } from '@/src/components/SettingsBar'
 import ActivatePage from '@/src/pages/ActivatePage'
+import ContractInvitePage from '@/src/pages/ContractInvitePage'
 import Declarations from '@/src/pages/Declarations'
 import Family from '@/src/pages/Family'
 import Features from '@/src/pages/Features'
@@ -71,6 +72,12 @@ function App() {
         <Route path="/activate/:uid/:token" element={<ActivatePage />} />
         {/* Invitation landing: works signed in (accept) or signed out (claim). */}
         <Route path="/invite/:token" element={<InvitePage />} />
+        {/* Contract-share invitation landing. Signed out, it funnels the invitee
+            through auth (?next=) before they attach one of their families. */}
+        <Route
+          path="/contract-invite/:token"
+          element={<ContractInvitePage />}
+        />
       </Route>
       {/* Public marketing surface. The landing owns "/"; a signed-in visitor is
           sent on to their dashboard. The features page stays public for all. */}

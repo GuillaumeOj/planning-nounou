@@ -5,6 +5,7 @@ from datetime import datetime, time, timedelta
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from django.utils.translation import gettext_lazy as _
 from rest_framework import serializers
 
@@ -25,6 +26,7 @@ from .models import (
     MonthlyDeclaration,
     ScheduleBlock,
 )
+from .notifications import send_contract_invitation_email
 from .sources import source_for
 
 NON_NEGATIVE_DECIMAL = {"min_value": Decimal("0")}
@@ -392,8 +394,11 @@ class PaidLeaveBalanceSerializer(serializers.Serializer):
 
 
 class ContractInvitationSerializer(serializers.ModelSerializer):
-    """Create/list invitations to share a contract. Token is exposed to the
-    managing family so they can build the invite link (no email backend yet)."""
+    """Create/list invitations to share a contract.
+
+    Creating one emails the invitee a Brevo-hosted invite link (see
+    contracts/notifications.py). ``token`` stays exposed to the managing family so they
+    can re-share the link manually if needed."""
 
     class Meta:
         model = ContractInvitation
@@ -416,11 +421,18 @@ class ContractInvitationSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data: dict) -> ContractInvitation:
-        return ContractInvitation.objects.create(
-            contract=self.context["contract"],
-            invited_by=self.context["request"].user,
-            **validated_data,
-        )
+        # Send within the request, but inside the same transaction as the insert: a
+        # delivery failure rolls the invitation back so the manager can retry cleanly.
+        # A committed-but-unsent pending row would otherwise trip the duplicate-pending
+        # guard above and block re-inviting the same address.
+        with transaction.atomic():
+            invitation = ContractInvitation.objects.create(
+                contract=self.context["contract"],
+                invited_by=self.context["request"].user,
+                **validated_data,
+            )
+            send_contract_invitation_email(invitation)
+        return invitation
 
 
 class ContractInvitationPreviewSerializer(serializers.ModelSerializer):
