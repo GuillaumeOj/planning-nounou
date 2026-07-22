@@ -1,5 +1,5 @@
 import { CircleCheck, FilePen } from 'lucide-react'
-import type { DeclarationStatus } from '@/src/api/declarations'
+import type { MonthlyDeclarationStatusEnum } from '@/src/api'
 import { Badge, StatusBadge } from '@/src/components/ui/badge'
 import { useI18n } from '@/src/i18n/I18nContext'
 
@@ -10,7 +10,7 @@ import { useI18n } from '@/src/i18n/I18nContext'
 export function DeclarationStatusBadge({
   status,
 }: {
-  status: DeclarationStatus
+  status: MonthlyDeclarationStatusEnum
 }) {
   const { t } = useI18n()
   if (status === 'filed') {

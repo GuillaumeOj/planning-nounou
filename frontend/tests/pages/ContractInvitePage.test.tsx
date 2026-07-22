@@ -1,60 +1,50 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { HttpResponse, http } from 'msw'
+import { Provider } from 'react-redux'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  acceptContractInvitation,
-  declineContractInvitation,
-  getContractInvitationPreview,
-} from '@/src/api/contracts'
-import { getFamilies } from '@/src/api/family'
+import type { ContractInvitationPreviewRead, FamilyRead } from '@/src/api'
+import { makeStore } from '@/src/app/store'
 import { useAuth } from '@/src/auth/AuthContext'
 import { I18nProvider } from '@/src/i18n/I18nContext'
 import ContractInvitePage from '@/src/pages/ContractInvitePage'
+import { server } from '@/tests/msw/server'
 import { makeAuth } from '@/tests/utils'
 
-vi.mock('@/src/api/contracts', () => ({
-  getContractInvitationPreview: vi.fn(),
-  acceptContractInvitation: vi.fn(),
-  declineContractInvitation: vi.fn(),
-}))
-// Keep the real canManageFamily (a pure filter); only stub the network call.
-vi.mock('@/src/api/family', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/src/api/family')>()),
-  getFamilies: vi.fn(),
-}))
 vi.mock('@/src/auth/AuthContext', () => ({ useAuth: vi.fn() }))
 
-const mockPreview = vi.mocked(getContractInvitationPreview)
-const mockAccept = vi.mocked(acceptContractInvitation)
-const mockDecline = vi.mocked(declineContractInvitation)
-const mockFamilies = vi.mocked(getFamilies)
 const mockUseAuth = vi.mocked(useAuth)
 
-const PREVIEW = {
+const PREVIEW: ContractInvitationPreviewRead = {
   email: 'invitee@example.com',
-  status: 'pending' as const,
+  status: 'pending',
   nanny_first_name: 'Marie',
   nanny_last_name: 'Dupont',
   expires_at: '2026-01-08T00:00:00Z',
 }
 
-const family = (id: string, name: string) => ({
+const family = (
+  id: string,
+  name: string,
+  role: string = 'owner',
+): FamilyRead => ({
   id,
   name,
-  role: 'owner' as const,
+  role,
   is_claimed: true,
   created_at: '2026-01-01T00:00:00Z',
 })
 
+const PREVIEW_URL = '*/api/contract-invitations/:token/'
+const ACCEPT_URL = '*/api/contract-invitations/:token/accept/'
+const DECLINE_URL = '*/api/contract-invitations/:token/decline/'
+const FAMILIES_URL = '*/api/families/'
+
 function renderPage() {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  })
   return render(
-    <I18nProvider>
-      <QueryClientProvider client={client}>
+    <Provider store={makeStore()}>
+      <I18nProvider>
         <MemoryRouter initialEntries={['/contract-invite/tok-123']}>
           <Routes>
             <Route
@@ -65,25 +55,27 @@ function renderPage() {
             <Route path="/family" element={<p>family page</p>} />
           </Routes>
         </MemoryRouter>
-      </QueryClientProvider>
-    </I18nProvider>,
+      </I18nProvider>
+    </Provider>,
   )
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mockUseAuth.mockReturnValue(makeAuth())
 })
 
 describe('ContractInvitePage', () => {
   it('shows a loading state', () => {
-    mockPreview.mockReturnValue(new Promise(() => {}))
+    // A request that never settles keeps the query in its loading state.
+    server.use(http.get(PREVIEW_URL, () => new Promise(() => {})))
     renderPage()
     expect(screen.getByText('Loading invitation…')).toBeInTheDocument()
   })
 
   it('shows an invalid message on error', async () => {
-    mockPreview.mockRejectedValue(new Error('gone'))
+    server.use(
+      http.get(PREVIEW_URL, () => new HttpResponse(null, { status: 500 })),
+    )
     renderPage()
     expect(
       await screen.findByText('This invitation is not valid or has expired.'),
@@ -91,7 +83,11 @@ describe('ContractInvitePage', () => {
   })
 
   it('treats a non-pending invitation as invalid', async () => {
-    mockPreview.mockResolvedValue({ ...PREVIEW, status: 'revoked' })
+    server.use(
+      http.get(PREVIEW_URL, () =>
+        HttpResponse.json({ ...PREVIEW, status: 'revoked' }),
+      ),
+    )
     renderPage()
     expect(
       await screen.findByText('This invitation is not valid or has expired.'),
@@ -101,7 +97,7 @@ describe('ContractInvitePage', () => {
   describe('unauthenticated', () => {
     beforeEach(() => {
       mockUseAuth.mockReturnValue(makeAuth({ isAuthenticated: false }))
-      mockPreview.mockResolvedValue(PREVIEW)
+      server.use(http.get(PREVIEW_URL, () => HttpResponse.json(PREVIEW)))
     })
 
     it('offers register and login links carrying the invite as ?next=', async () => {
@@ -121,12 +117,25 @@ describe('ContractInvitePage', () => {
   describe('authenticated', () => {
     beforeEach(() => {
       mockUseAuth.mockReturnValue(makeAuth({ isAuthenticated: true }))
-      mockPreview.mockResolvedValue(PREVIEW)
+      server.use(http.get(PREVIEW_URL, () => HttpResponse.json(PREVIEW)))
     })
 
     it('accepts with the sole managed family, then links to the nannies', async () => {
-      mockFamilies.mockResolvedValue([family('f1', 'Dupont')])
-      mockAccept.mockResolvedValue({} as never)
+      server.use(
+        http.get(FAMILIES_URL, () =>
+          HttpResponse.json([family('f1', 'Dupont')]),
+        ),
+      )
+      const accepted: { token?: string; family_id?: string } = {}
+      server.use(
+        http.post(ACCEPT_URL, async ({ request, params }) => {
+          accepted.token = params.token as string
+          accepted.family_id = (
+            (await request.json()) as { family_id: string }
+          ).family_id
+          return HttpResponse.json({})
+        }),
+      )
       renderPage()
 
       await userEvent.click(
@@ -134,7 +143,7 @@ describe('ContractInvitePage', () => {
       )
 
       await waitFor(() =>
-        expect(mockAccept).toHaveBeenCalledWith('tok-123', 'f1'),
+        expect(accepted).toEqual({ token: 'tok-123', family_id: 'f1' }),
       )
       expect(
         await screen.findByText('The contract is now shared with your family.'),
@@ -147,25 +156,36 @@ describe('ContractInvitePage', () => {
     })
 
     it('lets the user pick among several families before accepting', async () => {
-      mockFamilies.mockResolvedValue([
-        family('f1', 'Dupont'),
-        family('f2', 'Martin'),
-      ])
-      mockAccept.mockResolvedValue({} as never)
+      server.use(
+        http.get(FAMILIES_URL, () =>
+          HttpResponse.json([family('f1', 'Dupont'), family('f2', 'Martin')]),
+        ),
+      )
+      const accepted: { family_id?: string } = {}
+      server.use(
+        http.post(ACCEPT_URL, async ({ request }) => {
+          accepted.family_id = (
+            (await request.json()) as { family_id: string }
+          ).family_id
+          return HttpResponse.json({})
+        }),
+      )
       renderPage()
 
       // Second family chosen explicitly; the first is the default.
       await userEvent.click(await screen.findByLabelText('Martin'))
       await userEvent.click(screen.getByRole('button', { name: 'Accept' }))
 
-      await waitFor(() =>
-        expect(mockAccept).toHaveBeenCalledWith('tok-123', 'f2'),
-      )
+      await waitFor(() => expect(accepted.family_id).toBe('f2'))
     })
 
     it('shows an error when accepting fails', async () => {
-      mockFamilies.mockResolvedValue([family('f1', 'Dupont')])
-      mockAccept.mockRejectedValue(new Error('nope'))
+      server.use(
+        http.get(FAMILIES_URL, () =>
+          HttpResponse.json([family('f1', 'Dupont')]),
+        ),
+        http.post(ACCEPT_URL, () => new HttpResponse(null, { status: 500 })),
+      )
       renderPage()
 
       await userEvent.click(
@@ -175,8 +195,12 @@ describe('ContractInvitePage', () => {
     })
 
     it('declines the invitation', async () => {
-      mockFamilies.mockResolvedValue([family('f1', 'Dupont')])
-      mockDecline.mockResolvedValue(undefined)
+      server.use(
+        http.get(FAMILIES_URL, () =>
+          HttpResponse.json([family('f1', 'Dupont')]),
+        ),
+        http.post(DECLINE_URL, () => new HttpResponse(null, { status: 204 })),
+      )
       renderPage()
 
       await userEvent.click(
@@ -188,7 +212,9 @@ describe('ContractInvitePage', () => {
     })
 
     it('surfaces an error when families fail to load, not a no-family prompt', async () => {
-      mockFamilies.mockRejectedValue(new Error('down'))
+      server.use(
+        http.get(FAMILIES_URL, () => new HttpResponse(null, { status: 500 })),
+      )
       renderPage()
 
       expect(await screen.findByRole('alert')).toBeInTheDocument()
@@ -199,9 +225,11 @@ describe('ContractInvitePage', () => {
 
     it('prompts to create a family when the user manages none', async () => {
       // A member-only family cannot own a shared contract, so it is filtered out.
-      mockFamilies.mockResolvedValue([
-        { ...family('f1', 'Guest'), role: 'member' as const },
-      ])
+      server.use(
+        http.get(FAMILIES_URL, () =>
+          HttpResponse.json([family('f1', 'Guest', 'member')]),
+        ),
+      )
       renderPage()
 
       await userEvent.click(

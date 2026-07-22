@@ -1,96 +1,32 @@
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { HttpResponse, http } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  type Contract,
-  type ContractSchedule,
-  getContractSchedules,
-  getContracts,
-} from '@/src/api/contracts'
-import {
-  type ContractChild,
-  type ExceptionalHours,
-  type ExceptionalPresence,
-  getContractChildren,
-  getExceptionalHours,
-  getExceptionalPresences,
-} from '@/src/api/declarations'
-import { getFamilies } from '@/src/api/family'
-import { getBankHolidays } from '@/src/api/holidays'
-import { getLeaves } from '@/src/api/leaves'
+import type {
+  BankHolidayRead,
+  ContractRead,
+  ContractScheduleRead,
+  ExceptionalHoursRead,
+  ExceptionalPresenceRead,
+  FamilyRead,
+  PlanningContractRead,
+} from '@/src/api'
 import { MOBILE_QUERY } from '@/src/hooks/useMediaQuery'
 import Planning from '@/src/pages/Planning'
+import { server } from '@/tests/msw/server'
 import { renderWithProviders, selectOption } from '@/tests/utils'
 
-vi.mock('@/src/api/family', () => ({ getFamilies: vi.fn() }))
-vi.mock('@/src/api/contracts', () => ({
-  getContracts: vi.fn(),
-  getContractSchedules: vi.fn(),
-}))
-vi.mock('@/src/api/holidays', () => ({ getBankHolidays: vi.fn() }))
-// The record tabs live on this page now, so their API surface has to be mocked
-// even for the tests that never leave the calendar: an unmocked module reaches
-// for a real axios call the moment a tab mounts.
-vi.mock('@/src/api/leaves', () => {
-  const getLeaves = vi.fn()
-  return {
-    getLeaves,
-    createLeave: vi.fn(),
-    updateLeave: vi.fn(),
-    deleteLeave: vi.fn(),
-    leavesQueryOptions: (familyId: string, contractId: string) => ({
-      queryKey: ['contract-leaves', contractId],
-      queryFn: () => getLeaves(familyId, contractId),
-    }),
-  }
-})
-vi.mock('@/src/api/declarations', () => {
-  const getExceptionalHours = vi.fn()
-  const getExceptionalPresences = vi.fn()
-  return {
-    getExceptionalHours,
-    createExceptionalHours: vi.fn(),
-    updateExceptionalHours: vi.fn(),
-    deleteExceptionalHours: vi.fn(),
-    getExceptionalPresences,
-    createExceptionalPresence: vi.fn(),
-    updateExceptionalPresence: vi.fn(),
-    deleteExceptionalPresence: vi.fn(),
-    getContractChildren: vi.fn(),
-    exceptionalHoursQueryOptions: (familyId: string, contractId: string) => ({
-      queryKey: ['exceptional-hours', contractId],
-      queryFn: () => getExceptionalHours(familyId, contractId),
-    }),
-    exceptionalPresencesQueryOptions: (
-      familyId: string,
-      contractId: string,
-    ) => ({
-      queryKey: ['exceptional-presences', contractId],
-      queryFn: () => getExceptionalPresences(familyId, contractId),
-    }),
-  }
-})
-
-const m = {
-  families: vi.mocked(getFamilies),
-  contracts: vi.mocked(getContracts),
-  schedules: vi.mocked(getContractSchedules),
-  holidays: vi.mocked(getBankHolidays),
-  leaves: vi.mocked(getLeaves),
-  hours: vi.mocked(getExceptionalHours),
-  presences: vi.mocked(getExceptionalPresences),
-  children: vi.mocked(getContractChildren),
-}
-
-const family = {
+const family: FamilyRead = {
   id: '1',
   name: 'Home',
-  role: 'owner' as const,
+  role: 'owner',
   is_claimed: true,
   created_at: '',
 }
 
-function makeSchedule(o: Partial<ContractSchedule> = {}): ContractSchedule {
+function makeSchedule(
+  o: Partial<ContractScheduleRead> = {},
+): ContractScheduleRead {
   return {
     id: '1',
     effective_from: '2026-06-01',
@@ -98,11 +34,13 @@ function makeSchedule(o: Partial<ContractSchedule> = {}): ContractSchedule {
     weekly_hours: 9,
     edited: false,
     created_by_name: null,
-    blocks: [{ weekday: 2, start_time: '08:00:00', end_time: '17:00:00' }],
+    blocks: [
+      { id: 'b1', weekday: 2, start_time: '08:00:00', end_time: '17:00:00' },
+    ],
     ...o,
-  }
+  } as ContractScheduleRead
 }
-function makeContract(o: Partial<Contract> = {}): Contract {
+function makeContract(o: Partial<ContractRead> = {}): ContractRead {
   return {
     id: '10',
     nanny: { id: '5', first_name: 'Marie', last_name: 'Dupont' },
@@ -116,6 +54,93 @@ function makeContract(o: Partial<Contract> = {}): Contract {
     current_schedule: null,
     ...o,
   }
+}
+
+// One planning contract carries its own schedule history, leaves, exceptional
+// hours/presences and children — the calendar reads all of it from the single
+// planning payload rather than fanning out per-contract queries.
+function makePlanningContract(
+  o: Partial<PlanningContractRead> = {},
+): PlanningContractRead {
+  return {
+    ...makeContract(),
+    schedule_history: [makeSchedule()],
+    leaves: [],
+    exceptional_hours: [],
+    exceptional_presences: [],
+    children: [],
+    ...o,
+  }
+}
+
+const FAMILIES = '*/api/families/'
+const PLANNING = '*/api/families/:familyPk/planning/'
+// The record-tab sections fetch their own lists once a tab mounts.
+const LEAVES = '*/api/families/:familyPk/contracts/:contractPk/leaves/'
+const HOURS =
+  '*/api/families/:familyPk/contracts/:contractPk/exceptional-hours/'
+const PRESENCES =
+  '*/api/families/:familyPk/contracts/:contractPk/exceptional-presences/'
+const CCHILDREN = '*/api/families/:familyPk/contracts/:contractPk/children/'
+
+interface Ref {
+  familyPk: string
+  contractPk: string
+}
+interface Calls {
+  planningFamilies: string[]
+  planningMonths: (string | null)[]
+  leavesFor: Ref[]
+  hoursFor: Ref[]
+  presencesFor: Ref[]
+}
+
+function setup(
+  opts: {
+    families?: FamilyRead[]
+    contracts?: PlanningContractRead[]
+    holidays?: BankHolidayRead[]
+  } = {},
+): Calls {
+  const { families = [family], contracts = [], holidays = [] } = opts
+  const calls: Calls = {
+    planningFamilies: [],
+    planningMonths: [],
+    leavesFor: [],
+    hoursFor: [],
+    presencesFor: [],
+  }
+  server.use(
+    http.get(FAMILIES, () => HttpResponse.json(families)),
+    http.get(PLANNING, ({ params, request }) => {
+      calls.planningFamilies.push(params.familyPk as string)
+      calls.planningMonths.push(new URL(request.url).searchParams.get('month'))
+      return HttpResponse.json({ contracts, holidays })
+    }),
+    http.get(LEAVES, ({ params }) => {
+      calls.leavesFor.push({
+        familyPk: params.familyPk as string,
+        contractPk: params.contractPk as string,
+      })
+      return HttpResponse.json([])
+    }),
+    http.get(HOURS, ({ params }) => {
+      calls.hoursFor.push({
+        familyPk: params.familyPk as string,
+        contractPk: params.contractPk as string,
+      })
+      return HttpResponse.json([])
+    }),
+    http.get(PRESENCES, ({ params }) => {
+      calls.presencesFor.push({
+        familyPk: params.familyPk as string,
+        contractPk: params.contractPk as string,
+      })
+      return HttpResponse.json([])
+    }),
+    http.get(CCHILDREN, () => HttpResponse.json([])),
+  )
+  return calls
 }
 
 // A user-event bound to the fake clock so its internal delays still resolve.
@@ -144,24 +169,16 @@ beforeEach(() => {
   // Pin "today" to a Wednesday in July 2026 so the calendar is deterministic.
   vi.useFakeTimers({ shouldAdvanceTime: true })
   vi.setSystemTime(new Date(2026, 6, 15, 12, 0, 0))
-  m.families.mockResolvedValue([family])
-  m.contracts.mockResolvedValue([])
-  m.schedules.mockResolvedValue([makeSchedule()])
-  m.holidays.mockResolvedValue([])
-  m.leaves.mockResolvedValue([])
-  m.hours.mockResolvedValue([])
-  m.presences.mockResolvedValue([])
-  m.children.mockResolvedValue([])
+  setup()
 })
 afterEach(() => {
   vi.useRealTimers()
-  vi.clearAllMocks()
   window.matchMedia = realMatchMedia
 })
 
 describe('Planning page', () => {
   it('prompts to create a family when there are none', async () => {
-    m.families.mockResolvedValue([])
+    setup({ families: [] })
     renderWithProviders(<Planning />)
     expect(
       await screen.findByText('Create a family first, then add a nanny.'),
@@ -169,6 +186,7 @@ describe('Planning page', () => {
   })
 
   it('shows the current month and an empty message when no day is worked', async () => {
+    setup()
     renderWithProviders(<Planning />)
     expect(await screen.findByText('July 2026')).toBeInTheDocument()
     expect(
@@ -177,7 +195,7 @@ describe('Planning page', () => {
   })
 
   it('marks worked days with the nanny name and hours', async () => {
-    m.contracts.mockResolvedValue([makeContract()])
+    setup({ contracts: [makePlanningContract()] })
     renderWithProviders(<Planning />)
     // July 2026 has five Wednesdays; the scheduled block lands on each.
     expect((await screen.findAllByText('Marie Dupont')).length).toBeGreaterThan(
@@ -187,24 +205,33 @@ describe('Planning page', () => {
   })
 
   it('shows the holiday name on the planning', async () => {
-    m.holidays.mockResolvedValue([
-      {
-        id: 'h1',
-        name: 'Fête Nationale',
-        date: '2026-07-14',
-        is_workable: false,
-      },
-    ])
+    setup({
+      holidays: [
+        {
+          id: 'h1',
+          name: 'Fête Nationale',
+          date: '2026-07-14',
+          is_workable: false,
+        },
+      ],
+    })
     renderWithProviders(<Planning />)
     expect(await screen.findByText('Fête Nationale')).toBeInTheDocument()
   })
 
   it('removes the worked block on a non-workable holiday', async () => {
-    m.contracts.mockResolvedValue([makeContract()])
     // 2026-07-08 is one of July's five worked Wednesdays.
-    m.holidays.mockResolvedValue([
-      { id: 'h1', name: 'Jour férié', date: '2026-07-08', is_workable: false },
-    ])
+    setup({
+      contracts: [makePlanningContract()],
+      holidays: [
+        {
+          id: 'h1',
+          name: 'Jour férié',
+          date: '2026-07-08',
+          is_workable: false,
+        },
+      ],
+    })
     renderWithProviders(<Planning />)
     await screen.findByText('Jour férié')
     // Five Wednesdays minus the neutralized one leaves four worked days.
@@ -214,10 +241,12 @@ describe('Planning page', () => {
   })
 
   it('keeps the worked block on a workable holiday', async () => {
-    m.contracts.mockResolvedValue([makeContract()])
-    m.holidays.mockResolvedValue([
-      { id: 'h1', name: 'Solidarité', date: '2026-07-08', is_workable: true },
-    ])
+    setup({
+      contracts: [makePlanningContract()],
+      holidays: [
+        { id: 'h1', name: 'Solidarité', date: '2026-07-08', is_workable: true },
+      ],
+    })
     renderWithProviders(<Planning />)
     await screen.findByText('Solidarité')
     await waitFor(() =>
@@ -227,6 +256,7 @@ describe('Planning page', () => {
 
   it('navigates months and returns to today', async () => {
     const user = setupUser()
+    setup()
     renderWithProviders(<Planning />)
     expect(await screen.findByText('July 2026')).toBeInTheDocument()
 
@@ -241,25 +271,29 @@ describe('Planning page', () => {
     expect(await screen.findByText('July 2026')).toBeInTheDocument()
   })
 
-  it('refetches contracts when the acting family changes', async () => {
+  it('refetches the planning when the acting family changes', async () => {
     const family2 = { ...family, id: '2', name: 'Grandparents' }
-    m.families.mockResolvedValue([family, family2])
+    const calls = setup({ families: [family, family2] })
     const user = setupUser()
     renderWithProviders(<Planning />)
     await screen.findByText('July 2026')
 
     await selectOption('Acting as family', 'Grandparents', user)
-    await waitFor(() => expect(m.contracts).toHaveBeenCalledWith('2'))
+    await waitFor(() => expect(calls.planningFamilies).toContain('2'))
   })
 
-  it('shows a loading state while contracts load', async () => {
-    m.contracts.mockReturnValue(new Promise<Contract[]>(() => {}))
+  it('shows a loading state while the planning loads', async () => {
+    setup()
+    server.use(http.get(PLANNING, () => new Promise(() => {})))
     renderWithProviders(<Planning />)
     expect(await screen.findByText('Loading…')).toBeInTheDocument()
   })
 
   it('surfaces a load error', async () => {
-    m.contracts.mockRejectedValue(new Error('boom'))
+    setup()
+    server.use(
+      http.get(PLANNING, () => new HttpResponse(null, { status: 500 })),
+    )
     renderWithProviders(<Planning />)
     expect(
       await screen.findByText('Could not load the planning.'),
@@ -270,7 +304,7 @@ describe('Planning page', () => {
 describe('Planning tabs', () => {
   const openTab = async (name: string) => {
     const user = setupUser()
-    m.contracts.mockResolvedValue([makeContract()])
+    setup({ contracts: [makePlanningContract()] })
     renderWithProviders(<Planning />)
     await screen.findByText('July 2026')
     await user.click(screen.getByRole('tab', { name }))
@@ -278,17 +312,13 @@ describe('Planning tabs', () => {
   }
 
   it('starts on the calendar', async () => {
-    m.contracts.mockResolvedValue([makeContract()])
+    setup({ contracts: [makePlanningContract()] })
     renderWithProviders(<Planning />)
+    // The calendar reads the records from the single planning payload, so it is
+    // selected by default without fanning out any per-record query.
     expect(
       await screen.findByRole('tab', { name: 'Calendar' }),
     ).toHaveAttribute('aria-selected', 'true')
-    // The calendar itself now reads the records — it marks days off, exceptional
-    // hours and exceptional presences — so those queries run for its sake, keyed
-    // the same way the tabs use so a tab finds them already cached.
-    await waitFor(() => expect(m.leaves).toHaveBeenCalledWith('1', '10'))
-    expect(m.hours).toHaveBeenCalledWith('1', '10')
-    expect(m.presences).toHaveBeenCalledWith('1', '10')
   })
 
   it('shows the days off of each nanny, and drops the calendar', async () => {
@@ -306,7 +336,6 @@ describe('Planning tabs', () => {
     expect(
       await screen.findByText('No exceptional hours this month.'),
     ).toBeInTheDocument()
-    expect(m.hours).toHaveBeenCalledWith('1', '10')
   })
 
   it('shows the exceptional presence of each nanny', async () => {
@@ -314,7 +343,6 @@ describe('Planning tabs', () => {
     expect(
       await screen.findByText('No exceptional presence this month.'),
     ).toBeInTheDocument()
-    expect(m.presences).toHaveBeenCalledWith('1', '10')
   })
 
   it('keeps a single family selector, above the tabs', async () => {
@@ -326,16 +354,23 @@ describe('Planning tabs', () => {
 
   it('scopes a record tab to the family selected above it', async () => {
     const family2 = { ...family, id: '2', name: 'Grandparents' }
-    m.families.mockResolvedValue([family, family2])
-    const user = await openTab('Exceptional hours')
+    const calls = setup({
+      families: [family, family2],
+      contracts: [makePlanningContract()],
+    })
+    const user = setupUser()
+    renderWithProviders(<Planning />)
+    await screen.findByText('July 2026')
+    await user.click(screen.getByRole('tab', { name: 'Exceptional hours' }))
     await screen.findByText('No exceptional hours this month.')
 
     await selectOption('Acting as family', 'Grandparents', user)
-    await waitFor(() => expect(m.contracts).toHaveBeenCalledWith('2'))
+    await waitFor(() => expect(calls.planningFamilies).toContain('2'))
   })
 
   it('says a record tab is empty when the family has no nanny', async () => {
     const user = setupUser()
+    setup()
     renderWithProviders(<Planning />)
     await screen.findByText('July 2026')
     await user.click(screen.getByRole('tab', { name: 'Days off' }))
@@ -344,8 +379,9 @@ describe('Planning tabs', () => {
     ).toBeInTheDocument()
   })
 
-  it('shows a loading state on a record tab while contracts load', async () => {
-    m.contracts.mockReturnValue(new Promise<Contract[]>(() => {}))
+  it('shows a loading state on a record tab while the planning loads', async () => {
+    setup()
+    server.use(http.get(PLANNING, () => new Promise(() => {})))
     const user = setupUser()
     renderWithProviders(<Planning />)
     // The tabs only exist once the families are in: until then the page is the
@@ -355,7 +391,10 @@ describe('Planning tabs', () => {
   })
 
   it('surfaces a load error on a record tab', async () => {
-    m.contracts.mockRejectedValue(new Error('boom'))
+    setup()
+    server.use(
+      http.get(PLANNING, () => new HttpResponse(null, { status: 500 })),
+    )
     const user = setupUser()
     renderWithProviders(<Planning />)
     await screen.findByText('July 2026')
@@ -372,7 +411,7 @@ describe('Planning page on a phone', () => {
   })
 
   it('describes the selected day instead of filling the cells', async () => {
-    m.contracts.mockResolvedValue([makeContract()])
+    setup({ contracts: [makePlanningContract()] })
     renderWithProviders(<Planning />)
 
     // Today (Wed 15 July) is worked and selected by default. The name appears
@@ -388,7 +427,7 @@ describe('Planning page on a phone', () => {
 
   it('switches the panel to the day that was tapped', async () => {
     const user = setupUser()
-    m.contracts.mockResolvedValue([makeContract()])
+    setup({ contracts: [makePlanningContract()] })
     renderWithProviders(<Planning />)
     await screen.findByText('Marie Dupont')
 
@@ -402,20 +441,22 @@ describe('Planning page on a phone', () => {
 
   it('names the holiday of the selected day', async () => {
     const user = setupUser()
-    m.holidays.mockResolvedValue([
-      {
-        id: 'h1',
-        name: 'Fête Nationale',
-        date: '2026-07-14',
-        is_workable: false,
-      },
-    ])
+    setup({
+      holidays: [
+        {
+          id: 'h1',
+          name: 'Fête Nationale',
+          date: '2026-07-14',
+          is_workable: false,
+        },
+      ],
+    })
     renderWithProviders(<Planning />)
     await screen.findByText('July 2026')
 
     // The name is only in the panel now, so it takes a tap to reach it.
     expect(screen.queryByText('Fête Nationale')).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: /July 14th/ }))
+    await user.click(await screen.findByRole('button', { name: /July 14th/ }))
     expect(await screen.findByText('Fête Nationale')).toBeInTheDocument()
   })
 
@@ -423,12 +464,24 @@ describe('Planning page on a phone', () => {
     const user = setupUser()
     // 1 August 2026 is a Saturday: schedule the nanny then, so the day the
     // selection falls back to is a worked one and the panel has to say so.
-    m.contracts.mockResolvedValue([makeContract()])
-    m.schedules.mockResolvedValue([
-      makeSchedule({
-        blocks: [{ weekday: 5, start_time: '08:00:00', end_time: '17:00:00' }],
-      }),
-    ])
+    setup({
+      contracts: [
+        makePlanningContract({
+          schedule_history: [
+            makeSchedule({
+              blocks: [
+                {
+                  id: 'b1',
+                  weekday: 5,
+                  start_time: '08:00:00',
+                  end_time: '17:00:00',
+                },
+              ],
+            }),
+          ],
+        }),
+      ],
+    })
     renderWithProviders(<Planning />)
     await screen.findByText('July 2026')
 
@@ -445,46 +498,53 @@ describe('Planning page on a phone', () => {
   // co-employer's ('2') on the calendar. Today, Wed 15 July, is selected, so the
   // phone panel lists that day's events inline.
   it("hides the co-employer's exceptional presence", async () => {
-    m.contracts.mockResolvedValue([makeContract()])
     // Both children windowed to Monday only, so neither rides the Wednesday
     // block — only their presence *event* can put them on the selected day.
-    const mondayOnly = [{ weekday: 0, start_time: '08:00', end_time: '12:00' }]
-    m.children.mockResolvedValue([
-      {
-        id: 'cc1',
-        child: 'c1',
-        first_name: 'Léa',
-        family_id: '1',
-        windows: mondayOnly,
-      },
-      {
-        id: 'cc2',
-        child: 'c2',
-        first_name: 'Tom',
-        family_id: '2',
-        windows: mondayOnly,
-      },
-    ] as ContractChild[])
-    m.presences.mockResolvedValue([
-      {
-        id: 'p1',
-        child: 'c1',
-        first_name: 'Léa',
-        date: '2026-07-15',
-        start_time: '15:00',
-        end_time: '17:00',
-        notes: '',
-      },
-      {
-        id: 'p2',
-        child: 'c2',
-        first_name: 'Tom',
-        date: '2026-07-15',
-        start_time: '15:00',
-        end_time: '17:00',
-        notes: '',
-      },
-    ] as ExceptionalPresence[])
+    const mondayOnly = [
+      { id: 'w1', weekday: 0 as const, start_time: '08:00', end_time: '12:00' },
+    ]
+    setup({
+      contracts: [
+        makePlanningContract({
+          children: [
+            {
+              id: 'cc1',
+              child: 'c1',
+              first_name: 'Léa',
+              family_id: '1',
+              windows: mondayOnly,
+            },
+            {
+              id: 'cc2',
+              child: 'c2',
+              first_name: 'Tom',
+              family_id: '2',
+              windows: mondayOnly,
+            },
+          ],
+          exceptional_presences: [
+            {
+              id: 'p1',
+              child: 'c1',
+              first_name: 'Léa',
+              date: '2026-07-15',
+              start_time: '15:00',
+              end_time: '17:00',
+              notes: '',
+            },
+            {
+              id: 'p2',
+              child: 'c2',
+              first_name: 'Tom',
+              date: '2026-07-15',
+              start_time: '15:00',
+              end_time: '17:00',
+              notes: '',
+            },
+          ] as ExceptionalPresenceRead[],
+        }),
+      ],
+    })
     renderWithProviders(<Planning />)
 
     expect(await screen.findByText(/Léa/)).toBeInTheDocument()
@@ -492,33 +552,38 @@ describe('Planning page on a phone', () => {
   })
 
   it("hides the co-employer's exceptional hours", async () => {
-    m.contracts.mockResolvedValue([makeContract()])
-    m.hours.mockResolvedValue([
-      {
-        id: 'h1',
-        family: '1',
-        kind: 'effective',
-        is_shared: false,
-        start_date: '2026-07-15',
-        start_time: '18:30',
-        end_date: '2026-07-15',
-        end_time: '20:00',
-        interventions: 0,
-        notes: '',
-      },
-      {
-        id: 'h2',
-        family: '2',
-        kind: 'effective',
-        is_shared: true,
-        start_date: '2026-07-15',
-        start_time: '21:45',
-        end_date: '2026-07-15',
-        end_time: '22:30',
-        interventions: 0,
-        notes: '',
-      },
-    ] as ExceptionalHours[])
+    setup({
+      contracts: [
+        makePlanningContract({
+          exceptional_hours: [
+            {
+              id: 'h1',
+              family: '1',
+              kind: 'effective',
+              is_shared: false,
+              start_date: '2026-07-15',
+              start_time: '18:30',
+              end_date: '2026-07-15',
+              end_time: '20:00',
+              interventions: 0,
+              notes: '',
+            },
+            {
+              id: 'h2',
+              family: '2',
+              kind: 'effective',
+              is_shared: true,
+              start_date: '2026-07-15',
+              start_time: '21:45',
+              end_date: '2026-07-15',
+              end_time: '22:30',
+              interventions: 0,
+              notes: '',
+            },
+          ] as ExceptionalHoursRead[],
+        }),
+      ],
+    })
     renderWithProviders(<Planning />)
 
     // The acting family's own entry (18:30 → 6:30 PM) shows; the shared entry the
@@ -531,33 +596,38 @@ describe('Planning page on a phone', () => {
   // its own share), so the endpoint hands back both copies of the *same* window.
   // The acting family ('1') must see one mark, not one per family.
   it('marks a shared window once, not once per family', async () => {
-    m.contracts.mockResolvedValue([makeContract()])
-    m.hours.mockResolvedValue([
-      {
-        id: 'h1',
-        family: '2',
-        kind: 'effective',
-        is_shared: true,
-        start_date: '2026-07-15',
-        start_time: '17:30',
-        end_date: '2026-07-15',
-        end_time: '18:00',
-        interventions: 0,
-        notes: 'Extra hours of work',
-      },
-      {
-        id: 'h2',
-        family: '1',
-        kind: 'effective',
-        is_shared: true,
-        start_date: '2026-07-15',
-        start_time: '17:30',
-        end_date: '2026-07-15',
-        end_time: '18:00',
-        interventions: 0,
-        notes: '',
-      },
-    ] as ExceptionalHours[])
+    setup({
+      contracts: [
+        makePlanningContract({
+          exceptional_hours: [
+            {
+              id: 'h1',
+              family: '2',
+              kind: 'effective',
+              is_shared: true,
+              start_date: '2026-07-15',
+              start_time: '17:30',
+              end_date: '2026-07-15',
+              end_time: '18:00',
+              interventions: 0,
+              notes: 'Extra hours of work',
+            },
+            {
+              id: 'h2',
+              family: '1',
+              kind: 'effective',
+              is_shared: true,
+              start_date: '2026-07-15',
+              start_time: '17:30',
+              end_date: '2026-07-15',
+              end_time: '18:00',
+              interventions: 0,
+              notes: '',
+            },
+          ] as ExceptionalHoursRead[],
+        }),
+      ],
+    })
     renderWithProviders(<Planning />)
 
     // 17:30 → 5:30 PM. Both copies read identically, so a missing filter would

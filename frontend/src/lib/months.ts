@@ -3,11 +3,21 @@
 // comparison — no Date parsing, no timezone to get wrong.
 
 import { format } from 'date-fns'
+import type { Language } from '@/src/i18n/translations'
+import { localeFor } from '@/src/lib/utils'
 
 // A Date to the "YYYY-MM" the declaration and planning APIs scope by. The one
 // spelling of the month param, shared by every page that navigates by month.
 export function toMonthParam(month: Date): string {
   return format(month, 'yyyy-MM')
+}
+
+// A "YYYY-MM" month param to a localized "LLLL yyyy" label (e.g. "juin 2026").
+export function monthLabel(month: string, lang: Language): string {
+  const [year, m] = month.split('-').map(Number)
+  return format(new Date(year, m - 1, 1), 'LLLL yyyy', {
+    locale: localeFor(lang),
+  })
 }
 
 // The first and last ISO dates of a "YYYY-MM" month.

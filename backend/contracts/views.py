@@ -1,11 +1,18 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import cast
 
 from django.db.models import Prefetch, Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
-from rest_framework import generics, mixins, permissions, status, viewsets
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import (
+    OpenApiParameter,
+    extend_schema,
+    extend_schema_view,
+    inline_serializer,
+)
+from rest_framework import generics, mixins, permissions, serializers, status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.permissions import AllowAny
@@ -15,13 +22,17 @@ from rest_framework.serializers import BaseSerializer
 
 from accounts.models import Family, User
 from accounts.views import FamilyScopedMixin
+from contracts.declarations import first_of_month, month_bounds
 from contracts.declarations_repo import declarations_for, file_declaration, paid_leave_balance
 from contracts.models import (
     Contract,
+    ContractChild,
     ContractInvitation,
     ContractSchedule,
     ContractShare,
     ContractTerms,
+    ExceptionalHours,
+    ExceptionalPresence,
     MonthlyDeclaration,
 )
 from contracts.serializers import (
@@ -31,15 +42,19 @@ from contracts.serializers import (
     ContractScheduleSerializer,
     ContractSerializer,
     ContractTermsSerializer,
+    DashboardSerializer,
     ExceptionalHoursSerializer,
     ExceptionalPresenceSerializer,
     LeaveSerializer,
     MonthlyDeclarationSerializer,
     MyContractInvitationSerializer,
     PaidLeaveBalanceSerializer,
+    PlanningSerializer,
 )
+from reference.models import BankHoliday
 
 
+@extend_schema(responses=inline_serializer("HealthCheck", {"status": serializers.CharField()}))
 @api_view(["GET"])
 @permission_classes([AllowAny])
 def health(_request: Request) -> Response:
@@ -48,6 +63,16 @@ def health(_request: Request) -> Response:
 
 
 _WRITE_ACTIONS = ("create", "update", "partial_update", "destroy")
+
+# The ?month=YYYY-MM query param, shared by every month-scoped read (the declaration
+# list and the planning aggregate) so the schema doc for it has one source.
+MONTH_PARAM = OpenApiParameter(
+    "month",
+    OpenApiTypes.STR,
+    OpenApiParameter.QUERY,
+    required=False,
+    description="Month as YYYY-MM. Defaults to the current month.",
+)
 
 
 class ContractScopedMixin(FamilyScopedMixin):
@@ -77,25 +102,8 @@ class ContractViewSet(FamilyScopedMixin, viewsets.ModelViewSet):
         return self.action in _WRITE_ACTIONS
 
     def get_queryset(self):
-        family = self.get_family(manage=self._manage())
-        base = (
-            Contract.objects.filter(families=family)
-            .select_related("nanny")
-            .prefetch_related(
-                "shares__family",
-                # created_by feeds the history's "changed by" line; select it with
-                # the snapshots so the current-terms/schedule read stays one query.
-                Prefetch("terms", queryset=ContractTerms.objects.select_related("created_by")),
-                Prefetch(
-                    "schedules",
-                    queryset=ContractSchedule.objects.select_related("created_by").prefetch_related(
-                        "blocks"
-                    ),
-                ),
-            )
-        )
-        # as_manager() loses the ContractQuerySet type through chaining.
-        return base.with_current_terms().with_current_schedule()  # ty: ignore[unresolved-attribute]
+        # Same identity queryset the aggregate views build (see _contract_base_queryset).
+        return _contract_base_queryset(self.get_family(manage=self._manage()))
 
     def get_serializer_context(self) -> dict:
         # The serializer scopes an existing nanny_id to the acting family.
@@ -109,6 +117,7 @@ class ContractViewSet(FamilyScopedMixin, viewsets.ModelViewSet):
         contract = serializer.save()
         ContractShare.objects.create(contract=contract, family=family, is_originator=True)
 
+    @extend_schema(responses=PaidLeaveBalanceSerializer)
     @action(detail=True, methods=["get"], url_path="paid-leave")
     def paid_leave(self, request: Request, **kwargs) -> Response:
         """The nanny's congés-payés balance for the current reference period.
@@ -126,6 +135,10 @@ class ContractViewSet(FamilyScopedMixin, viewsets.ModelViewSet):
         balance = paid_leave_balance(contract)
         return Response(PaidLeaveBalanceSerializer(balance).data)
 
+    @extend_schema(
+        request=inline_serializer("AttachFamilyRequest", {"family_id": serializers.UUIDField()}),
+        responses=ContractSerializer,
+    )
     @action(detail=True, methods=["post"], url_path="attach-family")
     def attach_family(self, request: Request, **kwargs) -> Response:
         """Attach a family the acting user *also* manages directly to the contract.
@@ -307,7 +320,14 @@ class ContractInvitationAcceptView(generics.GenericAPIView):
     """Accept a contract invitation, attaching a family the user owns."""
 
     permission_classes = [permissions.IsAuthenticated]
+    serializer_class = ContractSerializer
 
+    @extend_schema(
+        request=inline_serializer(
+            "AcceptContractInvitationRequest", {"family_id": serializers.UUIDField()}
+        ),
+        responses=ContractSerializer,
+    )
     def post(self, request: Request, token: str) -> Response:
         invitation = _get_actionable_invitation(token)
         family_id = request.data.get("family_id")
@@ -325,6 +345,7 @@ class ContractInvitationDeclineView(generics.GenericAPIView):
 
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(request=None, responses={204: None})
     def post(self, request: Request, token: str) -> Response:
         invitation = _get_actionable_invitation(token)
         invitation.decline()
@@ -486,6 +507,7 @@ class ExceptionalPresenceViewSet(
         serializer.save(contract=self.get_contract(manage=True), created_by=self.request.user)
 
 
+@extend_schema_view(list=extend_schema(parameters=[MONTH_PARAM]))
 class MonthlyDeclarationViewSet(
     FamilyPrivateMixin,
     mixins.ListModelMixin,
@@ -510,13 +532,7 @@ class MonthlyDeclarationViewSet(
     write_actions = (*_WRITE_ACTIONS, "file")
 
     def _month(self) -> date:
-        raw = self.request.query_params.get("month")
-        if not raw:
-            return timezone.localdate().replace(day=1)
-        try:
-            return datetime.strptime(raw, "%Y-%m").date().replace(day=1)
-        except ValueError:
-            raise ValidationError({"month": _("Give a month as YYYY-MM.")}) from None
+        return _parse_month(self.request)
 
     def get_queryset(self):
         contract = self.get_contract(manage=self._manage())
@@ -541,9 +557,186 @@ class MonthlyDeclarationViewSet(
         declarations_for(declaration.contract, declaration.month)
         declaration.refresh_from_db()
 
+    @extend_schema(request=None, responses=MonthlyDeclarationSerializer)
     @action(detail=True, methods=["post"])
     def file(self, request, **kwargs):
         """Freeze this declaration as sent to pajemploi. Idempotent."""
         declaration = self.get_object()
         file_declaration(declaration, request.user)
         return Response(self.get_serializer(declaration).data)
+
+
+# --- aggregate read-only endpoints --------------------------------------------
+#
+# Home and Planning each used to open with a burst of requests: one contract
+# list, then per contract a paid-leave call and a run of declaration/schedule/
+# leave/children/exceptional calls. These two views collapse each screen into a
+# single family-scoped GET. The win is twofold — one HTTP round-trip instead of
+# many, and a bounded number of DB queries: the per-contract relations are
+# prefetched (select_related/prefetch_related), so adding a schedule, a child or
+# an exceptional entry to a contract costs no extra query. The per-contract pay
+# computations the dashboard needs (paid_leave_balance / declarations_for) each
+# run a fixed handful of queries, not one per related row.
+
+_DEFAULT_DASHBOARD_MONTHS = 4
+_MIN_DASHBOARD_MONTHS = 1
+_MAX_DASHBOARD_MONTHS = 12
+
+
+def _contract_base_queryset(family: Family):
+    """The acting family's contracts, with the identity relations ContractSerializer
+    reads already joined/prefetched and the current-snapshot ids annotated — the
+    same shape ContractViewSet.get_queryset builds."""
+    return (
+        Contract.objects.filter(families=family)
+        .select_related("nanny")
+        .prefetch_related(
+            "shares__family",
+            Prefetch("terms", queryset=ContractTerms.objects.select_related("created_by")),
+            Prefetch(
+                "schedules",
+                queryset=ContractSchedule.objects.select_related("created_by").prefetch_related(
+                    "blocks"
+                ),
+            ),
+        )
+        .with_current_terms()  # ty: ignore[unresolved-attribute]
+        .with_current_schedule()
+    )
+
+
+def _calendar_grid(month: date) -> tuple[date, date]:
+    """The whole-weeks (Monday-first) date range covering ``month``'s calendar grid:
+    the Monday on or before the 1st through the Sunday on or after the last day.
+    Mirrors the client's grid, so the holidays returned are exactly the ones it draws."""
+    first, last = month_bounds(month)
+    start = first - timedelta(days=first.weekday())
+    end = last + timedelta(days=6 - last.weekday())
+    return start, end
+
+
+def _parse_month(request: Request) -> date:
+    """The ``month`` query param as the first of that month, defaulting to the
+    current month. A malformed value is a 400, not a 500."""
+    raw = request.query_params.get("month")
+    if not raw:
+        return timezone.localdate().replace(day=1)
+    try:
+        return datetime.strptime(raw, "%Y-%m").date().replace(day=1)
+    except ValueError:
+        raise ValidationError({"month": _("Give a month as YYYY-MM.")}) from None
+
+
+@extend_schema(
+    parameters=[
+        OpenApiParameter(
+            "months",
+            OpenApiTypes.INT,
+            OpenApiParameter.QUERY,
+            required=False,
+            description="How many recent months of declarations to include (1–12, default 4).",
+        )
+    ],
+    responses=DashboardSerializer,
+)
+class FamilyDashboardView(FamilyScopedMixin, generics.GenericAPIView):
+    """The Home dashboard for the acting family, in one response.
+
+    Each shared contract comes back with its congés-payés balance and the recent
+    months' declarations (most recent first, only the months the contract was
+    live for), each declaration recomputed from live data and narrowed to the
+    acting family's row — the same figure the declarations list endpoint returns.
+    """
+
+    serializer_class = DashboardSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def _months(self) -> int:
+        raw = self.request.query_params.get("months")
+        if not raw:
+            return _DEFAULT_DASHBOARD_MONTHS
+        try:
+            count = int(raw)
+        except (TypeError, ValueError):
+            raise ValidationError({"months": _("Give a whole number of months.")}) from None
+        return max(_MIN_DASHBOARD_MONTHS, min(_MAX_DASHBOARD_MONTHS, count))
+
+    def _recent_declarations(
+        self, contract: Contract, family: Family, months: list[date]
+    ) -> list[dict]:
+        # Only the months the contract was actually live for — a month before it
+        # started, or after it ended, has nothing to declare. Same comparison the
+        # client's RecentDeclarations makes (YYYY-MM against the contract's dates).
+        start_ym = contract.starting_date.strftime("%Y-%m")
+        end_ym = contract.ending_date.strftime("%Y-%m") if contract.ending_date else None
+        out: list[dict] = []
+        for month in months:
+            ym = month.strftime("%Y-%m")
+            if ym < start_ym or (end_ym is not None and ym > end_ym):
+                continue
+            # Rebuilds both families' drafts, like the declarations list; we keep
+            # only the acting family's row (what B pays her is B's).
+            rows = declarations_for(contract, month)
+            row = next((r for r in rows if r.family_id == family.id), None)
+            if row is None:
+                continue
+            out.append({"month": ym, "net_salary": f"{row.net_salary}", "status": row.status})
+        return out
+
+    def get(self, request: Request, *args, **kwargs) -> Response:
+        family = self.get_family()
+        today = timezone.localdate()
+        # Most recent first, matching the client.
+        months = [first_of_month(today, -offset) for offset in range(self._months())]
+        contracts = list(_contract_base_queryset(family))
+        for contract in contracts:
+            contract.dashboard_balance = paid_leave_balance(contract)
+            contract.dashboard_recent = self._recent_declarations(contract, family, months)
+        serializer = self.get_serializer({"contracts": contracts})
+        return Response(serializer.data)
+
+
+@extend_schema(parameters=[MONTH_PARAM], responses=PlanningSerializer)
+class FamilyPlanningView(FamilyScopedMixin, generics.GenericAPIView):
+    """The Planning calendar for the acting family, in one response.
+
+    Each shared contract carries its full schedule history, leaves, children and
+    the exceptional hours / presences visible to the acting family (its own rows
+    plus every family's shared care, as the list endpoints return them). Bank
+    holidays cover the month's whole-weeks calendar grid. The client picks the
+    schedule version in force for each day from the history.
+    """
+
+    serializer_class = PlanningSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request: Request, *args, **kwargs) -> Response:
+        family = self.get_family()
+        month = _parse_month(request)
+        contracts = list(
+            _contract_base_queryset(family).prefetch_related(
+                "leaves",
+                Prefetch(
+                    "contract_children",
+                    queryset=ContractChild.objects.select_related("child").prefetch_related(
+                        "windows"
+                    ),
+                ),
+                # The list endpoint's read scope: this family's own rows, plus
+                # every family's shared care. Filtered in the prefetch so it is
+                # one query for all contracts, not one per contract.
+                Prefetch(
+                    "exceptional_hours",
+                    queryset=ExceptionalHours.objects.filter(Q(family=family) | Q(is_shared=True)),
+                    to_attr="visible_exceptional_hours",
+                ),
+                Prefetch(
+                    "exceptional_presences",
+                    queryset=ExceptionalPresence.objects.select_related("child"),
+                ),
+            )
+        )
+        grid_start, grid_end = _calendar_grid(month)
+        holidays = BankHoliday.objects.filter(date__range=(grid_start, grid_end))
+        serializer = self.get_serializer({"contracts": contracts, "holidays": holidays})
+        return Response(serializer.data)

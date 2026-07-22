@@ -3,10 +3,12 @@ from __future__ import annotations
 from datetime import date as date_cls
 from datetime import datetime, time, timedelta
 from decimal import Decimal
+from typing import cast
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.utils.translation import gettext_lazy as _
+from drf_spectacular.utils import extend_schema_field, inline_serializer
 from rest_framework import serializers
 
 from contracts.models import (
@@ -27,6 +29,7 @@ from contracts.sources import source_for
 from nannies.models import Nanny
 from nannies.serializers import NannyBriefSerializer
 from reference.models import MinimumWage
+from reference.serializers import BankHolidaySerializer
 
 NON_NEGATIVE_DECIMAL = {"min_value": Decimal("0")}
 _MISSING = object()
@@ -265,6 +268,16 @@ class LeaveSerializer(serializers.ModelSerializer):
         return attrs
 
 
+class ContractFamilySerializer(serializers.Serializer):
+    """One family attached to a contract. Documentation-only: the values are built as
+    plain dicts in ``ContractSerializer.get_families``; this drives the OpenAPI schema so
+    the generated frontend type is precise instead of ``object``."""
+
+    id = serializers.UUIDField(read_only=True)
+    name = serializers.CharField(read_only=True)
+    is_originator = serializers.BooleanField(read_only=True)
+
+
 class ContractSerializer(serializers.ModelSerializer):
     """A shared nanny contract.
 
@@ -302,6 +315,7 @@ class ContractSerializer(serializers.ModelSerializer):
         )
         read_only_fields = ("id",)
 
+    @extend_schema_field(ContractFamilySerializer(many=True))
     def get_families(self, obj: Contract) -> list[dict]:
         return [
             {"id": s.family_id, "name": s.family.name, "is_originator": s.is_originator}
@@ -318,10 +332,12 @@ class ContractSerializer(serializers.ModelSerializer):
             return None
         return next((item for item in getattr(obj, relation).all() if item.id == annotated), None)
 
+    @extend_schema_field(ContractTermsSerializer(allow_null=True))
     def get_current_terms(self, obj: Contract) -> dict | None:
         terms = self._current(obj, "terms", "current_terms_id", "current_terms")
         return ContractTermsSerializer(terms, context=self.context).data if terms else None
 
+    @extend_schema_field(ContractScheduleSerializer(allow_null=True))
     def get_current_schedule(self, obj: Contract) -> dict | None:
         schedule = self._current(obj, "schedules", "current_schedule_id", "current_schedule")
         return ContractScheduleSerializer(schedule, context=self.context).data if schedule else None
@@ -464,6 +480,18 @@ class SourceSerializer(serializers.Serializer):
     ref = serializers.CharField(read_only=True)
     url = serializers.URLField(read_only=True)
     quote = serializers.CharField(read_only=True)
+
+
+class DeclarationWarningSerializer(serializers.Serializer):
+    """One declaration warning: its code plus the rule behind it (may be absent).
+
+    Documentation-only — the values are built as plain dicts in
+    ``MonthlyDeclarationSerializer.get_warnings``; this shape drives the OpenAPI schema
+    so the generated frontend type is precise instead of ``object``.
+    """
+
+    code = serializers.CharField(read_only=True)
+    source = SourceSerializer(read_only=True, allow_null=True)
 
 
 class ContractChildWindowSerializer(serializers.ModelSerializer):
@@ -650,6 +678,10 @@ class MonthlyDeclarationSerializer(serializers.ModelSerializer):
     """
 
     warnings = serializers.SerializerMethodField()
+    # `rate_periods` is a JSONField (a list of plain dicts); declare it as a typed
+    # read-only method field so the generated frontend type is precise instead of `any`.
+    # The value is passed through unchanged — this only annotates the schema.
+    rate_periods = serializers.SerializerMethodField()
     family_name = serializers.CharField(source="family.name", read_only=True)
     # Model properties, not columns: a filed row stays editable in place until the
     # end of its grace window, after which it locks. The UI shows the kilometres
@@ -689,6 +721,27 @@ class MonthlyDeclarationSerializer(serializers.ModelSerializer):
         )
         read_only_fields = tuple(f for f in fields if f != "kilometers")
 
+    @extend_schema_field(
+        inline_serializer(
+            "RatePeriod",
+            {
+                "from": serializers.CharField(),
+                "to": serializers.CharField(),
+                "days": serializers.IntegerField(),
+                "net_hourly_rate": serializers.CharField(),
+                "night_presence_rate": serializers.CharField(),
+                "transport_fee": serializers.CharField(),
+                "mileage_rate": serializers.CharField(),
+                "benefits_in_kind": serializers.CharField(),
+            },
+            many=True,
+        )
+    )
+    def get_rate_periods(self, obj: MonthlyDeclaration) -> list[dict]:
+        # Pass the stored JSON through unchanged; the decorator only types the schema.
+        return obj.rate_periods
+
+    @extend_schema_field(DeclarationWarningSerializer(many=True))
     def get_warnings(self, obj: MonthlyDeclaration) -> list[dict]:
         """Each warning with the rule behind it, so the UI can show its source.
 
@@ -700,3 +753,106 @@ class MonthlyDeclarationSerializer(serializers.ModelSerializer):
             source = source_for(code)
             out.append({"code": code, "source": SourceSerializer(source).data if source else None})
         return out
+
+
+# --- aggregate read-only endpoints (Home dashboard + Planning calendar) --------
+#
+# Two family-scoped aggregations that each return in one response what the Home
+# and Planning screens used to fetch across many per-contract requests. They add
+# no models: they reuse the CRUD serializers above so the generated frontend
+# types stay identical, and the views prefetch the per-contract relations so the
+# query count does not grow a term per contract's schedule/leaves/children/etc.
+
+
+class RecentDeclarationSerializer(serializers.Serializer):
+    """One month's declaration summary on the dashboard: which month, what the
+    nanny is paid, and whether it has been filed.
+
+    Documentation-only — the dicts are built in the dashboard view (recomputed
+    via ``declarations_for`` and narrowed to the acting family's row). ``status``
+    reuses ``MonthlyDeclaration.Status`` so it shares the schema's declaration
+    status enum rather than minting a second one.
+    """
+
+    month = serializers.CharField(read_only=True, help_text="The month as YYYY-MM.")
+    net_salary = serializers.CharField(read_only=True)
+    status = serializers.ChoiceField(choices=MonthlyDeclaration.Status.choices, read_only=True)
+
+
+class DashboardContractSerializer(ContractSerializer):
+    """A contract with the two aggregates the Home dashboard shows beside it: the
+    congés-payés balance and the recent months' declarations.
+
+    Both are computed per contract in the view and attached to the instance
+    (``dashboard_balance`` / ``dashboard_recent``); the method fields only read
+    them, so no query happens during serialization.
+    """
+
+    paid_leave_balance = serializers.SerializerMethodField()
+    recent_declarations = serializers.SerializerMethodField()
+
+    class Meta(ContractSerializer.Meta):
+        fields = (
+            *ContractSerializer.Meta.fields,
+            "paid_leave_balance",
+            "recent_declarations",
+        )
+
+    # dashboard_balance / dashboard_recent are attached to each instance by
+    # FamilyDashboardView, so they exist at runtime but not on the Contract type.
+    @extend_schema_field(PaidLeaveBalanceSerializer())
+    def get_paid_leave_balance(self, obj: Contract) -> dict:
+        balance = obj.dashboard_balance  # ty: ignore[unresolved-attribute]
+        return PaidLeaveBalanceSerializer(balance).data
+
+    @extend_schema_field(RecentDeclarationSerializer(many=True))
+    def get_recent_declarations(self, obj: Contract) -> list[dict]:
+        rows = obj.dashboard_recent  # ty: ignore[unresolved-attribute]
+        # The stubs type `.data` as ReturnDict even for many=True (a list at runtime),
+        # so the cast reconciles the annotation with the real return value.
+        return cast(list[dict], RecentDeclarationSerializer(rows, many=True).data)
+
+
+class DashboardSerializer(serializers.Serializer):
+    """The Home dashboard payload: every contract the acting family shares, each
+    carrying its paid-leave balance and recent declarations."""
+
+    contracts = DashboardContractSerializer(many=True, read_only=True)
+
+
+class PlanningContractSerializer(ContractSerializer):
+    """A contract with the full per-contract history the Planning calendar draws
+    from: every schedule version, leave, child and the acting family's visible
+    exceptional hours / presences.
+
+    ``exceptional_hours`` mirrors the list endpoint — the acting family's own
+    rows plus every family's shared ones — via a filtered prefetch attached to
+    the instance as ``visible_exceptional_hours``. The other collections read the
+    prefetched related managers directly.
+    """
+
+    schedule_history = ContractScheduleSerializer(source="schedules", many=True, read_only=True)
+    leaves = LeaveSerializer(many=True, read_only=True)
+    exceptional_hours = ExceptionalHoursSerializer(
+        source="visible_exceptional_hours", many=True, read_only=True
+    )
+    exceptional_presences = ExceptionalPresenceSerializer(many=True, read_only=True)
+    children = ContractChildSerializer(source="contract_children", many=True, read_only=True)
+
+    class Meta(ContractSerializer.Meta):
+        fields = (
+            *ContractSerializer.Meta.fields,
+            "schedule_history",
+            "leaves",
+            "exceptional_hours",
+            "exceptional_presences",
+            "children",
+        )
+
+
+class PlanningSerializer(serializers.Serializer):
+    """The Planning calendar payload: the acting family's contracts with their
+    full histories, and the bank holidays falling in the month's calendar grid."""
+
+    contracts = PlanningContractSerializer(many=True, read_only=True)
+    holidays = BankHolidaySerializer(many=True, read_only=True)

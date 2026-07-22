@@ -62,6 +62,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
     "rest_framework_simplejwt.token_blacklist",
+    "drf_spectacular",
     "djoser",
     "anymail",
     "corsheaders",
@@ -134,6 +135,55 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
+    ],
+    # drf-spectacular introspects the views to build the OpenAPI schema the frontend
+    # RTK Query client is code-generated from (see SPECTACULAR_SETTINGS + config/urls.py).
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+# OpenAPI schema — the single source of truth the frontend's typed API client is
+# generated from. `bun run codegen` in ../frontend reads /api/schema/ and regenerates
+# the RTK Query slice + TypeScript types, so the two sides can never drift.
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Ma Garde Sereine API",
+    "DESCRIPTION": "Nanny hours tracker — REST API consumed by the SPA frontend.",
+    "VERSION": "1.0.0",
+    # The SPA fetches the schema itself; don't inline it into the browsable swagger UI.
+    "SERVE_INCLUDE_SCHEMA": False,
+    # Strip the '/api' mount prefix from operation paths so they read '/families/...'.
+    # The frontend baseQuery already has baseUrl '/api'; without the trim the two would
+    # double to '/api/api/...'. PREFIX matches for tag/operationId naming; PREFIX_TRIM
+    # removes it from the emitted paths.
+    "SCHEMA_PATH_PREFIX": r"/api",
+    "SCHEMA_PATH_PREFIX_TRIM": True,
+    # Split components into request/response variants so write-only/read-only fields
+    # generate distinct TS types (e.g. ContractInput vs Contract) instead of one loose shape.
+    "COMPONENT_SPLIT_REQUEST": True,
+    # Invitation and ContractInvitation share an identical `status` choice set, which
+    # collides into an auto-named `StatusA03Enum`. Pin it to a stable name so the generated
+    # TS type is `InvitationStatusEnum`. Likewise the draft/filed declaration status is now
+    # shared by MonthlyDeclaration and the dashboard's recent_declarations rows — pin it to
+    # `MonthlyDeclarationStatusEnum` so the two reuse one enum instead of colliding.
+    # A literal choice set is used rather than a dotted path because the enum lives in a
+    # nested `Status` class that `import_string` can't traverse.
+    "ENUM_NAME_OVERRIDES": {
+        "InvitationStatusEnum": [
+            ("pending", "Pending"),
+            ("accepted", "Accepted"),
+            ("declined", "Declined"),
+            ("revoked", "Revoked"),
+        ],
+        "MonthlyDeclarationStatusEnum": [
+            ("draft", "Draft"),
+            ("filed", "Filed"),
+        ],
+    },
+    # Keep drf-spectacular's default enum postprocessing, then mark response fields as
+    # required so the generated TS response types aren't riddled with spurious optionals
+    # (see config/spectacular_hooks.py for why).
+    "POSTPROCESSING_HOOKS": [
+        "drf_spectacular.hooks.postprocess_schema_enums",
+        "config.spectacular_hooks.make_response_fields_required",
     ],
 }
 

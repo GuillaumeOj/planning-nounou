@@ -1,5 +1,21 @@
 import '@testing-library/jest-dom/vitest'
-import { afterEach, vi } from 'vitest'
+import { afterAll, afterEach, beforeAll, vi } from 'vitest'
+import { server } from '@/tests/msw/server'
+
+// RTK Query calls the real network (fetchBaseQuery), so tests mock at the HTTP layer
+// with MSW. Each test registers the handlers its component needs via `server.use(...)`;
+// an /api request with no handler is a test failure, not a silent hang.
+beforeAll(() =>
+  server.listen({
+    onUnhandledRequest: (request, print) => {
+      if (new URL(request.url).pathname.startsWith('/api')) {
+        print.error()
+      }
+    },
+  }),
+)
+afterEach(() => server.resetHandlers())
+afterAll(() => server.close())
 
 // Radix primitives (Dialog, Popover, Calendar, AlertDialog) rely on DOM APIs
 // jsdom does not implement. Stub them so those components can mount in tests.

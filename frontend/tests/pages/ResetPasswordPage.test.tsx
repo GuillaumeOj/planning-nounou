@@ -1,36 +1,36 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { confirmPasswordReset } from '@/src/api/auth'
-import { I18nProvider } from '@/src/i18n/I18nContext'
+import { HttpResponse, http } from 'msw'
+import { Route, Routes } from 'react-router-dom'
+import { describe, expect, it } from 'vitest'
 import ResetPasswordPage from '@/src/pages/ResetPasswordPage'
+import { server } from '@/tests/msw/server'
+import { renderWithProviders } from '@/tests/utils'
 
-vi.mock('@/src/api/auth', () => ({ confirmPasswordReset: vi.fn() }))
-const mockConfirm = vi.mocked(confirmPasswordReset)
+// POST /api/auth/users/reset_password_confirm/ — djoser's reset-confirmation endpoint.
+const RESET_CONFIRM = '*/api/auth/users/reset_password_confirm/'
 
 function renderPage() {
-  return render(
-    <I18nProvider>
-      <MemoryRouter initialEntries={['/reset-password/uid-1/tok-1']}>
-        <Routes>
-          <Route
-            path="/reset-password/:uid/:token"
-            element={<ResetPasswordPage />}
-          />
-        </Routes>
-      </MemoryRouter>
-    </I18nProvider>,
+  return renderWithProviders(
+    <Routes>
+      <Route
+        path="/reset-password/:uid/:token"
+        element={<ResetPasswordPage />}
+      />
+    </Routes>,
+    { route: '/reset-password/uid-1/tok-1' },
   )
 }
 
-beforeEach(() => {
-  vi.clearAllMocks()
-})
-
 describe('ResetPasswordPage', () => {
   it('confirms the reset with the uid and token from the URL', async () => {
-    mockConfirm.mockResolvedValue(undefined)
+    let body: unknown
+    server.use(
+      http.post(RESET_CONFIRM, async ({ request }) => {
+        body = await request.json()
+        return new HttpResponse(null, { status: 204 })
+      }),
+    )
     renderPage()
 
     await userEvent.type(
@@ -42,7 +42,7 @@ describe('ResetPasswordPage', () => {
     )
 
     await waitFor(() =>
-      expect(mockConfirm).toHaveBeenCalledWith({
+      expect(body).toMatchObject({
         uid: 'uid-1',
         token: 'tok-1',
         new_password: 'a-brand-new-pass',
@@ -56,7 +56,9 @@ describe('ResetPasswordPage', () => {
   })
 
   it('shows an error when the link is invalid or expired', async () => {
-    mockConfirm.mockRejectedValue(new Error('bad token'))
+    server.use(
+      http.post(RESET_CONFIRM, () => new HttpResponse(null, { status: 400 })),
+    )
     renderPage()
 
     await userEvent.type(screen.getByLabelText('New password'), 'x')

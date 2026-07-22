@@ -1,5 +1,8 @@
-import type { Contract, ContractSchedule } from '@/src/api/contracts'
-import type { ContractChild } from '@/src/api/declarations'
+import type {
+  ContractChildRead,
+  ContractRead,
+  ContractScheduleRead,
+} from '@/src/api'
 import { hhmm } from '@/src/components/TimeField'
 
 // One nanny working a single time block on a given day.
@@ -20,7 +23,7 @@ export interface WorkedEntry {
 // one of them falls on — so a child windowed Mon/Tue/Thu/Fri is absent Wednesday,
 // never "present because there is no Wednesday window".
 function childrenPresentOn(
-  children: ContractChild[],
+  children: ContractChildRead[],
   weekday: number,
 ): string[] {
   return children
@@ -85,7 +88,7 @@ export function toISODate(date: Date): string {
   return `${y}-${m}-${d}`
 }
 
-function contractActiveOn(contract: Contract, iso: string): boolean {
+function contractActiveOn(contract: ContractRead, iso: string): boolean {
   return (
     contract.starting_date <= iso &&
     (contract.ending_date == null || iso <= contract.ending_date)
@@ -97,10 +100,10 @@ function contractActiveOn(contract: Contract, iso: string): boolean {
 // contiguous, this is automatically the version whose effective range covers
 // the day — no need to consult effective_to.
 export function scheduleInForce(
-  schedules: ContractSchedule[],
+  schedules: ContractScheduleRead[],
   iso: string,
-): ContractSchedule | undefined {
-  let best: ContractSchedule | undefined
+): ContractScheduleRead | undefined {
+  let best: ContractScheduleRead | undefined
   for (const schedule of schedules) {
     if (
       schedule.effective_from <= iso &&
@@ -118,10 +121,10 @@ export function scheduleInForce(
 // worked, so it yields no entries — the working day is removed.
 export function workedEntriesForDay(
   date: Date,
-  contracts: Contract[],
-  schedulesByContract: Record<string, ContractSchedule[]>,
+  contracts: ContractRead[],
+  schedulesByContract: Record<string, ContractScheduleRead[]>,
   nonWorkableHolidays: Set<string> = new Set(),
-  childrenByContract: Record<string, ContractChild[]> = {},
+  childrenByContract: Record<string, ContractChildRead[]> = {},
 ): WorkedEntry[] {
   const iso = toISODate(date)
   if (nonWorkableHolidays.has(iso)) return []

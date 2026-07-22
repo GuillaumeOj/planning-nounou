@@ -1,4 +1,3 @@
-import { useQueries, useQuery } from '@tanstack/react-query'
 import {
   addMonths,
   eachDayOfInterval,
@@ -14,19 +13,13 @@ import {
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { type ComponentType, useMemo, useState } from 'react'
 import {
-  type Contract,
-  getContractSchedules,
-  getContracts,
-} from '@/src/api/contracts'
-import {
-  type ContractChild,
-  exceptionalHoursQueryOptions,
-  exceptionalPresencesQueryOptions,
-  getContractChildren,
-} from '@/src/api/declarations'
-import { getFamilies } from '@/src/api/family'
-import { type BankHoliday, getBankHolidays } from '@/src/api/holidays'
-import { type LeaveType, leavesQueryOptions } from '@/src/api/leaves'
+  type BankHolidayRead,
+  type ContractChildRead,
+  type ContractRead,
+  type ContractScheduleRead,
+  type LeaveTypeEnum,
+  useFamiliesPlanningRetrieveQuery,
+} from '@/src/api'
 import { formatDate } from '@/src/components/DateField'
 import { ExceptionalHoursSection } from '@/src/components/ExceptionalHoursSection'
 import { ExceptionalPresenceSection } from '@/src/components/ExceptionalPresenceSection'
@@ -52,6 +45,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/src/components/ui/tabs'
+import { useActiveFamily } from '@/src/hooks/useActiveFamily'
 import { MOBILE_QUERY, useMediaQuery } from '@/src/hooks/useMediaQuery'
 import { useI18n } from '@/src/i18n/I18nContext'
 import type { TranslationKey } from '@/src/i18n/translations'
@@ -111,7 +105,7 @@ const NANNY_COLORS = [
 
 // The day-off type spelled out on the calendar mark, so "Marie · Paid leave · …"
 // reads what kind of absence it is, not a bare "Day off".
-const LEAVE_TYPE_KEYS: Record<LeaveType, TranslationKey> = {
+const LEAVE_TYPE_KEYS: Record<LeaveTypeEnum, TranslationKey> = {
   paid: 'leaves.type.paid',
   unpaid: 'leaves.type.unpaid',
   sickness: 'leaves.type.sickness',
@@ -215,7 +209,7 @@ export default function Planning() {
   const { t, lang } = useI18n()
   const locale = localeFor(lang)
   const isMobile = useMediaQuery(MOBILE_QUERY)
-  const [familyId, setFamilyId] = useState<string | null>(null)
+  const { families, setFamilyId, activeFamilyId } = useActiveFamily()
   const [visibleMonth, setVisibleMonth] = useState(() =>
     startOfMonth(new Date()),
   )
@@ -223,89 +217,31 @@ export default function Planning() {
   // survives re-renders without carrying a Date identity around.
   const [selectedIso, setSelectedIso] = useState(() => toISODate(new Date()))
 
-  const { data: families } = useQuery({
-    queryKey: ['families'],
-    queryFn: getFamilies,
-  })
+  // The month the calendar and the record tabs are scoped to. The planning
+  // endpoint is scoped by it too, so navigating months refetches that month's data.
+  const monthParam = toMonthParam(visibleMonth)
 
-  const activeFamilyId = useMemo(() => {
-    if (familyId !== null) return familyId
-    return families && families.length > 0 ? families[0].id : null
-  }, [familyId, families])
-
+  // One request per month brings every contract with its full schedule history,
+  // leaves, exceptional hours/presences and children, plus the month's holidays —
+  // replacing the per-contract query fan-out the calendar used to fire. The full
+  // schedule history is returned so navigating within the month still resolves the
+  // version in force on each day.
   const {
-    data: contracts,
+    data: planning,
     isLoading,
     isError,
-  } = useQuery({
-    queryKey: ['contracts', activeFamilyId],
-    queryFn: () => getContracts(activeFamilyId as string),
-    enabled: activeFamilyId !== null,
-  })
-
-  const contractList = contracts ?? []
-
-  // Fetch each contract's full schedule history so navigating to past/future
-  // months uses the version in force then, not just today's snapshot.
-  const scheduleQueries = useQueries({
-    queries: contractList.map((contract) => ({
-      queryKey: ['contract-schedules', contract.id],
-      queryFn: () =>
-        getContractSchedules(activeFamilyId as string, contract.id),
-      enabled: activeFamilyId !== null,
-    })),
-  })
-
-  const schedulesByContract = Object.fromEntries(
-    contractList.map((contract, index) => [
-      contract.id,
-      scheduleQueries[index]?.data ?? [],
-    ]),
+  } = useFamiliesPlanningRetrieveQuery(
+    { familyPk: activeFamilyId ?? '', month: monthParam },
+    { skip: activeFamilyId === null },
   )
 
-  // The special events the calendar marks: days off, exceptional hours, and a
-  // child present outside their window. One query set each, per contract, so a
-  // mark can name the nanny it belongs to. Shared exceptional hours come back
-  // for every family; that is fine here — a mark is a mark. Each uses the same
-  // query options as its record section, so the two share a cache entry rather
-  // than fetching the resource twice.
-  const eventsEnabled = activeFamilyId !== null
-  const eventsFamilyId = activeFamilyId ?? ''
-  const leaveQueries = useQueries({
-    queries: contractList.map((contract) => ({
-      ...leavesQueryOptions(eventsFamilyId, contract.id),
-      enabled: eventsEnabled,
-    })),
-  })
-  const hoursQueries = useQueries({
-    queries: contractList.map((contract) => ({
-      ...exceptionalHoursQueryOptions(eventsFamilyId, contract.id),
-      enabled: eventsEnabled,
-    })),
-  })
-  const presenceQueries = useQueries({
-    queries: contractList.map((contract) => ({
-      ...exceptionalPresencesQueryOptions(eventsFamilyId, contract.id),
-      enabled: eventsEnabled,
-    })),
-  })
-  // The children each contract covers, so a worked day can name who was there.
-  // Shares the ['contract-children', id] cache entry with the presence section.
-  const childrenQueries = useQueries({
-    queries: contractList.map((contract) => ({
-      queryKey: ['contract-children', contract.id],
-      queryFn: () => getContractChildren(eventsFamilyId, contract.id),
-      enabled: eventsEnabled,
-    })),
-  })
+  const contractList = planning?.contracts ?? []
 
-  const childrenByContract: Record<string, ContractChild[]> =
-    Object.fromEntries(
-      contractList.map((contract, index) => [
-        contract.id,
-        childrenQueries[index]?.data ?? [],
-      ]),
-    )
+  const schedulesByContract: Record<string, ContractScheduleRead[]> =
+    Object.fromEntries(contractList.map((c) => [c.id, c.schedule_history]))
+
+  const childrenByContract: Record<string, ContractChildRead[]> =
+    Object.fromEntries(contractList.map((c) => [c.id, c.children]))
 
   // Days shown in the grid: whole weeks (Monday-first) spanning the month.
   const days = useMemo(() => {
@@ -318,25 +254,14 @@ export default function Planning() {
   // Mon–Sun weekday header.
   const weekdayHeaders = days.slice(0, 7)
 
-  // The grid can straddle two calendar years, so fetch holidays for every year
-  // it shows (usually one, at most two). Holidays are global — no family needed.
-  const shownYears = [...new Set(days.map((day) => day.getFullYear()))]
-  const holidayQueries = useQueries({
-    queries: shownYears.map((year) => ({
-      queryKey: ['bank-holidays', year],
-      queryFn: () => getBankHolidays(year),
-    })),
-  })
-
-  // Lookup by ISO date for rendering the name, plus the set of non-workable
-  // dates the schedule uses to drop working blocks.
-  const holidaysByIso = new Map<string, BankHoliday>()
+  // Holidays come back with the planning payload, already covering the grid's date
+  // range for the month. Lookup by ISO date for rendering the name, plus the set of
+  // non-workable dates the schedule uses to drop working blocks.
+  const holidaysByIso = new Map<string, BankHolidayRead>()
   const nonWorkableHolidays = new Set<string>()
-  for (const query of holidayQueries) {
-    for (const holiday of query.data ?? []) {
-      holidaysByIso.set(holiday.date, holiday)
-      if (!holiday.is_workable) nonWorkableHolidays.add(holiday.date)
-    }
+  for (const holiday of planning?.holidays ?? []) {
+    holidaysByIso.set(holiday.date, holiday)
+    if (!holiday.is_workable) nonWorkableHolidays.add(holiday.date)
   }
 
   // Cheap (≈42 days × few contracts), so recompute inline each render.
@@ -372,9 +297,9 @@ export default function Planning() {
     if (list) list.push(event)
     else eventsByIso.set(iso, [event])
   }
-  contractList.forEach((contract, index) => {
+  contractList.forEach((contract) => {
     const who = contract.nanny.first_name
-    for (const leave of leaveQueries[index]?.data ?? []) {
+    for (const leave of contract.leaves) {
       // The kind of day off and its comment, not a bare "Day off": a parent
       // clicking the mark wants to know it was sickness, and read the note.
       const kindLabel = t(LEAVE_TYPE_KEYS[leave.leave_type])
@@ -390,7 +315,7 @@ export default function Planning() {
         })
       }
     }
-    for (const entry of hoursQueries[index]?.data ?? []) {
+    for (const entry of contract.exceptional_hours) {
       // Exceptional hours are private to the family that filed them. The endpoint
       // also returns the co-employer's *shared* entries (so the hours tab can
       // prompt "add yours"), but the calendar shows only the acting family's own —
@@ -414,7 +339,7 @@ export default function Planning() {
         c.family_id,
       ]),
     )
-    for (const presence of presenceQueries[index]?.data ?? []) {
+    for (const presence of contract.exceptional_presences) {
       if (familyOfChild.get(presence.child) !== activeFamilyId) continue
       addEvent(presence.date, {
         key: `presence-${presence.id}`,
@@ -437,18 +362,13 @@ export default function Planning() {
   const selectedHoliday = holidaysByIso.get(isoDays[selectedIndex])
   const selectedEvents = eventsByIso.get(isoDays[selectedIndex]) ?? []
 
-  // The month the record tabs are scoped to, so days off, exceptional hours and
-  // exceptional care show the *visible* month's entries rather than the whole
-  // contract's history — the same month the calendar and the declaration use.
-  const monthParam = toMonthParam(visibleMonth)
-
-  // The record tabs all hang off the same contracts query and all lay out the
+  // The record tabs all hang off the same contracts data and all lay out the
   // same way — a card per nanny, scoped to the family and month selected above.
   // Only the section inside the card differs, so the shell is written once.
   const contractCards = (
     Section: ComponentType<{
       familyId: string
-      contract: Contract
+      contract: ContractRead
       month: string
     }>,
   ) => {

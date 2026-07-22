@@ -168,6 +168,48 @@ bun run build
 
 Linting, formatting, and import sorting are handled by **Biome** (`biome.json`).
 
+### API types (schema → typed client)
+
+The frontend does **not** hand-write API types or fetchers. The backend describes its REST API
+as an OpenAPI schema with [drf-spectacular](https://drf-spectacular.readthedocs.io/), and the
+frontend generates a typed [RTK Query](https://redux-toolkit.js.org/rtk-query/overview) client
+(types + hooks) from it with
+[`@rtk-query/codegen-openapi`](https://redux-toolkit.js.org/rtk-query/usage/code-generation). So
+the two sides can never drift: change the API, regenerate, and any mismatch is a TypeScript error.
+
+**When you change the API** (a serializer, a view, a URL, a field), regenerate both artifacts:
+
+```bash
+# 1. Re-emit the OpenAPI schema from the Django API (must be warning- and error-free)
+cd backend && uv run python manage.py spectacular --file schema.yml --validate
+
+# 2. Regenerate the frontend client (types + hooks) from that schema
+cd frontend && bun run codegen
+```
+
+Then commit both **`backend/schema.yml`** and **`frontend/src/api/generated.ts`** — they are
+checked-in build products, and CI/typecheck assumes they match the code.
+
+Key files:
+
+- `backend/config/settings.py` → `SPECTACULAR_SETTINGS` (schema options; a postprocessing hook in
+  `backend/config/spectacular_hooks.py` marks response fields required so the generated types
+  aren't spuriously optional). Browse the live schema at `/api/schema/swagger/`.
+- `frontend/openapi-config.ts` → codegen config (reads `../backend/schema.yml`).
+- `frontend/src/api/generated.ts` → **generated, do not edit by hand.**
+- `frontend/src/api/emptyApi.ts` → the base RTK Query slice the generated endpoints inject into;
+  `baseQuery.ts` adds the JWT bearer, 401-refresh-and-retry, and `Accept-Language`.
+- `frontend/src/api/index.ts` → re-exports the generated hooks and refines a few cache tags.
+
+Notes:
+
+- Endpoints that build a response by hand (custom `@action`s, plain `Response({...})` dicts, or
+  `SerializerMethodField`s returning loose dicts) need an `@extend_schema` / `@extend_schema_field`
+  annotation so drf-spectacular can type them — otherwise `--validate` warns and the generated type
+  falls back to `any`. Keep the schema generation warning-free.
+- Consume the API in components via the generated hooks (`useFamiliesContractsListQuery`, …) imported
+  from `@/src/api`; cache invalidation is tag-based (see `api/index.ts`), not manual.
+
 ## Dependency policy
 
 All dependencies are pinned to **exact versions** (backend `pyproject.toml`, frontend

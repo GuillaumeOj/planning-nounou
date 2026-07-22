@@ -11,6 +11,7 @@ dependencies = [
     "djangorestframework==3.17.1",
     "djangorestframework-simplejwt==5.5.1",
     "djoser==2.3.3",
+    "drf-spectacular==0.28.0",
     "gunicorn==26.0.0",
     "psycopg[binary]==3.3.4",
     "whitenoise==6.12.0",

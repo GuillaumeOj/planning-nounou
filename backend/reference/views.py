@@ -1,11 +1,26 @@
 from django.utils import timezone
 from django.utils.dateparse import parse_date
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import generics, permissions
 from rest_framework.request import Request
 from rest_framework.response import Response
 
 from reference.models import BankHoliday, MinimumWage, PaidLeaveAllowance
-from reference.serializers import BankHolidaySerializer
+from reference.serializers import (
+    BankHolidaySerializer,
+    MinimumWageSerializer,
+    PaidLeaveAllowanceSerializer,
+)
+
+# The ?on=YYYY-MM-DD query param shared by the two effective-dated lookups below.
+ON_PARAM = OpenApiParameter(
+    "on",
+    OpenApiTypes.DATE,
+    OpenApiParameter.QUERY,
+    required=False,
+    description="Date (YYYY-MM-DD) the value must be in force on. Defaults to today.",
+)
 
 
 def _on_from_query(request: Request):
@@ -20,7 +35,9 @@ class MinimumWageView(generics.GenericAPIView):
     *effective* date it is entered for."""
 
     permission_classes = [permissions.IsAuthenticated]
+    serializer_class = MinimumWageSerializer
 
+    @extend_schema(parameters=[ON_PARAM], responses=MinimumWageSerializer)
     def get(self, request: Request) -> Response:
         rate = MinimumWage.applicable_on(_on_from_query(request))
         return Response({"net_hourly_rate": f"{rate:.2f}" if rate is not None else None})
@@ -31,11 +48,24 @@ class PaidLeaveAllowanceView(generics.GenericAPIView):
     default today). The contract form pre-fills its ``paid_leave_days`` from it."""
 
     permission_classes = [permissions.IsAuthenticated]
+    serializer_class = PaidLeaveAllowanceSerializer
 
+    @extend_schema(parameters=[ON_PARAM], responses=PaidLeaveAllowanceSerializer)
     def get(self, request: Request) -> Response:
         return Response({"annual_days": PaidLeaveAllowance.applicable_on(_on_from_query(request))})
 
 
+@extend_schema(
+    parameters=[
+        OpenApiParameter(
+            "year",
+            OpenApiTypes.INT,
+            OpenApiParameter.QUERY,
+            required=False,
+            description="Restrict to holidays falling in this calendar year.",
+        )
+    ]
+)
 class BankHolidayListView(generics.ListAPIView):
     """The national work-free days (jours fériés), optionally filtered by ``?year=``.
 

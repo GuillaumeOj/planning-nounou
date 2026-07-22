@@ -1,9 +1,7 @@
-import { useQuery } from '@tanstack/react-query'
 import { addMonths, format, startOfMonth, subMonths } from 'date-fns'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { useMemo, useState } from 'react'
-import { getContracts } from '@/src/api/contracts'
-import { getFamilies } from '@/src/api/family'
+import { useState } from 'react'
+import { useFamiliesContractsListQuery } from '@/src/api'
 import { DeclarationSection } from '@/src/components/DeclarationSection'
 import { Button } from '@/src/components/ui/button'
 import { Label } from '@/src/components/ui/label'
@@ -14,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/src/components/ui/select'
+import { useActiveFamily } from '@/src/hooks/useActiveFamily'
 import { useI18n } from '@/src/i18n/I18nContext'
 import { toMonthParam } from '@/src/lib/months'
 import { localeFor } from '@/src/lib/utils'
@@ -24,32 +23,21 @@ import { localeFor } from '@/src/lib/utils'
 export default function Declarations() {
   const { t, lang } = useI18n()
   const locale = localeFor(lang)
-  const [familyId, setFamilyId] = useState<string | null>(null)
+  const { families, setFamilyId, activeFamilyId } = useActiveFamily()
   // Default to last month: you declare a month once it is over, so the month
   // just gone is what a parent almost always came here for.
   const [visibleMonth, setVisibleMonth] = useState(() =>
     subMonths(startOfMonth(new Date()), 1),
   )
 
-  const { data: families } = useQuery({
-    queryKey: ['families'],
-    queryFn: getFamilies,
-  })
-
-  const activeFamilyId = useMemo(() => {
-    if (familyId !== null) return familyId
-    return families && families.length > 0 ? families[0].id : null
-  }, [familyId, families])
-
   const {
     data: contracts,
     isLoading,
     isError,
-  } = useQuery({
-    queryKey: ['contracts', activeFamilyId],
-    queryFn: () => getContracts(activeFamilyId as string),
-    enabled: activeFamilyId !== null,
-  })
+  } = useFamiliesContractsListQuery(
+    { familyPk: activeFamilyId ?? '' },
+    { skip: activeFamilyId === null },
+  )
 
   const contractList = contracts ?? []
   const month = toMonthParam(visibleMonth)

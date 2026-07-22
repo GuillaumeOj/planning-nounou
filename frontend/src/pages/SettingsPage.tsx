@@ -1,6 +1,10 @@
 import { useForm } from '@tanstack/react-form'
 import { useCallback, useState } from 'react'
-import { changeEmail, changePassword, updateProfile } from '@/src/api/auth'
+import {
+  useAuthUsersMePartialUpdateMutation,
+  useAuthUsersSetEmailCreateMutation,
+  useAuthUsersSetPasswordCreateMutation,
+} from '@/src/api'
 import { extractErrorMessages } from '@/src/api/errors'
 import { useAuth } from '@/src/auth/AuthContext'
 import { FormErrors } from '@/src/components/FormErrors'
@@ -50,6 +54,7 @@ function ProfileSection() {
   const { t } = useI18n()
   const { user, refreshUser } = useAuth()
   const { errors, setErrors, success, setSuccess } = useSectionStatus()
+  const [updateProfile] = useAuthUsersMePartialUpdateMutation()
 
   const form = useForm({
     defaultValues: {
@@ -60,7 +65,10 @@ function ProfileSection() {
       setErrors([])
       setSuccess(false)
       try {
-        await refreshUser(await updateProfile(value))
+        const updated = await updateProfile({
+          patchedProfileRequest: value,
+        }).unwrap()
+        await refreshUser(updated)
         setSuccess(true)
       } catch (err) {
         setErrors(extractErrorMessages(err, t('settings.profile.error')))
@@ -129,6 +137,7 @@ function EmailSection() {
   const [password, setPassword] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [changeEmail] = useAuthUsersSetEmailCreateMutation()
 
   const openDialog = (event: React.FormEvent) => {
     event.preventDefault()
@@ -147,7 +156,9 @@ function EmailSection() {
     try {
       // set_email replies 204 (no body); update the cached user locally with the
       // new email rather than spending a round-trip to refetch it.
-      await changeEmail({ current_password: password, new_email: newEmail })
+      await changeEmail({
+        setEmailRequest: { current_password: password, new_email: newEmail },
+      }).unwrap()
       await refreshUser(user ? { ...user, email: newEmail } : undefined)
       setDialogOpen(false)
       setNewEmail('')
@@ -220,6 +231,7 @@ function EmailSection() {
 function PasswordSection() {
   const { t } = useI18n()
   const { errors, setErrors, success, setSuccess } = useSectionStatus()
+  const [changePassword] = useAuthUsersSetPasswordCreateMutation()
 
   const form = useForm({
     defaultValues: { current_password: '', new_password: '' },
@@ -227,7 +239,7 @@ function PasswordSection() {
       setErrors([])
       setSuccess(false)
       try {
-        await changePassword(value)
+        await changePassword({ setPasswordRequest: value }).unwrap()
         setSuccess(true)
         form.reset()
       } catch (err) {

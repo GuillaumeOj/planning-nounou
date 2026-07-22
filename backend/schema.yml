@@ -1,0 +1,5544 @@
+openapi: 3.0.3
+info:
+  title: Ma Garde Sereine API
+  version: 1.0.0
+  description: Nanny hours tracker — REST API consumed by the SPA frontend.
+paths:
+  /auth/jwt/blacklist/:
+    post:
+      operationId: auth_jwt_blacklist_create
+      description: |-
+        Takes a token and blacklists it. Must be used with the
+        `rest_framework_simplejwt.token_blacklist` app installed.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenBlacklistRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenBlacklistRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenBlacklistRequest'
+        required: true
+      responses:
+        '200':
+          description: No response body
+  /auth/jwt/create/:
+    post:
+      operationId: auth_jwt_create_create
+      description: |-
+        Takes a set of user credentials and returns an access and refresh JSON web
+        token pair to prove the authentication of those credentials.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPairRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPairRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenObtainPairRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenObtainPair'
+          description: ''
+  /auth/jwt/refresh/:
+    post:
+      operationId: auth_jwt_refresh_create
+      description: |-
+        Takes a refresh type JSON web token and returns an access type JSON web
+        token if the refresh token is valid.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequest'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /auth/jwt/verify/:
+    post:
+      operationId: auth_jwt_verify_create
+      description: |-
+        Takes a token and indicates if it is valid.  This view provides no
+        information about a token's fitness for a particular use.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenVerifyRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenVerifyRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenVerifyRequest'
+        required: true
+      responses:
+        '200':
+          description: No response body
+  /auth/users/:
+    get:
+      operationId: auth_users_list
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Profile'
+          description: ''
+    post:
+      operationId: auth_users_create
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Register'
+          description: ''
+  /auth/users/{id}/:
+    get:
+      operationId: auth_users_retrieve
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this user.
+        required: true
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+          description: ''
+    put:
+      operationId: auth_users_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this user.
+        required: true
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProfileRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProfileRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+          description: ''
+    patch:
+      operationId: auth_users_partial_update
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this user.
+        required: true
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedProfileRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedProfileRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedProfileRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+          description: ''
+    delete:
+      operationId: auth_users_destroy
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this user.
+        required: true
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /auth/users/activation/:
+    post:
+      operationId: auth_users_activation_create
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ActivationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ActivationRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Activation'
+          description: ''
+  /auth/users/me/:
+    get:
+      operationId: auth_users_me_retrieve
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+          description: ''
+    put:
+      operationId: auth_users_me_update
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ProfileRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ProfileRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+          description: ''
+    patch:
+      operationId: auth_users_me_partial_update
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedProfileRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedProfileRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedProfileRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profile'
+          description: ''
+    delete:
+      operationId: auth_users_me_destroy
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /auth/users/resend_activation/:
+    post:
+      operationId: auth_users_resend_activation_create
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendEmailResetRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SendEmailResetRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SendEmailResetRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SendEmailReset'
+          description: ''
+  /auth/users/reset_email/:
+    post:
+      operationId: auth_users_reset_email_create
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendEmailResetRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SendEmailResetRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SendEmailResetRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SendEmailReset'
+          description: ''
+  /auth/users/reset_email_confirm/:
+    post:
+      operationId: auth_users_reset_email_confirm_create
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UsernameResetConfirmRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UsernameResetConfirmRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UsernameResetConfirmRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsernameResetConfirm'
+          description: ''
+  /auth/users/reset_password/:
+    post:
+      operationId: auth_users_reset_password_create
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendEmailResetRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SendEmailResetRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SendEmailResetRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SendEmailReset'
+          description: ''
+  /auth/users/reset_password_confirm/:
+    post:
+      operationId: auth_users_reset_password_confirm_create
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirmRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirmRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirmRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordResetConfirm'
+          description: ''
+  /auth/users/set_email/:
+    post:
+      operationId: auth_users_set_email_create
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetEmailRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SetEmailRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SetEmailRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SetEmail'
+          description: ''
+  /auth/users/set_password/:
+    post:
+      operationId: auth_users_set_password_create
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetPasswordRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SetPasswordRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SetPasswordRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SetPassword'
+          description: ''
+  /contract-invitations/:
+    get:
+      operationId: contract_invitations_list
+      description: Pending contract invitations addressed to the requesting user's
+        email.
+      tags:
+      - contract-invitations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MyContractInvitation'
+          description: ''
+  /contract-invitations/{token}/:
+    get:
+      operationId: contract_invitations_retrieve
+      description: Public, token-addressed preview for the invite landing page.
+      parameters:
+      - in: path
+        name: token
+        schema:
+          type: string
+        required: true
+      tags:
+      - contract-invitations
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractInvitationPreview'
+          description: ''
+  /contract-invitations/{token}/accept/:
+    post:
+      operationId: contract_invitations_accept_create
+      description: Accept a contract invitation, attaching a family the user owns.
+      parameters:
+      - in: path
+        name: token
+        schema:
+          type: string
+        required: true
+      tags:
+      - contract-invitations
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcceptContractInvitationRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AcceptContractInvitationRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AcceptContractInvitationRequestRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contract'
+          description: ''
+  /contract-invitations/{token}/decline/:
+    post:
+      operationId: contract_invitations_decline_create
+      description: Decline a contract invitation as the logged-in user.
+      parameters:
+      - in: path
+        name: token
+        schema:
+          type: string
+        required: true
+      tags:
+      - contract-invitations
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /families/:
+    get:
+      operationId: families_list
+      description: |-
+        CRUD for families the user can access.
+
+        Reads and ``leave`` are open to any member; editing and deleting require
+        manage rights (owner, or creator of an unclaimed family).
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Family'
+          description: ''
+    post:
+      operationId: families_create
+      description: |-
+        CRUD for families the user can access.
+
+        Reads and ``leave`` are open to any member; editing and deleting require
+        manage rights (owner, or creator of an unclaimed family).
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FamilyRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FamilyRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FamilyRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Family'
+          description: ''
+  /families/{family_pk}/children/:
+    get:
+      operationId: families_children_list
+      description: CRUD for a family's children, scoped to families the user can access.
+      parameters:
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Child'
+          description: ''
+    post:
+      operationId: families_children_create
+      description: CRUD for a family's children, scoped to families the user can access.
+      parameters:
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChildRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ChildRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ChildRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Child'
+          description: ''
+  /families/{family_pk}/children/{id}/:
+    get:
+      operationId: families_children_retrieve
+      description: CRUD for a family's children, scoped to families the user can access.
+      parameters:
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Child'
+          description: ''
+    put:
+      operationId: families_children_update
+      description: CRUD for a family's children, scoped to families the user can access.
+      parameters:
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChildRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ChildRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ChildRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Child'
+          description: ''
+    patch:
+      operationId: families_children_partial_update
+      description: CRUD for a family's children, scoped to families the user can access.
+      parameters:
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedChildRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedChildRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedChildRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Child'
+          description: ''
+    delete:
+      operationId: families_children_destroy
+      description: CRUD for a family's children, scoped to families the user can access.
+      parameters:
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /families/{family_pk}/contracts/:
+    get:
+      operationId: families_contracts_list
+      description: |-
+        CRUD for the contracts shared with the acting family.
+
+        Reads require family access; writes (financial/schedule data) require manage
+        rights on the acting family.
+      parameters:
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Contract'
+          description: ''
+    post:
+      operationId: families_contracts_create
+      description: |-
+        CRUD for the contracts shared with the acting family.
+
+        Reads require family access; writes (financial/schedule data) require manage
+        rights on the acting family.
+      parameters:
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContractRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ContractRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ContractRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contract'
+          description: ''
+  /families/{family_pk}/contracts/{contract_pk}/children/:
+    get:
+      operationId: families_contracts_children_list
+      description: |-
+        Which children a contract covers, and the hours they are there.
+
+        Contract-wide for reads and writes, like the schedule it describes: the
+        families agree the arrangement jointly, and one family's windows change the
+        other's declared hours.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ContractChild'
+          description: ''
+    post:
+      operationId: families_contracts_children_create
+      description: |-
+        Which children a contract covers, and the hours they are there.
+
+        Contract-wide for reads and writes, like the schedule it describes: the
+        families agree the arrangement jointly, and one family's windows change the
+        other's declared hours.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContractChildRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ContractChildRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ContractChildRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractChild'
+          description: ''
+  /families/{family_pk}/contracts/{contract_pk}/children/{id}/:
+    get:
+      operationId: families_contracts_children_retrieve
+      description: |-
+        Which children a contract covers, and the hours they are there.
+
+        Contract-wide for reads and writes, like the schedule it describes: the
+        families agree the arrangement jointly, and one family's windows change the
+        other's declared hours.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractChild'
+          description: ''
+    put:
+      operationId: families_contracts_children_update
+      description: |-
+        Which children a contract covers, and the hours they are there.
+
+        Contract-wide for reads and writes, like the schedule it describes: the
+        families agree the arrangement jointly, and one family's windows change the
+        other's declared hours.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContractChildRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ContractChildRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ContractChildRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractChild'
+          description: ''
+    patch:
+      operationId: families_contracts_children_partial_update
+      description: |-
+        Which children a contract covers, and the hours they are there.
+
+        Contract-wide for reads and writes, like the schedule it describes: the
+        families agree the arrangement jointly, and one family's windows change the
+        other's declared hours.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedContractChildRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedContractChildRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedContractChildRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractChild'
+          description: ''
+    delete:
+      operationId: families_contracts_children_destroy
+      description: |-
+        Which children a contract covers, and the hours they are there.
+
+        Contract-wide for reads and writes, like the schedule it describes: the
+        families agree the arrangement jointly, and one family's windows change the
+        other's declared hours.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /families/{family_pk}/contracts/{contract_pk}/declarations/:
+    get:
+      operationId: families_contracts_declarations_list
+      description: |-
+        What the acting family declares to pajemploi for a month.
+
+        Listing recomputes *every* family's draft from live data — the split is one
+        calculation over the nanny's whole month, and B's row would go stale if only
+        A's were rebuilt — but returns only the acting family's. What B pays her is
+        B's. A filed declaration is the record of what was actually sent and is
+        returned untouched.
+
+        Only `kilometers` is writable: everything else is computed.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: query
+        name: month
+        schema:
+          type: string
+        description: Month as YYYY-MM. Defaults to the current month.
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MonthlyDeclaration'
+          description: ''
+  /families/{family_pk}/contracts/{contract_pk}/declarations/{id}/:
+    get:
+      operationId: families_contracts_declarations_retrieve
+      description: |-
+        What the acting family declares to pajemploi for a month.
+
+        Listing recomputes *every* family's draft from live data — the split is one
+        calculation over the nanny's whole month, and B's row would go stale if only
+        A's were rebuilt — but returns only the acting family's. What B pays her is
+        B's. A filed declaration is the record of what was actually sent and is
+        returned untouched.
+
+        Only `kilometers` is writable: everything else is computed.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonthlyDeclaration'
+          description: ''
+    patch:
+      operationId: families_contracts_declarations_partial_update
+      description: |-
+        What the acting family declares to pajemploi for a month.
+
+        Listing recomputes *every* family's draft from live data — the split is one
+        calculation over the nanny's whole month, and B's row would go stale if only
+        A's were rebuilt — but returns only the acting family's. What B pays her is
+        B's. A filed declaration is the record of what was actually sent and is
+        returned untouched.
+
+        Only `kilometers` is writable: everything else is computed.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedMonthlyDeclarationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedMonthlyDeclarationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedMonthlyDeclarationRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonthlyDeclaration'
+          description: ''
+  /families/{family_pk}/contracts/{contract_pk}/declarations/{id}/file/:
+    post:
+      operationId: families_contracts_declarations_file_create
+      description: Freeze this declaration as sent to pajemploi. Idempotent.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonthlyDeclaration'
+          description: ''
+  /families/{family_pk}/contracts/{contract_pk}/exceptional-hours/:
+    get:
+      operationId: families_contracts_exceptional_hours_list
+      description: |-
+        Hours worked beyond the planning. Your family's own, plus shared care.
+
+        An evening B kept the nanny late for its own child is B's business with her —
+        A never sees it. But an evening *both* families needed her is shared: B files
+        it, and A must see it to be prompted to file its own half, so shared entries
+        cross the family line on read. Writes never do — a family only ever edits or
+        deletes its own rows, whatever it can see.
+
+        Either way the hours still lengthen the nanny's week and can push a family into
+        overtime; compute_month reads every family's rows to work that out server-side.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExceptionalHours'
+          description: ''
+    post:
+      operationId: families_contracts_exceptional_hours_create
+      description: |-
+        Hours worked beyond the planning. Your family's own, plus shared care.
+
+        An evening B kept the nanny late for its own child is B's business with her —
+        A never sees it. But an evening *both* families needed her is shared: B files
+        it, and A must see it to be prompted to file its own half, so shared entries
+        cross the family line on read. Writes never do — a family only ever edits or
+        deletes its own rows, whatever it can see.
+
+        Either way the hours still lengthen the nanny's week and can push a family into
+        overtime; compute_month reads every family's rows to work that out server-side.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExceptionalHoursRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ExceptionalHoursRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ExceptionalHoursRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExceptionalHours'
+          description: ''
+  /families/{family_pk}/contracts/{contract_pk}/exceptional-hours/{id}/:
+    get:
+      operationId: families_contracts_exceptional_hours_retrieve
+      description: |-
+        Hours worked beyond the planning. Your family's own, plus shared care.
+
+        An evening B kept the nanny late for its own child is B's business with her —
+        A never sees it. But an evening *both* families needed her is shared: B files
+        it, and A must see it to be prompted to file its own half, so shared entries
+        cross the family line on read. Writes never do — a family only ever edits or
+        deletes its own rows, whatever it can see.
+
+        Either way the hours still lengthen the nanny's week and can push a family into
+        overtime; compute_month reads every family's rows to work that out server-side.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExceptionalHours'
+          description: ''
+    put:
+      operationId: families_contracts_exceptional_hours_update
+      description: |-
+        Hours worked beyond the planning. Your family's own, plus shared care.
+
+        An evening B kept the nanny late for its own child is B's business with her —
+        A never sees it. But an evening *both* families needed her is shared: B files
+        it, and A must see it to be prompted to file its own half, so shared entries
+        cross the family line on read. Writes never do — a family only ever edits or
+        deletes its own rows, whatever it can see.
+
+        Either way the hours still lengthen the nanny's week and can push a family into
+        overtime; compute_month reads every family's rows to work that out server-side.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExceptionalHoursRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ExceptionalHoursRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ExceptionalHoursRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExceptionalHours'
+          description: ''
+    patch:
+      operationId: families_contracts_exceptional_hours_partial_update
+      description: |-
+        Hours worked beyond the planning. Your family's own, plus shared care.
+
+        An evening B kept the nanny late for its own child is B's business with her —
+        A never sees it. But an evening *both* families needed her is shared: B files
+        it, and A must see it to be prompted to file its own half, so shared entries
+        cross the family line on read. Writes never do — a family only ever edits or
+        deletes its own rows, whatever it can see.
+
+        Either way the hours still lengthen the nanny's week and can push a family into
+        overtime; compute_month reads every family's rows to work that out server-side.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedExceptionalHoursRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedExceptionalHoursRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedExceptionalHoursRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExceptionalHours'
+          description: ''
+    delete:
+      operationId: families_contracts_exceptional_hours_destroy
+      description: |-
+        Hours worked beyond the planning. Your family's own, plus shared care.
+
+        An evening B kept the nanny late for its own child is B's business with her —
+        A never sees it. But an evening *both* families needed her is shared: B files
+        it, and A must see it to be prompted to file its own half, so shared entries
+        cross the family line on read. Writes never do — a family only ever edits or
+        deletes its own rows, whatever it can see.
+
+        Either way the hours still lengthen the nanny's week and can push a family into
+        overtime; compute_month reads every family's rows to work that out server-side.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /families/{family_pk}/contracts/{contract_pk}/exceptional-presences/:
+    get:
+      operationId: families_contracts_exceptional_presences_list
+      description: |-
+        A child there outside their usual window. Contract-wide: it moves the split
+        between the families, so it is not one family's to hide.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExceptionalPresence'
+          description: ''
+    post:
+      operationId: families_contracts_exceptional_presences_create
+      description: |-
+        A child there outside their usual window. Contract-wide: it moves the split
+        between the families, so it is not one family's to hide.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExceptionalPresenceRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ExceptionalPresenceRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ExceptionalPresenceRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExceptionalPresence'
+          description: ''
+  /families/{family_pk}/contracts/{contract_pk}/exceptional-presences/{id}/:
+    get:
+      operationId: families_contracts_exceptional_presences_retrieve
+      description: |-
+        A child there outside their usual window. Contract-wide: it moves the split
+        between the families, so it is not one family's to hide.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExceptionalPresence'
+          description: ''
+    put:
+      operationId: families_contracts_exceptional_presences_update
+      description: |-
+        A child there outside their usual window. Contract-wide: it moves the split
+        between the families, so it is not one family's to hide.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExceptionalPresenceRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ExceptionalPresenceRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ExceptionalPresenceRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExceptionalPresence'
+          description: ''
+    patch:
+      operationId: families_contracts_exceptional_presences_partial_update
+      description: |-
+        A child there outside their usual window. Contract-wide: it moves the split
+        between the families, so it is not one family's to hide.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedExceptionalPresenceRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedExceptionalPresenceRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedExceptionalPresenceRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExceptionalPresence'
+          description: ''
+    delete:
+      operationId: families_contracts_exceptional_presences_destroy
+      description: |-
+        A child there outside their usual window. Contract-wide: it moves the split
+        between the families, so it is not one family's to hide.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /families/{family_pk}/contracts/{contract_pk}/invitations/:
+    get:
+      operationId: families_contracts_invitations_list
+      description: Manage invitations to share a contract. All actions require manage
+        rights.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ContractInvitation'
+          description: ''
+    post:
+      operationId: families_contracts_invitations_create
+      description: Manage invitations to share a contract. All actions require manage
+        rights.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContractInvitationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ContractInvitationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ContractInvitationRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractInvitation'
+          description: ''
+  /families/{family_pk}/contracts/{contract_pk}/invitations/{id}/:
+    delete:
+      operationId: families_contracts_invitations_destroy
+      description: Manage invitations to share a contract. All actions require manage
+        rights.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /families/{family_pk}/contracts/{contract_pk}/leaves/:
+    get:
+      operationId: families_contracts_leaves_list
+      description: Flat CRUD for a contract's days off. Reads need access, writes
+        need manage.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Leave'
+          description: ''
+    post:
+      operationId: families_contracts_leaves_create
+      description: Flat CRUD for a contract's days off. Reads need access, writes
+        need manage.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeaveRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LeaveRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LeaveRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Leave'
+          description: ''
+  /families/{family_pk}/contracts/{contract_pk}/leaves/{id}/:
+    get:
+      operationId: families_contracts_leaves_retrieve
+      description: Flat CRUD for a contract's days off. Reads need access, writes
+        need manage.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Leave'
+          description: ''
+    put:
+      operationId: families_contracts_leaves_update
+      description: Flat CRUD for a contract's days off. Reads need access, writes
+        need manage.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeaveRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LeaveRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LeaveRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Leave'
+          description: ''
+    patch:
+      operationId: families_contracts_leaves_partial_update
+      description: Flat CRUD for a contract's days off. Reads need access, writes
+        need manage.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedLeaveRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedLeaveRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedLeaveRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Leave'
+          description: ''
+    delete:
+      operationId: families_contracts_leaves_destroy
+      description: Flat CRUD for a contract's days off. Reads need access, writes
+        need manage.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /families/{family_pk}/contracts/{contract_pk}/schedule/:
+    get:
+      operationId: families_contracts_schedule_list
+      description: History + create-a-new-version, plus edit/delete a snapshot to
+        fix errors.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ContractSchedule'
+          description: ''
+    post:
+      operationId: families_contracts_schedule_create
+      description: History + create-a-new-version, plus edit/delete a snapshot to
+        fix errors.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContractScheduleRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ContractScheduleRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ContractScheduleRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractSchedule'
+          description: ''
+  /families/{family_pk}/contracts/{contract_pk}/schedule/{id}/:
+    get:
+      operationId: families_contracts_schedule_retrieve
+      description: History + create-a-new-version, plus edit/delete a snapshot to
+        fix errors.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractSchedule'
+          description: ''
+    put:
+      operationId: families_contracts_schedule_update
+      description: History + create-a-new-version, plus edit/delete a snapshot to
+        fix errors.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContractScheduleRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ContractScheduleRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ContractScheduleRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractSchedule'
+          description: ''
+    patch:
+      operationId: families_contracts_schedule_partial_update
+      description: History + create-a-new-version, plus edit/delete a snapshot to
+        fix errors.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedContractScheduleRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedContractScheduleRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedContractScheduleRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractSchedule'
+          description: ''
+    delete:
+      operationId: families_contracts_schedule_destroy
+      description: History + create-a-new-version, plus edit/delete a snapshot to
+        fix errors.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /families/{family_pk}/contracts/{contract_pk}/terms/:
+    get:
+      operationId: families_contracts_terms_list
+      description: History + create-a-new-version, plus edit/delete a snapshot to
+        fix errors.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ContractTerms'
+          description: ''
+    post:
+      operationId: families_contracts_terms_create
+      description: History + create-a-new-version, plus edit/delete a snapshot to
+        fix errors.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContractTermsRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ContractTermsRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ContractTermsRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractTerms'
+          description: ''
+  /families/{family_pk}/contracts/{contract_pk}/terms/{id}/:
+    get:
+      operationId: families_contracts_terms_retrieve
+      description: History + create-a-new-version, plus edit/delete a snapshot to
+        fix errors.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractTerms'
+          description: ''
+    put:
+      operationId: families_contracts_terms_update
+      description: History + create-a-new-version, plus edit/delete a snapshot to
+        fix errors.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContractTermsRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ContractTermsRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ContractTermsRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractTerms'
+          description: ''
+    patch:
+      operationId: families_contracts_terms_partial_update
+      description: History + create-a-new-version, plus edit/delete a snapshot to
+        fix errors.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedContractTermsRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedContractTermsRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedContractTermsRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContractTerms'
+          description: ''
+    delete:
+      operationId: families_contracts_terms_destroy
+      description: History + create-a-new-version, plus edit/delete a snapshot to
+        fix errors.
+      parameters:
+      - in: path
+        name: contract_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /families/{family_pk}/contracts/{id}/:
+    get:
+      operationId: families_contracts_retrieve
+      description: |-
+        CRUD for the contracts shared with the acting family.
+
+        Reads require family access; writes (financial/schedule data) require manage
+        rights on the acting family.
+      parameters:
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contract'
+          description: ''
+    put:
+      operationId: families_contracts_update
+      description: |-
+        CRUD for the contracts shared with the acting family.
+
+        Reads require family access; writes (financial/schedule data) require manage
+        rights on the acting family.
+      parameters:
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContractRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ContractRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ContractRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contract'
+          description: ''
+    patch:
+      operationId: families_contracts_partial_update
+      description: |-
+        CRUD for the contracts shared with the acting family.
+
+        Reads require family access; writes (financial/schedule data) require manage
+        rights on the acting family.
+      parameters:
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedContractRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedContractRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedContractRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contract'
+          description: ''
+    delete:
+      operationId: families_contracts_destroy
+      description: |-
+        CRUD for the contracts shared with the acting family.
+
+        Reads require family access; writes (financial/schedule data) require manage
+        rights on the acting family.
+      parameters:
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /families/{family_pk}/contracts/{id}/attach-family/:
+    post:
+      operationId: families_contracts_attach_family_create
+      description: |-
+        Attach a family the acting user *also* manages directly to the contract.
+
+        The invitation flow is for a family someone else owns. A user who set up
+        a second family on another's behalf — unclaimed, or one they own — can
+        join it to the contract without inviting themselves: they already hold
+        the rights on both sides. Idempotent on the share.
+
+        Requires manage rights on the acting family (to touch the contract) and on
+        the family being attached (to speak for it).
+      parameters:
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttachFamilyRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AttachFamilyRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AttachFamilyRequestRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contract'
+          description: ''
+  /families/{family_pk}/contracts/{id}/paid-leave/:
+    get:
+      operationId: families_contracts_paid_leave_retrieve
+      description: |-
+        The nanny's congés-payés balance for the current reference period.
+
+        A read: any family sharing the contract may see it. The figures come from
+        the pure paid-leave domain, computed on the fly rather than stored.
+
+        Fetches a plain family-scoped row rather than ``get_object()``: the CRUD
+        queryset's current-snapshot annotations and terms/schedule prefetches are
+        all work ``paid_leave_balance`` re-queries for itself and never reads here.
+      parameters:
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaidLeaveBalance'
+          description: ''
+  /families/{family_pk}/dashboard/:
+    get:
+      operationId: families_dashboard_retrieve
+      description: |-
+        The Home dashboard for the acting family, in one response.
+
+        Each shared contract comes back with its congés-payés balance and the recent
+        months' declarations (most recent first, only the months the contract was
+        live for), each declaration recomputed from live data and narrowed to the
+        acting family's row — the same figure the declarations list endpoint returns.
+      parameters:
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: query
+        name: months
+        schema:
+          type: integer
+        description: How many recent months of declarations to include (1–12, default
+          4).
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dashboard'
+          description: ''
+  /families/{family_pk}/invitations/:
+    get:
+      operationId: families_invitations_list
+      description: Manage a family's invitations. All actions require manage rights.
+      parameters:
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Invitation'
+          description: ''
+    post:
+      operationId: families_invitations_create
+      description: Manage a family's invitations. All actions require manage rights.
+      parameters:
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvitationRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/InvitationRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/InvitationRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invitation'
+          description: ''
+  /families/{family_pk}/invitations/{id}/:
+    delete:
+      operationId: families_invitations_destroy
+      description: Manage a family's invitations. All actions require manage rights.
+      parameters:
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /families/{family_pk}/members/:
+    get:
+      operationId: families_members_list
+      description: List a family's members; owners can remove them.
+      parameters:
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FamilyMembership'
+          description: ''
+  /families/{family_pk}/members/{id}/:
+    delete:
+      operationId: families_members_destroy
+      description: List a family's members; owners can remove them.
+      parameters:
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /families/{family_pk}/planning/:
+    get:
+      operationId: families_planning_retrieve
+      description: |-
+        The Planning calendar for the acting family, in one response.
+
+        Each shared contract carries its full schedule history, leaves, children and
+        the exceptional hours / presences visible to the acting family (its own rows
+        plus every family's shared care, as the list endpoints return them). Bank
+        holidays cover the month's whole-weeks calendar grid. The client picks the
+        schedule version in force for each day from the history.
+      parameters:
+      - in: path
+        name: family_pk
+        schema:
+          type: string
+          format: uuid
+        required: true
+      - in: query
+        name: month
+        schema:
+          type: string
+        description: Month as YYYY-MM. Defaults to the current month.
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Planning'
+          description: ''
+  /families/{id}/:
+    get:
+      operationId: families_retrieve
+      description: |-
+        CRUD for families the user can access.
+
+        Reads and ``leave`` are open to any member; editing and deleting require
+        manage rights (owner, or creator of an unclaimed family).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this family.
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Family'
+          description: ''
+    put:
+      operationId: families_update
+      description: |-
+        CRUD for families the user can access.
+
+        Reads and ``leave`` are open to any member; editing and deleting require
+        manage rights (owner, or creator of an unclaimed family).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this family.
+        required: true
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FamilyRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FamilyRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FamilyRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Family'
+          description: ''
+    patch:
+      operationId: families_partial_update
+      description: |-
+        CRUD for families the user can access.
+
+        Reads and ``leave`` are open to any member; editing and deleting require
+        manage rights (owner, or creator of an unclaimed family).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this family.
+        required: true
+      tags:
+      - families
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedFamilyRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedFamilyRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedFamilyRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Family'
+          description: ''
+    delete:
+      operationId: families_destroy
+      description: |-
+        CRUD for families the user can access.
+
+        Reads and ``leave`` are open to any member; editing and deleting require
+        manage rights (owner, or creator of an unclaimed family).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this family.
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /families/{id}/leave/:
+    post:
+      operationId: families_leave_create
+      description: Remove yourself from a family. The sole owner cannot leave.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this family.
+        required: true
+      tags:
+      - families
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /health/:
+    get:
+      operationId: health_retrieve
+      description: Liveness probe used by deploy health checks. Public — no auth required.
+      tags:
+      - health
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheck'
+          description: ''
+  /holidays/:
+    get:
+      operationId: holidays_list
+      description: |-
+        The national work-free days (jours fériés), optionally filtered by ``?year=``.
+
+        Global and admin-managed: read-only over the API. The planning uses these to
+        label days and drop the nannies' working blocks on non-workable holidays.
+      parameters:
+      - in: query
+        name: year
+        schema:
+          type: integer
+        description: Restrict to holidays falling in this calendar year.
+      tags:
+      - holidays
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BankHoliday'
+          description: ''
+  /invitations/:
+    get:
+      operationId: invitations_list
+      description: |-
+        Pending invitations addressed to the requesting user's email — the inbox
+        that surfaces claims to an already-registered user when they log in.
+      tags:
+      - invitations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MyInvitation'
+          description: ''
+  /invitations/{token}/:
+    get:
+      operationId: invitations_retrieve
+      description: Public, token-addressed preview for the invite landing page.
+      parameters:
+      - in: path
+        name: token
+        schema:
+          type: string
+        required: true
+      tags:
+      - invitations
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationPreview'
+          description: ''
+  /invitations/{token}/accept/:
+    post:
+      operationId: invitations_accept_create
+      description: Accept an invitation as the logged-in user, joining the family.
+      parameters:
+      - in: path
+        name: token
+        schema:
+          type: string
+        required: true
+      tags:
+      - invitations
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Family'
+          description: ''
+  /invitations/{token}/decline/:
+    post:
+      operationId: invitations_decline_create
+      description: Decline an invitation as the logged-in user.
+      parameters:
+      - in: path
+        name: token
+        schema:
+          type: string
+        required: true
+      tags:
+      - invitations
+      security:
+      - jwtAuth: []
+      responses:
+        '204':
+          description: No response body
+  /minimum-wage/:
+    get:
+      operationId: minimum_wage_retrieve
+      description: |-
+        The recommended net-hourly minimum in force on a given date (?on=YYYY-MM-DD,
+        default today). Lets the client warn when a rate is below the minimum for the
+        *effective* date it is entered for.
+      parameters:
+      - in: query
+        name: 'on'
+        schema:
+          type: string
+          format: date
+        description: Date (YYYY-MM-DD) the value must be in force on. Defaults to
+          today.
+      tags:
+      - minimum-wage
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MinimumWage'
+          description: ''
+  /paid-leave-default/:
+    get:
+      operationId: paid_leave_default_retrieve
+      description: |-
+        The default annual paid-leave days in force on a given date (?on=YYYY-MM-DD,
+        default today). The contract form pre-fills its ``paid_leave_days`` from it.
+      parameters:
+      - in: query
+        name: 'on'
+        schema:
+          type: string
+          format: date
+        description: Date (YYYY-MM-DD) the value must be in force on. Defaults to
+          today.
+      tags:
+      - paid-leave-default
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaidLeaveAllowance'
+          description: ''
+components:
+  schemas:
+    AcceptContractInvitationRequestRequest:
+      type: object
+      properties:
+        family_id:
+          type: string
+          format: uuid
+      required:
+      - family_id
+    Activation:
+      type: object
+      properties:
+        uid:
+          type: string
+        token:
+          type: string
+      required:
+      - uid
+      - token
+    ActivationRequest:
+      type: object
+      properties:
+        uid:
+          type: string
+          minLength: 1
+        token:
+          type: string
+          minLength: 1
+      required:
+      - token
+      - uid
+    AttachFamilyRequestRequest:
+      type: object
+      properties:
+        family_id:
+          type: string
+          format: uuid
+      required:
+      - family_id
+    BankHoliday:
+      type: object
+      description: A national work-free day. Read-only over the API (admin-managed).
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        date:
+          type: string
+          format: date
+        is_workable:
+          type: boolean
+      required:
+      - id
+      - name
+      - date
+      - is_workable
+    Child:
+      type: object
+      description: A child of a family; the family is taken from the URL, not the
+        payload.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        first_name:
+          type: string
+          maxLength: 150
+      required:
+      - id
+      - first_name
+    ChildRequest:
+      type: object
+      description: A child of a family; the family is taken from the URL, not the
+        payload.
+      properties:
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 150
+      required:
+      - first_name
+    Contract:
+      type: object
+      description: |-
+        A shared nanny contract.
+
+        On create, either reuse an existing ``nanny_id`` (one the acting family
+        already works with) or create a person inline from ``first_name``/
+        ``last_name``. The originating family is injected by the view.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        nanny:
+          allOf:
+          - $ref: '#/components/schemas/NannyBrief'
+          readOnly: true
+        starting_date:
+          type: string
+          format: date
+        ending_date:
+          type: string
+          format: date
+          nullable: true
+        split_method:
+          $ref: '#/components/schemas/SplitMethodEnum'
+        paid_leave_days:
+          type: integer
+          maximum: 32767
+          minimum: 0
+        notes:
+          type: string
+        families:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContractFamily'
+          readOnly: true
+        current_terms:
+          allOf:
+          - $ref: '#/components/schemas/ContractTerms'
+          nullable: true
+          readOnly: true
+        current_schedule:
+          allOf:
+          - $ref: '#/components/schemas/ContractSchedule'
+          nullable: true
+          readOnly: true
+      required:
+      - id
+      - nanny
+      - starting_date
+      - ending_date
+      - split_method
+      - paid_leave_days
+      - notes
+      - families
+      - current_terms
+      - current_schedule
+    ContractChild:
+      type: object
+      description: |-
+        A child on the contract and the hours they are actually there.
+
+        ``windows`` is nested and written whole, like a schedule's blocks. Sending an
+        empty list is not "leave it alone" — it means the child is there whenever the
+        nanny is, which is the common case and the default.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        child:
+          type: string
+          format: uuid
+        first_name:
+          type: string
+          readOnly: true
+        family_id:
+          type: string
+          format: uuid
+          readOnly: true
+        windows:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContractChildWindow'
+      required:
+      - id
+      - child
+      - first_name
+      - family_id
+      - windows
+    ContractChildRequest:
+      type: object
+      description: |-
+        A child on the contract and the hours they are actually there.
+
+        ``windows`` is nested and written whole, like a schedule's blocks. Sending an
+        empty list is not "leave it alone" — it means the child is there whenever the
+        nanny is, which is the common case and the default.
+      properties:
+        child:
+          type: string
+          format: uuid
+        windows:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContractChildWindowRequest'
+      required:
+      - child
+    ContractChildWindow:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        weekday:
+          allOf:
+          - $ref: '#/components/schemas/WeekdayEnum'
+          minimum: -2147483648
+          maximum: 2147483647
+        start_time:
+          type: string
+          format: time
+        end_time:
+          type: string
+          format: time
+      required:
+      - id
+      - weekday
+      - start_time
+      - end_time
+    ContractChildWindowRequest:
+      type: object
+      properties:
+        weekday:
+          allOf:
+          - $ref: '#/components/schemas/WeekdayEnum'
+          minimum: -2147483648
+          maximum: 2147483647
+        start_time:
+          type: string
+          format: time
+        end_time:
+          type: string
+          format: time
+      required:
+      - end_time
+      - start_time
+      - weekday
+    ContractFamily:
+      type: object
+      description: |-
+        One family attached to a contract. Documentation-only: the values are built as
+        plain dicts in ``ContractSerializer.get_families``; this drives the OpenAPI schema so
+        the generated frontend type is precise instead of ``object``.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        is_originator:
+          type: boolean
+          readOnly: true
+      required:
+      - id
+      - name
+      - is_originator
+    ContractInvitation:
+      type: object
+      description: |-
+        Create/list invitations to share a contract.
+
+        Creating one emails the invitee a Brevo-hosted invite link (see
+        contracts/notifications.py). ``token`` stays exposed to the managing family so they
+        can re-share the link manually if needed.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        status:
+          allOf:
+          - $ref: '#/components/schemas/InvitationStatusEnum'
+          readOnly: true
+        token:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        expires_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - id
+      - email
+      - status
+      - token
+      - created_at
+      - expires_at
+    ContractInvitationPreview:
+      type: object
+      description: Public, token-addressed view shown on the invite landing page.
+      properties:
+        email:
+          type: string
+          format: email
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/InvitationStatusEnum'
+          readOnly: true
+        nanny_first_name:
+          type: string
+          readOnly: true
+        nanny_last_name:
+          type: string
+          readOnly: true
+        expires_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - email
+      - status
+      - nanny_first_name
+      - nanny_last_name
+      - expires_at
+    ContractInvitationRequest:
+      type: object
+      description: |-
+        Create/list invitations to share a contract.
+
+        Creating one emails the invitee a Brevo-hosted invite link (see
+        contracts/notifications.py). ``token`` stays exposed to the managing family so they
+        can re-share the link manually if needed.
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+          maxLength: 254
+      required:
+      - email
+    ContractRequest:
+      type: object
+      description: |-
+        A shared nanny contract.
+
+        On create, either reuse an existing ``nanny_id`` (one the acting family
+        already works with) or create a person inline from ``first_name``/
+        ``last_name``. The originating family is injected by the view.
+      properties:
+        nanny_id:
+          type: string
+          format: uuid
+          writeOnly: true
+        first_name:
+          type: string
+          writeOnly: true
+          minLength: 1
+        last_name:
+          type: string
+          writeOnly: true
+          minLength: 1
+        starting_date:
+          type: string
+          format: date
+        ending_date:
+          type: string
+          format: date
+          nullable: true
+        split_method:
+          $ref: '#/components/schemas/SplitMethodEnum'
+        paid_leave_days:
+          type: integer
+          maximum: 32767
+          minimum: 0
+        notes:
+          type: string
+      required:
+      - starting_date
+    ContractSchedule:
+      type: object
+      description: An effective-dated weekly schedule; editing creates a new dated
+        snapshot.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        effective_from:
+          type: string
+          format: date
+        effective_to:
+          type: string
+          nullable: true
+          readOnly: true
+        weekly_hours:
+          type: number
+          format: double
+          readOnly: true
+        edited:
+          type: boolean
+          readOnly: true
+        created_by_name:
+          type: string
+          nullable: true
+          readOnly: true
+        blocks:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScheduleBlock'
+      required:
+      - id
+      - effective_from
+      - effective_to
+      - weekly_hours
+      - edited
+      - created_by_name
+      - blocks
+    ContractScheduleRequest:
+      type: object
+      description: An effective-dated weekly schedule; editing creates a new dated
+        snapshot.
+      properties:
+        effective_from:
+          type: string
+          format: date
+        blocks:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScheduleBlockRequest'
+      required:
+      - blocks
+    ContractTerms:
+      type: object
+      description: |-
+        An effective-dated compensation snapshot.
+
+        The net-hourly minimum is a *soft* check: below-minimum values still save,
+        but the response carries ``below_minimum`` and a translated ``warnings`` list
+        so the client can surface it.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        effective_from:
+          type: string
+          format: date
+        effective_to:
+          type: string
+          nullable: true
+          readOnly: true
+        net_hourly_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+        night_presence_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+        transport_fee:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,2})?$
+        mileage_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,2}(?:\.\d{0,3})?$
+        benefits_in_kind:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,2})?$
+        minimum_net_hourly_rate:
+          type: string
+          nullable: true
+          readOnly: true
+        below_minimum:
+          type: boolean
+          readOnly: true
+        warnings:
+          type: array
+          items:
+            type: string
+          readOnly: true
+        edited:
+          type: boolean
+          readOnly: true
+        created_by_name:
+          type: string
+          nullable: true
+          readOnly: true
+      required:
+      - id
+      - effective_from
+      - effective_to
+      - net_hourly_rate
+      - night_presence_rate
+      - transport_fee
+      - mileage_rate
+      - benefits_in_kind
+      - minimum_net_hourly_rate
+      - below_minimum
+      - warnings
+      - edited
+      - created_by_name
+    ContractTermsRequest:
+      type: object
+      description: |-
+        An effective-dated compensation snapshot.
+
+        The net-hourly minimum is a *soft* check: below-minimum values still save,
+        but the response carries ``below_minimum`` and a translated ``warnings`` list
+        so the client can surface it.
+      properties:
+        effective_from:
+          type: string
+          format: date
+        net_hourly_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+        night_presence_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+        transport_fee:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,2})?$
+        mileage_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,2}(?:\.\d{0,3})?$
+        benefits_in_kind:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,2})?$
+      required:
+      - net_hourly_rate
+    Dashboard:
+      type: object
+      description: |-
+        The Home dashboard payload: every contract the acting family shares, each
+        carrying its paid-leave balance and recent declarations.
+      properties:
+        contracts:
+          type: array
+          items:
+            $ref: '#/components/schemas/DashboardContract'
+          readOnly: true
+      required:
+      - contracts
+    DashboardContract:
+      type: object
+      description: |-
+        A contract with the two aggregates the Home dashboard shows beside it: the
+        congés-payés balance and the recent months' declarations.
+
+        Both are computed per contract in the view and attached to the instance
+        (``dashboard_balance`` / ``dashboard_recent``); the method fields only read
+        them, so no query happens during serialization.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        nanny:
+          allOf:
+          - $ref: '#/components/schemas/NannyBrief'
+          readOnly: true
+        starting_date:
+          type: string
+          format: date
+        ending_date:
+          type: string
+          format: date
+          nullable: true
+        split_method:
+          $ref: '#/components/schemas/SplitMethodEnum'
+        paid_leave_days:
+          type: integer
+          maximum: 32767
+          minimum: 0
+        notes:
+          type: string
+        families:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContractFamily'
+          readOnly: true
+        current_terms:
+          allOf:
+          - $ref: '#/components/schemas/ContractTerms'
+          nullable: true
+          readOnly: true
+        current_schedule:
+          allOf:
+          - $ref: '#/components/schemas/ContractSchedule'
+          nullable: true
+          readOnly: true
+        paid_leave_balance:
+          allOf:
+          - $ref: '#/components/schemas/PaidLeaveBalance'
+          readOnly: true
+        recent_declarations:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecentDeclaration'
+          readOnly: true
+      required:
+      - id
+      - nanny
+      - starting_date
+      - ending_date
+      - split_method
+      - paid_leave_days
+      - notes
+      - families
+      - current_terms
+      - current_schedule
+      - paid_leave_balance
+      - recent_declarations
+    DeclarationWarning:
+      type: object
+      description: |-
+        One declaration warning: its code plus the rule behind it (may be absent).
+
+        Documentation-only — the values are built as plain dicts in
+        ``MonthlyDeclarationSerializer.get_warnings``; this shape drives the OpenAPI schema
+        so the generated frontend type is precise instead of ``object``.
+      properties:
+        code:
+          type: string
+          readOnly: true
+        source:
+          allOf:
+          - $ref: '#/components/schemas/Source'
+          readOnly: true
+          nullable: true
+      required:
+      - code
+      - source
+    ExceptionalHours:
+      type: object
+      description: |-
+        Hours beyond the schedule, filed by one family and read by all of them.
+
+        ``family`` is never accepted from the payload — the viewset pins it to the
+        acting family. A family may read the other's filings (its own hours depend on
+        them) and must never write them.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        family:
+          type: string
+          format: uuid
+          readOnly: true
+        kind:
+          $ref: '#/components/schemas/KindEnum'
+        is_shared:
+          type: boolean
+        start_date:
+          type: string
+          format: date
+        start_time:
+          type: string
+          format: time
+        end_date:
+          type: string
+          format: date
+        end_time:
+          type: string
+          format: time
+        interventions:
+          type: integer
+          maximum: 32767
+          minimum: 0
+        notes:
+          type: string
+      required:
+      - id
+      - family
+      - kind
+      - is_shared
+      - start_date
+      - start_time
+      - end_date
+      - end_time
+      - interventions
+      - notes
+    ExceptionalHoursRequest:
+      type: object
+      description: |-
+        Hours beyond the schedule, filed by one family and read by all of them.
+
+        ``family`` is never accepted from the payload — the viewset pins it to the
+        acting family. A family may read the other's filings (its own hours depend on
+        them) and must never write them.
+      properties:
+        kind:
+          $ref: '#/components/schemas/KindEnum'
+        is_shared:
+          type: boolean
+        start_date:
+          type: string
+          format: date
+        start_time:
+          type: string
+          format: time
+        end_date:
+          type: string
+          format: date
+        end_time:
+          type: string
+          format: time
+        interventions:
+          type: integer
+          maximum: 32767
+          minimum: 0
+        notes:
+          type: string
+      required:
+      - end_date
+      - end_time
+      - start_date
+      - start_time
+    ExceptionalPresence:
+      type: object
+      description: |-
+        A child present on one date outside their usual window.
+
+        The nanny works no longer for it; only the split moves. Contrast
+        ExceptionalHours, which lengthens her day.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        child:
+          type: string
+          format: uuid
+        first_name:
+          type: string
+          readOnly: true
+        date:
+          type: string
+          format: date
+        start_time:
+          type: string
+          format: time
+        end_time:
+          type: string
+          format: time
+        notes:
+          type: string
+      required:
+      - id
+      - child
+      - first_name
+      - date
+      - start_time
+      - end_time
+      - notes
+    ExceptionalPresenceRequest:
+      type: object
+      description: |-
+        A child present on one date outside their usual window.
+
+        The nanny works no longer for it; only the split moves. Contrast
+        ExceptionalHours, which lengthens her day.
+      properties:
+        child:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date
+        start_time:
+          type: string
+          format: time
+        end_time:
+          type: string
+          format: time
+        notes:
+          type: string
+      required:
+      - child
+      - date
+      - end_time
+      - start_time
+    Family:
+      type: object
+      description: |-
+        A family plus the requesting user's role in it.
+
+        On create, ``claim`` (default true) makes the creator an owner-member. Pass
+        ``claim=false`` to create an unclaimed family for someone else to claim via
+        an invitation; the creator keeps access until it is claimed.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 150
+        role:
+          type: string
+          nullable: true
+          readOnly: true
+        is_claimed:
+          type: boolean
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - id
+      - name
+      - role
+      - is_claimed
+      - created_at
+    FamilyMembership:
+      type: object
+      description: A member of a family (read-only view of who belongs and their role).
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        user:
+          type: string
+          format: uuid
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+        first_name:
+          type: string
+          readOnly: true
+        last_name:
+          type: string
+          readOnly: true
+        role:
+          allOf:
+          - $ref: '#/components/schemas/RoleEnum'
+          readOnly: true
+        joined_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - id
+      - user
+      - email
+      - first_name
+      - last_name
+      - role
+      - joined_at
+    FamilyRequest:
+      type: object
+      description: |-
+        A family plus the requesting user's role in it.
+
+        On create, ``claim`` (default true) makes the creator an owner-member. Pass
+        ``claim=false`` to create an unclaimed family for someone else to claim via
+        an invitation; the creator keeps access until it is claimed.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 150
+        claim:
+          type: boolean
+          writeOnly: true
+          default: true
+      required:
+      - name
+    HealthCheck:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+      - status
+    Invitation:
+      type: object
+      description: |-
+        Create and list invitations for a family.
+
+        Creating one emails the invitee a Brevo-hosted invite link (see
+        accounts/notifications.py). ``token`` is still exposed read-only so a manager can
+        re-share the link manually if needed; only family managers reach this endpoint and
+        the public preview never exposes the token.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+        status:
+          allOf:
+          - $ref: '#/components/schemas/InvitationStatusEnum'
+          readOnly: true
+        token:
+          type: string
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        expires_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - id
+      - email
+      - role
+      - status
+      - token
+      - created_at
+      - expires_at
+    InvitationPreview:
+      type: object
+      description: Public, token-addressed view shown on the invite landing page.
+      properties:
+        email:
+          type: string
+          format: email
+          readOnly: true
+        role:
+          allOf:
+          - $ref: '#/components/schemas/RoleEnum'
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/InvitationStatusEnum'
+          readOnly: true
+        family_name:
+          type: string
+          readOnly: true
+        expires_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - email
+      - role
+      - status
+      - family_name
+      - expires_at
+    InvitationRequest:
+      type: object
+      description: |-
+        Create and list invitations for a family.
+
+        Creating one emails the invitee a Brevo-hosted invite link (see
+        accounts/notifications.py). ``token`` is still exposed read-only so a manager can
+        re-share the link manually if needed; only family managers reach this endpoint and
+        the public preview never exposes the token.
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+          maxLength: 254
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+      required:
+      - email
+    InvitationStatusEnum:
+      enum:
+      - pending
+      - accepted
+      - declined
+      - revoked
+      type: string
+      description: |-
+        * `pending` - Pending
+        * `accepted` - Accepted
+        * `declined` - Declined
+        * `revoked` - Revoked
+    KindEnum:
+      enum:
+      - effective
+      - presence_responsable
+      - night_presence
+      type: string
+      description: |-
+        * `effective` - Effective work
+        * `presence_responsable` - Responsible presence
+        * `night_presence` - Night presence
+    Leave:
+      type: object
+      description: A nanny's day(s) off. Flat CRUD — no versioning.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        leave_type:
+          $ref: '#/components/schemas/LeaveTypeEnum'
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        portion:
+          $ref: '#/components/schemas/PortionEnum'
+        hours:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,2}(?:\.\d{0,2})?$
+          nullable: true
+        notes:
+          type: string
+      required:
+      - id
+      - leave_type
+      - start_date
+      - end_date
+      - portion
+      - hours
+      - notes
+    LeaveRequest:
+      type: object
+      description: A nanny's day(s) off. Flat CRUD — no versioning.
+      properties:
+        leave_type:
+          $ref: '#/components/schemas/LeaveTypeEnum'
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        portion:
+          $ref: '#/components/schemas/PortionEnum'
+        hours:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,2}(?:\.\d{0,2})?$
+          nullable: true
+        notes:
+          type: string
+      required:
+      - end_date
+      - leave_type
+      - start_date
+    LeaveTypeEnum:
+      enum:
+      - paid
+      - unpaid
+      - sickness
+      - maternity
+      type: string
+      description: |-
+        * `paid` - Paid leave
+        * `unpaid` - Unpaid leave
+        * `sickness` - Sickness leave
+        * `maternity` - Maternity leave
+    MinimumWage:
+      type: object
+      description: |-
+        Response shape for the minimum-wage lookup: the recommended net hourly rate
+        (a DRF decimal string) in force on the requested date, or null if none applies.
+      properties:
+        net_hourly_rate:
+          type: string
+          nullable: true
+      required:
+      - net_hourly_rate
+    MonthlyDeclaration:
+      type: object
+      description: |-
+        The five numbers pajemploi asks for, and where they came from.
+
+        Almost everything is read-only: it is computed, not typed. ``kilometers`` is
+        the exception — mileage_rate's missing operand, which only a parent knows.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        family:
+          type: string
+          format: uuid
+          readOnly: true
+        family_name:
+          type: string
+          readOnly: true
+        month:
+          type: string
+          format: date
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/MonthlyDeclarationStatusEnum'
+          readOnly: true
+        normal_hours:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          readOnly: true
+        hours_25:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          readOnly: true
+        hours_50:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          readOnly: true
+        net_salary:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
+        total_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
+        transport_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,2})?$
+          readOnly: true
+        benefits_in_kind_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,2})?$
+          readOnly: true
+        kilometers:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,5}(?:\.\d{0,2})?$
+        mileage_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,2})?$
+          readOnly: true
+        night_count:
+          type: integer
+          readOnly: true
+        night_indemnity:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,2})?$
+          readOnly: true
+        holiday_majoration:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,2})?$
+          readOnly: true
+        net_hourly_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          readOnly: true
+        night_presence_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          readOnly: true
+        mileage_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,2}(?:\.\d{0,3})?$
+          readOnly: true
+        rate_periods:
+          type: array
+          items:
+            $ref: '#/components/schemas/RatePeriod'
+          readOnly: true
+        warnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeclarationWarning'
+          readOnly: true
+        computed_at:
+          type: string
+          format: date-time
+          readOnly: true
+        filed_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        is_editable:
+          type: boolean
+          readOnly: true
+        editable_until:
+          type: string
+          format: date
+          readOnly: true
+      required:
+      - id
+      - family
+      - family_name
+      - month
+      - status
+      - normal_hours
+      - hours_25
+      - hours_50
+      - net_salary
+      - total_amount
+      - transport_amount
+      - benefits_in_kind_amount
+      - kilometers
+      - mileage_amount
+      - night_count
+      - night_indemnity
+      - holiday_majoration
+      - net_hourly_rate
+      - night_presence_rate
+      - mileage_rate
+      - rate_periods
+      - warnings
+      - computed_at
+      - filed_at
+      - is_editable
+      - editable_until
+    MonthlyDeclarationStatusEnum:
+      enum:
+      - draft
+      - filed
+      type: string
+      description: |-
+        * `draft` - Draft
+        * `filed` - Filed
+    MyContractInvitation:
+      type: object
+      description: A pending contract invitation addressed to the requesting user
+        (inbox).
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        nanny_first_name:
+          type: string
+          readOnly: true
+        nanny_last_name:
+          type: string
+          readOnly: true
+        token:
+          type: string
+          readOnly: true
+        expires_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - id
+      - nanny_first_name
+      - nanny_last_name
+      - token
+      - expires_at
+    MyInvitation:
+      type: object
+      description: |-
+        A pending invitation addressed to the requesting user (their inbox).
+
+        Includes the token so the client can accept/decline via the existing
+        token endpoints; the invitee already holds this capability by email.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        family_name:
+          type: string
+          readOnly: true
+        role:
+          allOf:
+          - $ref: '#/components/schemas/RoleEnum'
+          readOnly: true
+        token:
+          type: string
+          readOnly: true
+        expires_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - id
+      - family_name
+      - role
+      - token
+      - expires_at
+    NannyBrief:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        first_name:
+          type: string
+          readOnly: true
+        last_name:
+          type: string
+          readOnly: true
+      required:
+      - id
+      - first_name
+      - last_name
+    PaidLeaveAllowance:
+      type: object
+      description: |-
+        Response shape for the paid-leave-default lookup: the default annual paid-leave
+        days in force on the requested date, or null if none is seeded.
+      properties:
+        annual_days:
+          type: integer
+          nullable: true
+      required:
+      - annual_days
+    PaidLeaveBalance:
+      type: object
+      description: |-
+        A contract's congés-payés standing for the current reference period.
+
+        Not a model: the balance is computed on the fly by :mod:`contracts.paid_leave`.
+        Days are decimals (a half-day is 0.5) and ``remaining`` may be negative when
+        leave is booked ahead of what has accrued so far.
+      properties:
+        period_start:
+          type: string
+          format: date
+          readOnly: true
+        period_end:
+          type: string
+          format: date
+          readOnly: true
+        total_days:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          readOnly: true
+        accrued:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          readOnly: true
+        taken:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          readOnly: true
+        remaining:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          readOnly: true
+      required:
+      - period_start
+      - period_end
+      - total_days
+      - accrued
+      - taken
+      - remaining
+    PasswordResetConfirm:
+      type: object
+      properties:
+        uid:
+          type: string
+        token:
+          type: string
+        new_password:
+          type: string
+      required:
+      - uid
+      - token
+      - new_password
+    PasswordResetConfirmRequest:
+      type: object
+      properties:
+        uid:
+          type: string
+          minLength: 1
+        token:
+          type: string
+          minLength: 1
+        new_password:
+          type: string
+          minLength: 1
+      required:
+      - new_password
+      - token
+      - uid
+    PatchedChildRequest:
+      type: object
+      description: A child of a family; the family is taken from the URL, not the
+        payload.
+      properties:
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 150
+    PatchedContractChildRequest:
+      type: object
+      description: |-
+        A child on the contract and the hours they are actually there.
+
+        ``windows`` is nested and written whole, like a schedule's blocks. Sending an
+        empty list is not "leave it alone" — it means the child is there whenever the
+        nanny is, which is the common case and the default.
+      properties:
+        child:
+          type: string
+          format: uuid
+        windows:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContractChildWindowRequest'
+    PatchedContractRequest:
+      type: object
+      description: |-
+        A shared nanny contract.
+
+        On create, either reuse an existing ``nanny_id`` (one the acting family
+        already works with) or create a person inline from ``first_name``/
+        ``last_name``. The originating family is injected by the view.
+      properties:
+        nanny_id:
+          type: string
+          format: uuid
+          writeOnly: true
+        first_name:
+          type: string
+          writeOnly: true
+          minLength: 1
+        last_name:
+          type: string
+          writeOnly: true
+          minLength: 1
+        starting_date:
+          type: string
+          format: date
+        ending_date:
+          type: string
+          format: date
+          nullable: true
+        split_method:
+          $ref: '#/components/schemas/SplitMethodEnum'
+        paid_leave_days:
+          type: integer
+          maximum: 32767
+          minimum: 0
+        notes:
+          type: string
+    PatchedContractScheduleRequest:
+      type: object
+      description: An effective-dated weekly schedule; editing creates a new dated
+        snapshot.
+      properties:
+        effective_from:
+          type: string
+          format: date
+        blocks:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScheduleBlockRequest'
+    PatchedContractTermsRequest:
+      type: object
+      description: |-
+        An effective-dated compensation snapshot.
+
+        The net-hourly minimum is a *soft* check: below-minimum values still save,
+        but the response carries ``below_minimum`` and a translated ``warnings`` list
+        so the client can surface it.
+      properties:
+        effective_from:
+          type: string
+          format: date
+        net_hourly_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+        night_presence_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+        transport_fee:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,2})?$
+        mileage_rate:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,2}(?:\.\d{0,3})?$
+        benefits_in_kind:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,2})?$
+    PatchedExceptionalHoursRequest:
+      type: object
+      description: |-
+        Hours beyond the schedule, filed by one family and read by all of them.
+
+        ``family`` is never accepted from the payload — the viewset pins it to the
+        acting family. A family may read the other's filings (its own hours depend on
+        them) and must never write them.
+      properties:
+        kind:
+          $ref: '#/components/schemas/KindEnum'
+        is_shared:
+          type: boolean
+        start_date:
+          type: string
+          format: date
+        start_time:
+          type: string
+          format: time
+        end_date:
+          type: string
+          format: date
+        end_time:
+          type: string
+          format: time
+        interventions:
+          type: integer
+          maximum: 32767
+          minimum: 0
+        notes:
+          type: string
+    PatchedExceptionalPresenceRequest:
+      type: object
+      description: |-
+        A child present on one date outside their usual window.
+
+        The nanny works no longer for it; only the split moves. Contrast
+        ExceptionalHours, which lengthens her day.
+      properties:
+        child:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date
+        start_time:
+          type: string
+          format: time
+        end_time:
+          type: string
+          format: time
+        notes:
+          type: string
+    PatchedFamilyRequest:
+      type: object
+      description: |-
+        A family plus the requesting user's role in it.
+
+        On create, ``claim`` (default true) makes the creator an owner-member. Pass
+        ``claim=false`` to create an unclaimed family for someone else to claim via
+        an invitation; the creator keeps access until it is claimed.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 150
+        claim:
+          type: boolean
+          writeOnly: true
+          default: true
+    PatchedLeaveRequest:
+      type: object
+      description: A nanny's day(s) off. Flat CRUD — no versioning.
+      properties:
+        leave_type:
+          $ref: '#/components/schemas/LeaveTypeEnum'
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        portion:
+          $ref: '#/components/schemas/PortionEnum'
+        hours:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,2}(?:\.\d{0,2})?$
+          nullable: true
+        notes:
+          type: string
+    PatchedMonthlyDeclarationRequest:
+      type: object
+      description: |-
+        The five numbers pajemploi asks for, and where they came from.
+
+        Almost everything is read-only: it is computed, not typed. ``kilometers`` is
+        the exception — mileage_rate's missing operand, which only a parent knows.
+      properties:
+        kilometers:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,5}(?:\.\d{0,2})?$
+    PatchedProfileRequest:
+      type: object
+      description: |-
+        Read the profile and update the user's names.
+
+        Email is read-only here; it is changed through the dedicated email
+        endpoint, which requires the current password.
+      properties:
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+    Planning:
+      type: object
+      description: |-
+        The Planning calendar payload: the acting family's contracts with their
+        full histories, and the bank holidays falling in the month's calendar grid.
+      properties:
+        contracts:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanningContract'
+          readOnly: true
+        holidays:
+          type: array
+          items:
+            $ref: '#/components/schemas/BankHoliday'
+          readOnly: true
+      required:
+      - contracts
+      - holidays
+    PlanningContract:
+      type: object
+      description: |-
+        A contract with the full per-contract history the Planning calendar draws
+        from: every schedule version, leave, child and the acting family's visible
+        exceptional hours / presences.
+
+        ``exceptional_hours`` mirrors the list endpoint — the acting family's own
+        rows plus every family's shared ones — via a filtered prefetch attached to
+        the instance as ``visible_exceptional_hours``. The other collections read the
+        prefetched related managers directly.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        nanny:
+          allOf:
+          - $ref: '#/components/schemas/NannyBrief'
+          readOnly: true
+        starting_date:
+          type: string
+          format: date
+        ending_date:
+          type: string
+          format: date
+          nullable: true
+        split_method:
+          $ref: '#/components/schemas/SplitMethodEnum'
+        paid_leave_days:
+          type: integer
+          maximum: 32767
+          minimum: 0
+        notes:
+          type: string
+        families:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContractFamily'
+          readOnly: true
+        current_terms:
+          allOf:
+          - $ref: '#/components/schemas/ContractTerms'
+          nullable: true
+          readOnly: true
+        current_schedule:
+          allOf:
+          - $ref: '#/components/schemas/ContractSchedule'
+          nullable: true
+          readOnly: true
+        schedule_history:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContractSchedule'
+          readOnly: true
+        leaves:
+          type: array
+          items:
+            $ref: '#/components/schemas/Leave'
+          readOnly: true
+        exceptional_hours:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExceptionalHours'
+          readOnly: true
+        exceptional_presences:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExceptionalPresence'
+          readOnly: true
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContractChild'
+          readOnly: true
+      required:
+      - id
+      - nanny
+      - starting_date
+      - ending_date
+      - split_method
+      - paid_leave_days
+      - notes
+      - families
+      - current_terms
+      - current_schedule
+      - schedule_history
+      - leaves
+      - exceptional_hours
+      - exceptional_presences
+      - children
+    PortionEnum:
+      enum:
+      - full_day
+      - half_day
+      - hourly
+      type: string
+      description: |-
+        * `full_day` - Whole day
+        * `half_day` - Half day
+        * `hourly` - Hourly
+    Profile:
+      type: object
+      description: |-
+        Read the profile and update the user's names.
+
+        Email is read-only here; it is changed through the dedicated email
+        endpoint, which requires the current password.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        email:
+          type: string
+          format: email
+          readOnly: true
+          title: Email address
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+      required:
+      - id
+      - email
+      - first_name
+      - last_name
+    ProfileRequest:
+      type: object
+      description: |-
+        Read the profile and update the user's names.
+
+        Email is read-only here; it is changed through the dedicated email
+        endpoint, which requires the current password.
+      properties:
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+    RatePeriod:
+      type: object
+      properties:
+        from:
+          type: string
+        to:
+          type: string
+        days:
+          type: integer
+        net_hourly_rate:
+          type: string
+        night_presence_rate:
+          type: string
+        transport_fee:
+          type: string
+        mileage_rate:
+          type: string
+        benefits_in_kind:
+          type: string
+      required:
+      - from
+      - to
+      - days
+      - net_hourly_rate
+      - night_presence_rate
+      - transport_fee
+      - mileage_rate
+      - benefits_in_kind
+    RecentDeclaration:
+      type: object
+      description: |-
+        One month's declaration summary on the dashboard: which month, what the
+        nanny is paid, and whether it has been filed.
+
+        Documentation-only — the dicts are built in the dashboard view (recomputed
+        via ``declarations_for`` and narrowed to the acting family's row). ``status``
+        reuses ``MonthlyDeclaration.Status`` so it shares the schema's declaration
+        status enum rather than minting a second one.
+      properties:
+        month:
+          type: string
+          readOnly: true
+          description: The month as YYYY-MM.
+        net_salary:
+          type: string
+          readOnly: true
+        status:
+          allOf:
+          - $ref: '#/components/schemas/MonthlyDeclarationStatusEnum'
+          readOnly: true
+      required:
+      - month
+      - net_salary
+      - status
+    Register:
+      type: object
+      description: |-
+        djoser's user-create serializer, extended for our two custom needs:
+
+        case-insensitive-unique email (with our i18n message) and the optional
+        ``invitation_token`` that joins the new account to the invited family on
+        creation. Password validation and the inactive-until-activated handling are
+        inherited from djoser.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        email:
+          type: string
+          format: email
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+      required:
+      - id
+      - email
+      - first_name
+      - last_name
+    RegisterRequest:
+      type: object
+      description: |-
+        djoser's user-create serializer, extended for our two custom needs:
+
+        case-insensitive-unique email (with our i18n message) and the optional
+        ``invitation_token`` that joins the new account to the invited family on
+        creation. Password validation and the inactive-until-activated handling are
+        inherited from djoser.
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        invitation_token:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - email
+      - password
+    RoleEnum:
+      enum:
+      - owner
+      - member
+      type: string
+      description: |-
+        * `owner` - Owner
+        * `member` - Member
+    ScheduleBlock:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        weekday:
+          allOf:
+          - $ref: '#/components/schemas/WeekdayEnum'
+          minimum: -2147483648
+          maximum: 2147483647
+        start_time:
+          type: string
+          format: time
+        end_time:
+          type: string
+          format: time
+      required:
+      - id
+      - weekday
+      - start_time
+      - end_time
+    ScheduleBlockRequest:
+      type: object
+      properties:
+        weekday:
+          allOf:
+          - $ref: '#/components/schemas/WeekdayEnum'
+          minimum: -2147483648
+          maximum: 2147483647
+        start_time:
+          type: string
+          format: time
+        end_time:
+          type: string
+          format: time
+      required:
+      - end_time
+      - start_time
+      - weekday
+    SendEmailReset:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+      required:
+      - email
+    SendEmailResetRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+      required:
+      - email
+    SetEmail:
+      type: object
+      description: |-
+        djoser's change-email serializer (guarded by ``current_password``) with our
+        case-insensitive-unique email validator and translated message re-applied.
+      properties:
+        current_password:
+          type: string
+        new_email:
+          type: string
+          format: email
+          title: Email address
+          maxLength: 254
+      required:
+      - current_password
+      - new_email
+    SetEmailRequest:
+      type: object
+      description: |-
+        djoser's change-email serializer (guarded by ``current_password``) with our
+        case-insensitive-unique email validator and translated message re-applied.
+      properties:
+        current_password:
+          type: string
+          minLength: 1
+        new_email:
+          type: string
+          format: email
+          minLength: 1
+          title: Email address
+          maxLength: 254
+      required:
+      - current_password
+      - new_email
+    SetPassword:
+      type: object
+      properties:
+        new_password:
+          type: string
+        current_password:
+          type: string
+      required:
+      - new_password
+      - current_password
+    SetPasswordRequest:
+      type: object
+      properties:
+        new_password:
+          type: string
+          minLength: 1
+        current_password:
+          type: string
+          minLength: 1
+      required:
+      - current_password
+      - new_password
+    Source:
+      type: object
+      description: 'A citation: what the rule is called, where it lives, and what
+        it says.'
+      properties:
+        ref:
+          type: string
+          readOnly: true
+        url:
+          type: string
+          format: uri
+          readOnly: true
+        quote:
+          type: string
+          readOnly: true
+      required:
+      - ref
+      - url
+      - quote
+    SplitMethodEnum:
+      enum:
+      - equal
+      - by_children
+      type: string
+      description: |-
+        * `equal` - Equally between the families present
+        * `by_children` - In proportion to the children present
+    TokenBlacklistRequest:
+      type: object
+      properties:
+        refresh:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - refresh
+    TokenObtainPair:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+          readOnly: true
+      required:
+      - access
+      - refresh
+    TokenObtainPairRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          writeOnly: true
+          minLength: 1
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - email
+      - password
+    TokenRefresh:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+      required:
+      - access
+    TokenRefreshRequest:
+      type: object
+      properties:
+        refresh:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - refresh
+    TokenVerifyRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - token
+    UsernameResetConfirm:
+      type: object
+      properties:
+        new_email:
+          type: string
+          format: email
+          title: Email address
+          maxLength: 254
+      required:
+      - new_email
+    UsernameResetConfirmRequest:
+      type: object
+      properties:
+        new_email:
+          type: string
+          format: email
+          minLength: 1
+          title: Email address
+          maxLength: 254
+      required:
+      - new_email
+    WeekdayEnum:
+      enum:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+      - 5
+      - 6
+      type: integer
+      description: |-
+        * `0` - Monday
+        * `1` - Tuesday
+        * `2` - Wednesday
+        * `3` - Thursday
+        * `4` - Friday
+        * `5` - Saturday
+        * `6` - Sunday
+  securitySchemes:
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

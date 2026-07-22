@@ -1,31 +1,21 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { resendActivation } from '@/src/api/auth'
+import { HttpResponse, http } from 'msw'
+import { describe, expect, it } from 'vitest'
 import { VerifyEmailNotice } from '@/src/components/VerifyEmailNotice'
-import { I18nProvider } from '@/src/i18n/I18nContext'
+import { server } from '@/tests/msw/server'
+import { renderWithProviders } from '@/tests/utils'
 
-vi.mock('@/src/api/auth', () => ({ resendActivation: vi.fn() }))
-const mockResend = vi.mocked(resendActivation)
+// Resending the activation email posts here (see src/api/generated.ts).
+const RESEND = '*/api/auth/users/resend_activation/'
 
 function renderNotice(props: {
   email: string
   inline?: boolean
   next?: string
 }) {
-  return render(
-    <I18nProvider>
-      <MemoryRouter>
-        <VerifyEmailNotice {...props} />
-      </MemoryRouter>
-    </I18nProvider>,
-  )
+  return renderWithProviders(<VerifyEmailNotice {...props} />)
 }
-
-beforeEach(() => {
-  vi.clearAllMocks()
-})
 
 describe('VerifyEmailNotice', () => {
   it('shows the target email and a back-to-login link', () => {
@@ -50,7 +40,15 @@ describe('VerifyEmailNotice', () => {
   })
 
   it('resends the activation email on demand', async () => {
-    mockResend.mockResolvedValue(undefined)
+    // Capture the posted body so we can assert the email it carries — the MSW
+    // equivalent of the old `expect(mockResend).toHaveBeenCalledWith(...)`.
+    let sent: unknown
+    server.use(
+      http.post(RESEND, async ({ request }) => {
+        sent = await request.json()
+        return new HttpResponse(null, { status: 204 })
+      }),
+    )
     renderNotice({ email: 'new@example.com' })
 
     await userEvent.click(
@@ -58,7 +56,7 @@ describe('VerifyEmailNotice', () => {
     )
 
     await waitFor(() =>
-      expect(mockResend).toHaveBeenCalledWith('new@example.com'),
+      expect(sent).toMatchObject({ email: 'new@example.com' }),
     )
     expect(
       await screen.findByText('Verification email sent again.'),
@@ -66,7 +64,8 @@ describe('VerifyEmailNotice', () => {
   })
 
   it('surfaces an error when the resend fails', async () => {
-    mockResend.mockRejectedValue(new Error('nope'))
+    // A 500 with no body carries no field messages, so the UI shows the fallback.
+    server.use(http.post(RESEND, () => new HttpResponse(null, { status: 500 })))
     renderNotice({ email: 'new@example.com' })
 
     await userEvent.click(

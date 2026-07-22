@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type {
-  Contract,
-  ContractSchedule,
-  ScheduleBlock,
-} from '@/src/api/contracts'
+  ContractChildRead,
+  ContractRead,
+  ContractScheduleRead,
+  ScheduleBlockRead,
+  WeekdayEnum,
+} from '@/src/api'
 import {
   nannyColorMap,
   pyWeekday,
@@ -18,18 +20,18 @@ const WEDNESDAY = new Date(2026, 6, 8)
 const SUNDAY = new Date(2026, 6, 5)
 
 function block(
-  weekday: number,
+  weekday: WeekdayEnum,
   start = '08:00:00',
   end = '17:00:00',
-): ScheduleBlock {
-  return { weekday, start_time: start, end_time: end }
+): ScheduleBlockRead {
+  return { id: `blk-${weekday}`, weekday, start_time: start, end_time: end }
 }
 
 function schedule(
   effectiveFrom: string,
-  blocks: ScheduleBlock[],
+  blocks: ScheduleBlockRead[],
   effectiveTo: string | null = null,
-): ContractSchedule {
+): ContractScheduleRead {
   return {
     id: `sched-${effectiveFrom}`,
     effective_from: effectiveFrom,
@@ -41,7 +43,7 @@ function schedule(
   }
 }
 
-function contract(overrides: Partial<Contract> = {}): Contract {
+function contract(overrides: Partial<ContractRead> = {}): ContractRead {
   return {
     id: 'c1',
     nanny: { id: 'n1', first_name: 'Marie', last_name: 'Curie' },
@@ -105,7 +107,7 @@ describe('workedEntriesForDay', () => {
   })
 
   it('names the children present that weekday', () => {
-    const children = {
+    const children: Record<string, ContractChildRead[]> = {
       c1: [
         // No windows: present whenever the nanny works.
         {
@@ -121,7 +123,9 @@ describe('workedEntriesForDay', () => {
           child: 'k2',
           first_name: 'Tom',
           family_id: 'f1',
-          windows: [{ weekday: 2, start_time: '08:00', end_time: '12:00' }],
+          windows: [
+            { id: 'w2', weekday: 2, start_time: '08:00', end_time: '12:00' },
+          ],
         },
         // Windowed on Monday only: absent on a Wednesday.
         {
@@ -129,7 +133,9 @@ describe('workedEntriesForDay', () => {
           child: 'k3',
           first_name: 'Zoé',
           family_id: 'f1',
-          windows: [{ weekday: 0, start_time: '08:00', end_time: '12:00' }],
+          windows: [
+            { id: 'w3', weekday: 0, start_time: '08:00', end_time: '12:00' },
+          ],
         },
       ],
     }

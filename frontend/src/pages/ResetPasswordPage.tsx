@@ -2,7 +2,7 @@ import { useForm } from '@tanstack/react-form'
 import { KeyRound } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { confirmPasswordReset } from '@/src/api/auth'
+import { useAuthUsersResetPasswordConfirmCreateMutation } from '@/src/api'
 import { extractErrorMessages } from '@/src/api/errors'
 import { AuthCard } from '@/src/components/AuthCard'
 import { FormErrors } from '@/src/components/FormErrors'
@@ -17,6 +17,8 @@ export default function ResetPasswordPage() {
   const { uid = '', token = '' } = useParams()
   const [errors, setErrors] = useState<string[]>([])
   const [done, setDone] = useState(false)
+  const [confirmPasswordReset] =
+    useAuthUsersResetPasswordConfirmCreateMutation()
 
   const form = useForm({
     defaultValues: { new_password: '' },
@@ -24,10 +26,12 @@ export default function ResetPasswordPage() {
       setErrors([])
       try {
         await confirmPasswordReset({
-          uid,
-          token,
-          new_password: value.new_password,
-        })
+          passwordResetConfirmRequest: {
+            uid,
+            token,
+            new_password: value.new_password,
+          },
+        }).unwrap()
         setDone(true)
       } catch (err) {
         setErrors(extractErrorMessages(err, t('reset.error')))

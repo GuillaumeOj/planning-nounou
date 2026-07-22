@@ -1,7 +1,6 @@
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { api } from '@/src/api/client'
 import { detectLanguage, I18nProvider, useI18n } from '@/src/i18n/I18nContext'
 
 function setLanguages(languages: string[]) {
@@ -85,15 +84,17 @@ describe('I18nProvider', () => {
     expect(screen.getByTestId('title')).toHaveTextContent('Bon retour')
   })
 
-  it('syncs <html lang> and the Accept-Language header', () => {
+  it('syncs <html lang>, which the API base query reads for Accept-Language', () => {
     setLanguages(['fr-FR'])
     render(
       <I18nProvider>
         <Probe />
       </I18nProvider>,
     )
+    // The RTK Query base query reads document.documentElement.lang to set the
+    // Accept-Language header (see src/api/baseQuery.ts), so keeping <html lang> in
+    // sync is what localises API responses.
     expect(document.documentElement.lang).toBe('fr')
-    expect(api.defaults.headers.common['Accept-Language']).toBe('fr')
   })
 
   it('updates live when the browser language changes', () => {

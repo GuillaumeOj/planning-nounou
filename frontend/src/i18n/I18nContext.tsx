@@ -7,7 +7,6 @@ import {
   useMemo,
   useState,
 } from 'react'
-import { api } from '@/src/api/client'
 import {
   DEFAULT_LANGUAGE,
   LANGUAGES,
@@ -75,7 +74,6 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.lang = lang
-    api.defaults.headers.common['Accept-Language'] = lang
   }, [lang])
 
   const setLanguage = useCallback((next: LanguagePreference) => {

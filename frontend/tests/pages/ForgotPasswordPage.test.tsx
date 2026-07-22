@@ -1,31 +1,27 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { requestPasswordReset } from '@/src/api/auth'
-import { I18nProvider } from '@/src/i18n/I18nContext'
+import { HttpResponse, http } from 'msw'
+import { describe, expect, it } from 'vitest'
 import ForgotPasswordPage from '@/src/pages/ForgotPasswordPage'
+import { server } from '@/tests/msw/server'
+import { renderWithProviders } from '@/tests/utils'
 
-vi.mock('@/src/api/auth', () => ({ requestPasswordReset: vi.fn() }))
-const mockRequest = vi.mocked(requestPasswordReset)
+// POST /api/auth/users/reset_password/ — djoser's "send me a reset link" endpoint.
+const RESET_PASSWORD = '*/api/auth/users/reset_password/'
 
 function renderPage() {
-  return render(
-    <I18nProvider>
-      <MemoryRouter>
-        <ForgotPasswordPage />
-      </MemoryRouter>
-    </I18nProvider>,
-  )
+  return renderWithProviders(<ForgotPasswordPage />)
 }
-
-beforeEach(() => {
-  vi.clearAllMocks()
-})
 
 describe('ForgotPasswordPage', () => {
   it('requests a reset and confirms it was sent', async () => {
-    mockRequest.mockResolvedValue(undefined)
+    let body: unknown
+    server.use(
+      http.post(RESET_PASSWORD, async ({ request }) => {
+        body = await request.json()
+        return new HttpResponse(null, { status: 204 })
+      }),
+    )
     renderPage()
 
     await userEvent.type(screen.getByLabelText('Email'), 'x@example.com')
@@ -33,9 +29,7 @@ describe('ForgotPasswordPage', () => {
       screen.getByRole('button', { name: 'Send reset link' }),
     )
 
-    await waitFor(() =>
-      expect(mockRequest).toHaveBeenCalledWith('x@example.com'),
-    )
+    await waitFor(() => expect(body).toMatchObject({ email: 'x@example.com' }))
     expect(
       await screen.findByText(
         'If an account exists for that email, a reset link is on its way.',
@@ -44,7 +38,9 @@ describe('ForgotPasswordPage', () => {
   })
 
   it('shows an error when the request fails', async () => {
-    mockRequest.mockRejectedValue(new Error('nope'))
+    server.use(
+      http.post(RESET_PASSWORD, () => new HttpResponse(null, { status: 500 })),
+    )
     renderPage()
 
     await userEvent.type(screen.getByLabelText('Email'), 'x@example.com')

@@ -1,17 +1,16 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import type { Contract } from '@/src/api/contracts'
-import { extractErrorMessages } from '@/src/api/errors'
 import {
-  createLeave,
-  deleteLeave,
-  type Leave,
-  type LeaveInput,
-  type LeavePortion,
-  type LeaveType,
-  leavesQueryOptions,
-  updateLeave,
-} from '@/src/api/leaves'
+  type ContractRead,
+  type LeaveRead,
+  type LeaveRequest,
+  type LeaveTypeEnum,
+  type PortionEnum,
+  useFamiliesContractsLeavesCreateMutation,
+  useFamiliesContractsLeavesDestroyMutation,
+  useFamiliesContractsLeavesListQuery,
+  useFamiliesContractsLeavesPartialUpdateMutation,
+} from '@/src/api'
+import { extractErrorMessages } from '@/src/api/errors'
 import { ConfirmButton } from '@/src/components/ConfirmButton'
 import { DateField, formatDate } from '@/src/components/DateField'
 import { FormErrors } from '@/src/components/FormErrors'
@@ -31,10 +30,10 @@ import type { Language, TranslationKey } from '@/src/i18n/translations'
 import { overlapsMonth } from '@/src/lib/months'
 
 interface LeaveDraft {
-  leave_type: LeaveType
+  leave_type: LeaveTypeEnum
   start_date: string
   end_date: string
-  portion: LeavePortion
+  portion: PortionEnum
   hours: string
   notes: string
 }
@@ -48,20 +47,20 @@ const EMPTY_LEAVE: LeaveDraft = {
   notes: '',
 }
 
-const LEAVE_TYPE_KEYS: Record<LeaveType, TranslationKey> = {
+const LEAVE_TYPE_KEYS: Record<LeaveTypeEnum, TranslationKey> = {
   paid: 'leaves.type.paid',
   unpaid: 'leaves.type.unpaid',
   sickness: 'leaves.type.sickness',
   maternity: 'leaves.type.maternity',
 }
 
-const PORTION_KEYS: Record<LeavePortion, TranslationKey> = {
+const PORTION_KEYS: Record<PortionEnum, TranslationKey> = {
   full_day: 'leaves.portion.full_day',
   half_day: 'leaves.portion.half_day',
   hourly: 'leaves.portion.hourly',
 }
 
-function leaveToDraft(leave: Leave): LeaveDraft {
+function leaveToDraft(leave: LeaveRead): LeaveDraft {
   return {
     leave_type: leave.leave_type,
     start_date: leave.start_date,
@@ -72,7 +71,7 @@ function leaveToDraft(leave: Leave): LeaveDraft {
   }
 }
 
-function leaveDraftToInput(draft: LeaveDraft): LeaveInput {
+function leaveDraftToInput(draft: LeaveDraft): LeaveRequest {
   const hourly = draft.portion === 'hourly'
   return {
     leave_type: draft.leave_type,
@@ -95,12 +94,12 @@ function LeaveFields({
 }) {
   const { t } = useI18n()
   // Hourly leaves are only meaningful for unpaid leave (backend enforces it too).
-  const portions: LeavePortion[] =
+  const portions: PortionEnum[] =
     draft.leave_type === 'unpaid'
       ? ['full_day', 'half_day', 'hourly']
       : ['full_day', 'half_day']
 
-  const changeType = (leave_type: LeaveType) => {
+  const changeType = (leave_type: LeaveTypeEnum) => {
     const patch: Partial<LeaveDraft> = { leave_type }
     if (leave_type !== 'unpaid' && draft.portion === 'hourly') {
       patch.portion = 'full_day'
@@ -115,13 +114,13 @@ function LeaveFields({
         <Label htmlFor="leave-type">{t('leaves.type')}</Label>
         <Select
           value={draft.leave_type}
-          onValueChange={(value) => changeType(value as LeaveType)}
+          onValueChange={(value) => changeType(value as LeaveTypeEnum)}
         >
           <SelectTrigger id="leave-type">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {(Object.keys(LEAVE_TYPE_KEYS) as LeaveType[]).map((type) => (
+            {(Object.keys(LEAVE_TYPE_KEYS) as LeaveTypeEnum[]).map((type) => (
               <SelectItem key={type} value={type}>
                 {t(LEAVE_TYPE_KEYS[type])}
               </SelectItem>
@@ -149,9 +148,7 @@ function LeaveFields({
         <Label htmlFor="leave-portion">{t('leaves.portion')}</Label>
         <Select
           value={draft.portion}
-          onValueChange={(value) =>
-            onChange({ portion: value as LeavePortion })
-          }
+          onValueChange={(value) => onChange({ portion: value as PortionEnum })}
         >
           <SelectTrigger id="leave-portion">
             <SelectValue />
@@ -199,52 +196,39 @@ export function LeavesSection({
   month,
 }: {
   familyId: string
-  contract: Contract
+  contract: ContractRead
   month: string
 }) {
   const { t, lang } = useI18n()
-  const queryClient = useQueryClient()
   const [draft, setDraft] = useState<LeaveDraft>(EMPTY_LEAVE)
   const [editingId, setEditingId] = useState<string | 'new' | null>(null)
   const [errors, setErrors] = useState<string[]>([])
 
-  const { data: leaves, isError } = useQuery(
-    leavesQueryOptions(familyId, contract.id),
-  )
+  const { data: leaves, isError } = useFamiliesContractsLeavesListQuery({
+    familyPk: familyId,
+    contractPk: contract.id,
+  })
 
-  const invalidate = () =>
-    queryClient.invalidateQueries({
-      queryKey: ['contract-leaves', contract.id],
-    })
+  // Cache invalidation is handled by RTK Query tags (see api/index.ts): any leave
+  // mutation invalidates the "families" tag, refetching this list automatically.
+  const [createLeave, { isLoading: creating }] =
+    useFamiliesContractsLeavesCreateMutation()
+  const [updateLeave, { isLoading: updating }] =
+    useFamiliesContractsLeavesPartialUpdateMutation()
+  const [deleteLeave] = useFamiliesContractsLeavesDestroyMutation()
+  const saving = creating || updating
+
   const close = () => {
     setEditingId(null)
     setErrors([])
   }
-
-  const mutation = useMutation({
-    mutationFn: () => {
-      const input = leaveDraftToInput(draft)
-      return editingId === 'new' || editingId === null
-        ? createLeave(familyId, contract.id, input)
-        : updateLeave(familyId, contract.id, editingId, input)
-    },
-    onSuccess: async () => {
-      await invalidate()
-      close()
-    },
-    onError: (err) => setErrors(extractErrorMessages(err, t('nanny.error'))),
-  })
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => deleteLeave(familyId, contract.id, id),
-    onSuccess: invalidate,
-  })
 
   const open = (mode: string | 'new', initial: LeaveDraft) => {
     setDraft(initial)
     setEditingId(mode)
     setErrors([])
   }
-  const submit = () => {
+  const submit = async () => {
     if (!draft.start_date || !draft.end_date) {
       setErrors([t('leaves.datesRequired')])
       return
@@ -253,10 +237,29 @@ export function LeavesSection({
       setErrors([t('leaves.hoursRequired')])
       return
     }
-    mutation.mutate()
+    const input = leaveDraftToInput(draft)
+    try {
+      if (editingId === 'new' || editingId === null) {
+        await createLeave({
+          familyPk: familyId,
+          contractPk: contract.id,
+          leaveRequest: input,
+        }).unwrap()
+      } else {
+        await updateLeave({
+          familyPk: familyId,
+          contractPk: contract.id,
+          id: editingId,
+          patchedLeaveRequest: input,
+        }).unwrap()
+      }
+      close()
+    } catch (err) {
+      setErrors(extractErrorMessages(err, t('nanny.error')))
+    }
   }
 
-  const describe = (leave: Leave) => {
+  const describe = (leave: LeaveRead) => {
     const range =
       leave.start_date === leave.end_date
         ? formatDate(leave.start_date, lang)
@@ -286,11 +289,7 @@ export function LeavesSection({
           />
           <FormErrors messages={errors} />
           <div className="flex gap-2">
-            <Button
-              type="button"
-              onClick={submit}
-              disabled={mutation.isPending}
-            >
+            <Button type="button" onClick={submit} disabled={saving}>
               {t('leaves.save')}
             </Button>
             <Button type="button" variant="outline" onClick={close}>
@@ -338,7 +337,13 @@ export function LeavesSection({
                   trigger={t('nanny.delete')}
                   title={t('nanny.delete')}
                   description={t('leaves.confirmDelete')}
-                  onConfirm={() => deleteMutation.mutate(leave.id)}
+                  onConfirm={() =>
+                    void deleteLeave({
+                      familyPk: familyId,
+                      contractPk: contract.id,
+                      id: leave.id,
+                    })
+                  }
                 />
               </span>
             </li>

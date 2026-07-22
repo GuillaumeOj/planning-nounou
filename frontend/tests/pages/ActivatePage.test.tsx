@@ -1,45 +1,47 @@
-import { render, screen } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { activate } from '@/src/api/auth'
-import { I18nProvider } from '@/src/i18n/I18nContext'
+import { screen } from '@testing-library/react'
+import { HttpResponse, http } from 'msw'
+import { Route, Routes } from 'react-router-dom'
+import { describe, expect, it } from 'vitest'
 import ActivatePage from '@/src/pages/ActivatePage'
+import { server } from '@/tests/msw/server'
+import { renderWithProviders } from '@/tests/utils'
 
-vi.mock('@/src/api/auth', () => ({ activate: vi.fn() }))
-const mockActivate = vi.mocked(activate)
+// POST /api/auth/users/activation/ — the endpoint ActivatePage confirms the email with.
+const ACTIVATION = '*/api/auth/users/activation/'
 
 function renderPage() {
-  return render(
-    <I18nProvider>
-      <MemoryRouter initialEntries={['/activate/uid-1/tok-1']}>
-        <Routes>
-          <Route path="/activate/:uid/:token" element={<ActivatePage />} />
-        </Routes>
-      </MemoryRouter>
-    </I18nProvider>,
+  return renderWithProviders(
+    <Routes>
+      <Route path="/activate/:uid/:token" element={<ActivatePage />} />
+    </Routes>,
+    { route: '/activate/uid-1/tok-1' },
   )
 }
 
-beforeEach(() => {
-  vi.clearAllMocks()
-})
-
 describe('ActivatePage', () => {
   it('activates with the uid and token, then confirms success', async () => {
-    mockActivate.mockResolvedValue(undefined)
+    let body: unknown
+    server.use(
+      http.post(ACTIVATION, async ({ request }) => {
+        body = await request.json()
+        return new HttpResponse(null, { status: 204 })
+      }),
+    )
     renderPage()
 
     expect(
       await screen.findByText('Your account is now active. You can log in.'),
     ).toBeInTheDocument()
-    expect(mockActivate).toHaveBeenCalledWith({ uid: 'uid-1', token: 'tok-1' })
+    expect(body).toMatchObject({ uid: 'uid-1', token: 'tok-1' })
     expect(
       screen.getByRole('link', { name: 'Go to log in' }),
     ).toBeInTheDocument()
   })
 
   it('shows an error for an invalid or expired link', async () => {
-    mockActivate.mockRejectedValue(new Error('stale'))
+    server.use(
+      http.post(ACTIVATION, () => new HttpResponse(null, { status: 400 })),
+    )
     renderPage()
 
     expect(await screen.findByRole('alert')).toHaveTextContent(

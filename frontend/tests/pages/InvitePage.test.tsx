@@ -1,46 +1,40 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { HttpResponse, http } from 'msw'
+import { Provider } from 'react-redux'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import {
-  acceptInvitation,
-  declineInvitation,
-  getInvitationPreview,
-} from '@/src/api/family'
+import type { InvitationPreviewRead } from '@/src/api'
+import { makeStore } from '@/src/app/store'
 import { useAuth } from '@/src/auth/AuthContext'
 import { I18nProvider } from '@/src/i18n/I18nContext'
 import InvitePage from '@/src/pages/InvitePage'
+import { server } from '@/tests/msw/server'
 import { makeAuth } from '@/tests/utils'
 
-vi.mock('@/src/api/family', () => ({
-  getInvitationPreview: vi.fn(),
-  acceptInvitation: vi.fn(),
-  declineInvitation: vi.fn(),
-}))
 vi.mock('@/src/auth/AuthContext', () => ({ useAuth: vi.fn() }))
 
-const mockPreview = vi.mocked(getInvitationPreview)
-const mockAccept = vi.mocked(acceptInvitation)
-const mockDecline = vi.mocked(declineInvitation)
 const mockUseAuth = vi.mocked(useAuth)
 const register = vi.fn()
 
-const PREVIEW = {
+const PREVIEW: InvitationPreviewRead = {
   email: 'invitee@example.com',
-  role: 'member' as const,
-  status: 'pending' as const,
+  role: 'member',
+  status: 'pending',
   family_name: 'Dupont',
   expires_at: '2026-01-08T00:00:00Z',
 }
 
+// The endpoints the page drives, keyed by the invite token. Registered per test
+// so each can shape the preview and the accept/decline outcome.
+const PREVIEW_URL = '*/api/invitations/:token/'
+const ACCEPT_URL = '*/api/invitations/:token/accept/'
+const DECLINE_URL = '*/api/invitations/:token/decline/'
+
 function renderPage() {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  })
   return render(
-    <I18nProvider>
-      <QueryClientProvider client={client}>
+    <Provider store={makeStore()}>
+      <I18nProvider>
         <MemoryRouter initialEntries={['/invite/tok-123']}>
           <Routes>
             <Route path="/invite/:token" element={<InvitePage />} />
@@ -48,25 +42,27 @@ function renderPage() {
             <Route path="/login" element={<p>login page</p>} />
           </Routes>
         </MemoryRouter>
-      </QueryClientProvider>
-    </I18nProvider>,
+      </I18nProvider>
+    </Provider>,
   )
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
   mockUseAuth.mockReturnValue(makeAuth({ register }))
 })
 
 describe('InvitePage', () => {
   it('shows a loading state', () => {
-    mockPreview.mockReturnValue(new Promise(() => {}))
+    // A request that never settles keeps the query in its loading state.
+    server.use(http.get(PREVIEW_URL, () => new Promise(() => {})))
     renderPage()
     expect(screen.getByText('Loading invitation…')).toBeInTheDocument()
   })
 
   it('shows an invalid message on error', async () => {
-    mockPreview.mockRejectedValue(new Error('gone'))
+    server.use(
+      http.get(PREVIEW_URL, () => new HttpResponse(null, { status: 500 })),
+    )
     renderPage()
     expect(
       await screen.findByText('This invitation is not valid or has expired.'),
@@ -74,7 +70,11 @@ describe('InvitePage', () => {
   })
 
   it('treats a non-pending invitation as invalid', async () => {
-    mockPreview.mockResolvedValue({ ...PREVIEW, status: 'accepted' })
+    server.use(
+      http.get(PREVIEW_URL, () =>
+        HttpResponse.json({ ...PREVIEW, status: 'accepted' }),
+      ),
+    )
     renderPage()
     expect(
       await screen.findByText('This invitation is not valid or has expired.'),
@@ -84,17 +84,21 @@ describe('InvitePage', () => {
   describe('authenticated', () => {
     beforeEach(() => {
       mockUseAuth.mockReturnValue(makeAuth({ isAuthenticated: true, register }))
-      mockPreview.mockResolvedValue(PREVIEW)
+      server.use(http.get(PREVIEW_URL, () => HttpResponse.json(PREVIEW)))
     })
 
     it('accepts the invitation and links to the families', async () => {
-      mockAccept.mockResolvedValue({
-        id: '1',
-        name: 'Dupont',
-        role: 'member',
-        is_claimed: true,
-        created_at: '2026-01-01T00:00:00Z',
-      })
+      server.use(
+        http.post(ACCEPT_URL, () =>
+          HttpResponse.json({
+            id: '1',
+            name: 'Dupont',
+            role: 'member',
+            is_claimed: true,
+            created_at: '2026-01-01T00:00:00Z',
+          }),
+        ),
+      )
       renderPage()
 
       await userEvent.click(
@@ -111,7 +115,9 @@ describe('InvitePage', () => {
     })
 
     it('shows an error when accepting fails', async () => {
-      mockAccept.mockRejectedValue(new Error('nope'))
+      server.use(
+        http.post(ACCEPT_URL, () => new HttpResponse(null, { status: 500 })),
+      )
       renderPage()
 
       await userEvent.click(
@@ -121,7 +127,9 @@ describe('InvitePage', () => {
     })
 
     it('declines the invitation', async () => {
-      mockDecline.mockResolvedValue(undefined)
+      server.use(
+        http.post(DECLINE_URL, () => new HttpResponse(null, { status: 204 })),
+      )
       renderPage()
 
       await userEvent.click(
@@ -138,7 +146,7 @@ describe('InvitePage', () => {
       mockUseAuth.mockReturnValue(
         makeAuth({ isAuthenticated: false, register }),
       )
-      mockPreview.mockResolvedValue(PREVIEW)
+      server.use(http.get(PREVIEW_URL, () => HttpResponse.json(PREVIEW)))
     })
 
     it('registers and claims, then shows the verify-email step', async () => {

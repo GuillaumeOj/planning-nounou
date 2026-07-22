@@ -1,19 +1,19 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
-  acceptContractInvitation,
-  declineContractInvitation,
-  getContractInvitationPreview,
-} from '@/src/api/contracts'
+  useContractInvitationsAcceptCreateMutation,
+  useContractInvitationsDeclineCreateMutation,
+  useContractInvitationsRetrieveQuery,
+  useFamiliesListQuery,
+} from '@/src/api'
 import { extractErrorMessages } from '@/src/api/errors'
-import { canManageFamily, getFamilies } from '@/src/api/family'
 import { useAuth } from '@/src/auth/AuthContext'
 import { FormErrors } from '@/src/components/FormErrors'
 import { Button } from '@/src/components/ui/button'
 import { Card, CardContent } from '@/src/components/ui/card'
 import { RadioGroup, RadioGroupItem } from '@/src/components/ui/radio-group'
 import { useI18n } from '@/src/i18n/I18nContext'
+import { canManageFamily } from '@/src/lib/family'
 
 // Landing page for a contract-share invitation link (the email points here). Public,
 // so it renders for a signed-out invitee too: they see who invited them, then get
@@ -24,10 +24,8 @@ export default function ContractInvitePage() {
   const { token = '' } = useParams()
   const { isAuthenticated } = useAuth()
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['contract-invitation', token],
-    queryFn: () => getContractInvitationPreview(token),
-    retry: false,
+  const { data, isLoading, isError } = useContractInvitationsRetrieveQuery({
+    token,
   })
 
   const nannyName = data
@@ -108,20 +106,20 @@ function SignInPrompt({ token }: { token: string }) {
 function RespondActions({ token }: { token: string }) {
   const { t } = useI18n()
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const [errors, setErrors] = useState<string[]>([])
   const [chosen, setChosen] = useState('')
   const [done, setDone] = useState<'accepted' | 'declined' | null>(null)
   const [busy, setBusy] = useState<'accept' | 'decline' | null>(null)
+  const [acceptContractInvitation] =
+    useContractInvitationsAcceptCreateMutation()
+  const [declineContractInvitation] =
+    useContractInvitationsDeclineCreateMutation()
 
   const {
     data: families,
     isLoading,
     isError: familiesError,
-  } = useQuery({
-    queryKey: ['families'],
-    queryFn: getFamilies,
-  })
+  } = useFamiliesListQuery()
   // Only families the user owns (or an unclaimed one they created) can be attached.
   const manageable = (families ?? []).filter(canManageFamily)
   // Default to the first manageable family until the user picks another.
@@ -131,12 +129,12 @@ function RespondActions({ token }: { token: string }) {
     setErrors([])
     setBusy('accept')
     try {
-      await acceptContractInvitation(token, familyId)
-      // The attached family now shares the contract: refresh its list, the contracts
-      // it can see, and this user's pending-invite inbox (mirrors the Nannies accept).
-      await queryClient.invalidateQueries({ queryKey: ['families'] })
-      queryClient.invalidateQueries({ queryKey: ['contracts'] })
-      queryClient.invalidateQueries({ queryKey: ['my-contract-invitations'] })
+      // The attached family now shares the contract; RTK Query tags refetch the
+      // affected family-scoped and contract-invitation queries automatically.
+      await acceptContractInvitation({
+        token,
+        acceptContractInvitationRequestRequest: { family_id: familyId },
+      }).unwrap()
       setDone('accepted')
     } catch (err) {
       setErrors(extractErrorMessages(err, t('contractInvite.error')))
@@ -149,7 +147,7 @@ function RespondActions({ token }: { token: string }) {
     setErrors([])
     setBusy('decline')
     try {
-      await declineContractInvitation(token)
+      await declineContractInvitation({ token }).unwrap()
       setDone('declined')
     } catch (err) {
       setErrors(extractErrorMessages(err, t('contractInvite.error')))

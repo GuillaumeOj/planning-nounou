@@ -1,6 +1,5 @@
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { AxiosError } from 'axios'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '@/src/auth/AuthContext'
 import RegisterPage from '@/src/pages/RegisterPage'
@@ -52,7 +51,9 @@ describe('RegisterPage', () => {
   })
 
   it('shows an error message when registration fails', async () => {
-    register.mockRejectedValue(new Error('bad'))
+    // A bodyless server failure carries no field messages, so the UI falls back
+    // to the generic copy.
+    register.mockRejectedValue({ status: 500 })
     renderPage()
 
     await userEvent.type(screen.getByLabelText('Email'), 'new@example.com')
@@ -66,14 +67,15 @@ describe('RegisterPage', () => {
   })
 
   it('lists every field error when the API returns several', async () => {
-    const error = new AxiosError('bad request')
-    const data = {
-      email: ['A user with this email already exists.'],
-      password: ['This password is too short.'],
-    }
-    // biome-ignore lint/suspicious/noExplicitAny: minimal response shape for the test
-    error.response = { data } as any
-    register.mockRejectedValue(error)
+    // A rejected mutation `.unwrap()` throws a FetchBaseQueryError ({ status, data });
+    // extractErrorMessages flattens the DRF field -> [messages] map into a list.
+    register.mockRejectedValue({
+      status: 400,
+      data: {
+        email: ['A user with this email already exists.'],
+        password: ['This password is too short.'],
+      },
+    })
     renderPage()
 
     await userEvent.type(screen.getByLabelText('Email'), 'taken@example.com')

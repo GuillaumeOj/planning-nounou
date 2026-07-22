@@ -1,38 +1,11 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { AxiosError } from 'axios'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Contract } from '@/src/api/contracts'
-import {
-  createExceptionalHours,
-  deleteExceptionalHours,
-  type ExceptionalHours,
-  getExceptionalHours,
-  updateExceptionalHours,
-} from '@/src/api/declarations'
+import { HttpResponse, http } from 'msw'
+import { describe, expect, it } from 'vitest'
+import type { ContractRead, ExceptionalHoursRead } from '@/src/api'
 import { ExceptionalHoursSection } from '@/src/components/ExceptionalHoursSection'
+import { server } from '@/tests/msw/server'
 import { renderWithProviders, selectOption } from '@/tests/utils'
-
-vi.mock('@/src/api/declarations', () => {
-  const getExceptionalHours = vi.fn()
-  return {
-    getExceptionalHours,
-    createExceptionalHours: vi.fn(),
-    updateExceptionalHours: vi.fn(),
-    deleteExceptionalHours: vi.fn(),
-    exceptionalHoursQueryOptions: (familyId: string, contractId: string) => ({
-      queryKey: ['exceptional-hours', contractId],
-      queryFn: () => getExceptionalHours(familyId, contractId),
-    }),
-  }
-})
-
-const m = {
-  get: vi.mocked(getExceptionalHours),
-  create: vi.mocked(createExceptionalHours),
-  update: vi.mocked(updateExceptionalHours),
-  del: vi.mocked(deleteExceptionalHours),
-}
 
 const contract = {
   id: '10',
@@ -45,9 +18,11 @@ const contract = {
   families: [{ id: '1', name: 'Home', is_originator: true }],
   current_terms: null,
   current_schedule: null,
-} as Contract
+} as ContractRead
 
-function makeHours(o: Partial<ExceptionalHours> = {}): ExceptionalHours {
+function makeHours(
+  o: Partial<ExceptionalHoursRead> = {},
+): ExceptionalHoursRead {
   return {
     id: 'H1',
     family: '1',
@@ -63,12 +38,36 @@ function makeHours(o: Partial<ExceptionalHours> = {}): ExceptionalHours {
   }
 }
 
-// A DRF 400 as axios surfaces it: the server's reason, not a generic failure.
-function rejection(data: unknown): AxiosError {
-  const error = new AxiosError('request failed')
-  // biome-ignore lint/suspicious/noExplicitAny: minimal response shape for the test
-  error.response = { data } as any
-  return error
+// The endpoints the section drives. `*` matches any origin so the relative
+// baseUrl ('/api') resolves regardless of the jsdom host.
+const HOURS = '*/api/families/1/contracts/10/exceptional-hours/'
+const HOUR = '*/api/families/1/contracts/10/exceptional-hours/H1/'
+
+// Register the list GET plus create/update/delete handlers that record what was
+// sent, so tests can assert the request body — the MSW equivalent of the old
+// `expect(mockFn).toHaveBeenCalledWith(...)`.
+function setup(entries: ExceptionalHoursRead[] = []) {
+  const calls: {
+    create?: unknown
+    update?: unknown
+    deleted: boolean
+  } = { deleted: false }
+  server.use(
+    http.get(HOURS, () => HttpResponse.json(entries)),
+    http.post(HOURS, async ({ request }) => {
+      calls.create = await request.json()
+      return HttpResponse.json(makeHours(), { status: 201 })
+    }),
+    http.patch(HOUR, async ({ request }) => {
+      calls.update = await request.json()
+      return HttpResponse.json(makeHours())
+    }),
+    http.delete(HOUR, () => {
+      calls.deleted = true
+      return new HttpResponse(null, { status: 204 })
+    }),
+  )
+  return calls
 }
 
 const render = () =>
@@ -80,16 +79,9 @@ const render = () =>
     />,
   )
 
-beforeEach(() => {
-  m.get.mockResolvedValue([])
-  m.create.mockResolvedValue(makeHours())
-  m.update.mockResolvedValue(makeHours())
-  m.del.mockResolvedValue()
-})
-afterEach(() => vi.clearAllMocks())
-
 describe('ExceptionalHoursSection', () => {
   it('shows the nanny name and an empty state', async () => {
+    setup([])
     render()
     expect(await screen.findByText('Marie Dupont')).toBeInTheDocument()
     expect(
@@ -98,7 +90,7 @@ describe('ExceptionalHoursSection', () => {
   })
 
   it('lists an evening of extra hours and a night that runs past midnight', async () => {
-    m.get.mockResolvedValue([
+    setup([
       makeHours({ id: 'H2' }),
       makeHours({
         id: 'H3',
@@ -127,6 +119,7 @@ describe('ExceptionalHoursSection', () => {
   })
 
   it('requires start and end dates before saving', async () => {
+    const calls = setup()
     const user = userEvent.setup()
     render()
     await user.click(
@@ -138,10 +131,11 @@ describe('ExceptionalHoursSection', () => {
     expect(
       await screen.findByText('Give a start and end date.'),
     ).toBeInTheDocument()
-    expect(m.create).not.toHaveBeenCalled()
+    expect(calls.create).toBeUndefined()
   })
 
   it('requires start and end times before saving', async () => {
+    const calls = setup()
     const user = userEvent.setup()
     render()
     await user.click(
@@ -155,10 +149,11 @@ describe('ExceptionalHoursSection', () => {
     expect(
       await screen.findByText('Give a start and end time.'),
     ).toBeInTheDocument()
-    expect(m.create).not.toHaveBeenCalled()
+    expect(calls.create).toBeUndefined()
   })
 
   it('creates an evening of extra hours', async () => {
+    const calls = setup()
     const user = userEvent.setup()
     render()
     await user.click(
@@ -172,22 +167,19 @@ describe('ExceptionalHoursSection', () => {
       screen.getByRole('button', { name: 'Save exceptional hours' }),
     )
     await waitFor(() =>
-      expect(m.create).toHaveBeenCalledWith(
-        '1',
-        '10',
-        expect.objectContaining({
-          kind: 'effective',
-          start_date: '2026-07-06',
-          start_time: '18:00',
-          end_date: '2026-07-06',
-          end_time: '20:00',
-          interventions: 0,
-        }),
-      ),
+      expect(calls.create).toMatchObject({
+        kind: 'effective',
+        start_date: '2026-07-06',
+        start_time: '18:00',
+        end_date: '2026-07-06',
+        end_time: '20:00',
+        interventions: 0,
+      }),
     )
   })
 
   it('asks for interventions only on a night, and files the count', async () => {
+    const calls = setup()
     const user = userEvent.setup()
     render()
     await user.click(
@@ -207,21 +199,17 @@ describe('ExceptionalHoursSection', () => {
     )
 
     await waitFor(() =>
-      expect(m.create).toHaveBeenCalledWith(
-        '1',
-        '10',
-        expect.objectContaining({
-          kind: 'night_presence',
-          start_date: '2026-07-06',
-          end_date: '2026-07-07',
-          interventions: 2,
-        }),
-      ),
+      expect(calls.create).toMatchObject({
+        kind: 'night_presence',
+        start_date: '2026-07-06',
+        end_date: '2026-07-07',
+        interventions: 2,
+      }),
     )
   })
 
   it('edits an existing entry', async () => {
-    m.get.mockResolvedValue([makeHours()])
+    const calls = setup([makeHours()])
     const user = userEvent.setup()
     render()
     await user.click(await screen.findByRole('button', { name: 'Edit' }))
@@ -230,27 +218,22 @@ describe('ExceptionalHoursSection', () => {
       screen.getByRole('button', { name: 'Save exceptional hours' }),
     )
     await waitFor(() =>
-      expect(m.update).toHaveBeenCalledWith(
-        '1',
-        '10',
-        'H1',
-        expect.objectContaining({
-          notes: 'late pickup',
-          start_time: '18:00',
-          end_time: '20:00',
-        }),
-      ),
+      expect(calls.update).toMatchObject({
+        notes: 'late pickup',
+        start_time: '18:00',
+        end_time: '20:00',
+      }),
     )
   })
 
   it('deletes an entry after confirmation', async () => {
-    m.get.mockResolvedValue([makeHours()])
+    const calls = setup([makeHours()])
     const user = userEvent.setup()
     render()
     await user.click(await screen.findByRole('button', { name: 'Delete' }))
     const dialog = await screen.findByRole('alertdialog')
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
-    await waitFor(() => expect(m.del).toHaveBeenCalledWith('1', '10', 'H1'))
+    await waitFor(() => expect(calls.deleted).toBe(true))
   })
 
   // The endpoint returns the acting family's entries and nobody else's — an
@@ -258,7 +241,7 @@ describe('ExceptionalHoursSection', () => {
   // so every row here is yours to edit. What the API hands back is a backend
   // test now; what this one owes is that the row offers its controls.
   it('offers Edit and Delete on the entries it is given', async () => {
-    m.get.mockResolvedValue([makeHours()])
+    setup([makeHours()])
     render()
 
     expect(
@@ -269,12 +252,18 @@ describe('ExceptionalHoursSection', () => {
   })
 
   it('surfaces the reason the server refused the combination', async () => {
+    setup()
     // The convention forbids a présence responsable on a shared contract; the
-    // rule lives on the server, and its message is what the parent must read.
-    m.create.mockRejectedValue(
-      rejection({
-        kind: ['Responsible presence is not allowed on a shared contract.'],
-      }),
+    // rule lives on the server, and its message (a DRF 400) is what shows.
+    server.use(
+      http.post(HOURS, () =>
+        HttpResponse.json(
+          {
+            kind: ['Responsible presence is not allowed on a shared contract.'],
+          },
+          { status: 400 },
+        ),
+      ),
     )
     const user = userEvent.setup()
     render()
@@ -297,7 +286,9 @@ describe('ExceptionalHoursSection', () => {
   })
 
   it('falls back to a generic message when the failure carries none', async () => {
-    m.create.mockRejectedValue(new Error('boom'))
+    setup()
+    // A 500 with no body carries no field messages, so the UI shows the fallback.
+    server.use(http.post(HOURS, () => new HttpResponse(null, { status: 500 })))
     const user = userEvent.setup()
     render()
     await user.click(
@@ -316,6 +307,7 @@ describe('ExceptionalHoursSection', () => {
   })
 
   it('cancels the form', async () => {
+    setup()
     const user = userEvent.setup()
     render()
     await user.click(

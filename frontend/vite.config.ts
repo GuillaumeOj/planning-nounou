@@ -54,6 +54,11 @@ export default defineConfig({
     globals: true,
     include: ['tests/**/*.test.{ts,tsx}'],
     setupFiles: ['./tests/setup.ts'],
+    // The RTK Query baseQuery falls back to the relative '/api', which undici (the
+    // Node test runtime's fetch) can't parse — relative URLs only resolve in a browser.
+    // Give it an absolute base so requests are absolute and MSW can intercept them;
+    // handlers match on the path with a '*' origin wildcard.
+    env: { VITE_API_URL: 'http://localhost/api' },
     // The default 5s is wall-clock, and these tests spend most of it waiting for
     // a core rather than working: a userEvent-driven test that takes under a
     // second on its own can blow 5s when the suite runs in parallel on a busy
@@ -71,7 +76,15 @@ export default defineConfig({
       // but `cn` and a class string, but it now holds real logic (day-window
       // copying, money/hours formatting) that was gated while it lived in a page
       // and would silently stop being gated by the move alone.
-      exclude: ['src/main.tsx', 'src/vite-env.d.ts', 'src/components/ui/**'],
+      exclude: [
+        'src/main.tsx',
+        'src/vite-env.d.ts',
+        'src/components/ui/**',
+        // Generated from the OpenAPI schema (see openapi-config.ts) — not hand-written,
+        // so not first-party code to gate on. Its endpoints are exercised through the
+        // components that call them.
+        'src/api/generated.ts',
+      ],
       thresholds: {
         lines: 90,
         functions: 90,

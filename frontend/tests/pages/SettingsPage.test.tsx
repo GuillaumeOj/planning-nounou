@@ -1,39 +1,25 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { ReactNode } from 'react'
+import { HttpResponse, http } from 'msw'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { changeEmail, changePassword, updateProfile } from '@/src/api/auth'
 import { useAuth } from '@/src/auth/AuthContext'
-import { I18nProvider } from '@/src/i18n/I18nContext'
 import SettingsPage from '@/src/pages/SettingsPage'
-import { makeAuth } from '@/tests/utils'
+import { server } from '@/tests/msw/server'
+import { makeAuth, renderWithProviders } from '@/tests/utils'
 
-vi.mock('@/src/api/auth', () => ({
-  updateProfile: vi.fn(),
-  changeEmail: vi.fn(),
-  changePassword: vi.fn(),
-}))
 vi.mock('@/src/auth/AuthContext', () => ({ useAuth: vi.fn() }))
 
 const mockUseAuth = vi.mocked(useAuth)
-const mockUpdateProfile = vi.mocked(updateProfile)
-const mockChangeEmail = vi.mocked(changeEmail)
-const mockChangePassword = vi.mocked(changePassword)
 const refreshUser = vi.fn()
 
+// Endpoints the three sections drive: profile via PATCH users/me, email via
+// set_email, password via set_password. All go through MSW.
+const ME = '*/api/auth/users/me/'
+const SET_EMAIL = '*/api/auth/users/set_email/'
+const SET_PASSWORD = '*/api/auth/users/set_password/'
+
 function renderPage() {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  })
-  function wrapper({ children }: { children: ReactNode }) {
-    return (
-      <I18nProvider>
-        <QueryClientProvider client={client}>{children}</QueryClientProvider>
-      </I18nProvider>
-    )
-  }
-  return render(<SettingsPage />, { wrapper })
+  return renderWithProviders(<SettingsPage />)
 }
 
 beforeEach(() => {
@@ -66,12 +52,18 @@ describe('SettingsPage — sections', () => {
 
 describe('SettingsPage — profile', () => {
   it('updates the names and refreshes the user', async () => {
-    mockUpdateProfile.mockResolvedValue({
-      id: '1',
-      email: 'me@example.com',
-      first_name: 'Grace',
-      last_name: 'Hopper',
-    })
+    let body: unknown
+    server.use(
+      http.patch(ME, async ({ request }) => {
+        body = await request.json()
+        return HttpResponse.json({
+          id: '1',
+          email: 'me@example.com',
+          first_name: 'Grace',
+          last_name: 'Hopper',
+        })
+      }),
+    )
     renderPage()
 
     const firstName = screen.getByLabelText('First name')
@@ -80,7 +72,7 @@ describe('SettingsPage — profile', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save profile' }))
 
     await waitFor(() =>
-      expect(mockUpdateProfile).toHaveBeenCalledWith({
+      expect(body).toMatchObject({
         first_name: 'Grace',
         last_name: 'Lovelace',
       }),
@@ -90,7 +82,7 @@ describe('SettingsPage — profile', () => {
   })
 
   it('shows an error when the profile update fails', async () => {
-    mockUpdateProfile.mockRejectedValue(new Error('nope'))
+    server.use(http.patch(ME, () => new HttpResponse(null, { status: 500 })))
     renderPage()
 
     await userEvent.click(screen.getByRole('button', { name: 'Save profile' }))
@@ -103,7 +95,13 @@ describe('SettingsPage — profile', () => {
 
 describe('SettingsPage — email', () => {
   it('confirms with the password in a dialog and changes the email', async () => {
-    mockChangeEmail.mockResolvedValue(undefined)
+    let body: unknown
+    server.use(
+      http.post(SET_EMAIL, async ({ request }) => {
+        body = await request.json()
+        return new HttpResponse(null, { status: 204 })
+      }),
+    )
     renderPage()
 
     await userEvent.type(screen.getByLabelText('New email'), 'new@example.com')
@@ -121,7 +119,7 @@ describe('SettingsPage — email', () => {
     )
 
     await waitFor(() =>
-      expect(mockChangeEmail).toHaveBeenCalledWith({
+      expect(body).toMatchObject({
         current_password: 'my-current-pass',
         new_email: 'new@example.com',
       }),
@@ -141,6 +139,13 @@ describe('SettingsPage — email', () => {
   })
 
   it('cancels the dialog without changing the email', async () => {
+    let called = false
+    server.use(
+      http.post(SET_EMAIL, () => {
+        called = true
+        return new HttpResponse(null, { status: 204 })
+      }),
+    )
     renderPage()
 
     await userEvent.type(screen.getByLabelText('New email'), 'new@example.com')
@@ -156,11 +161,13 @@ describe('SettingsPage — email', () => {
     expect(
       screen.queryByRole('dialog', { name: 'Confirm your password' }),
     ).not.toBeInTheDocument()
-    expect(mockChangeEmail).not.toHaveBeenCalled()
+    expect(called).toBe(false)
   })
 
   it('shows an error in the dialog when the password is wrong', async () => {
-    mockChangeEmail.mockRejectedValue(new Error('bad password'))
+    server.use(
+      http.post(SET_EMAIL, () => new HttpResponse(null, { status: 400 })),
+    )
     renderPage()
 
     await userEvent.type(screen.getByLabelText('New email'), 'new@example.com')
@@ -185,7 +192,13 @@ describe('SettingsPage — email', () => {
 
 describe('SettingsPage — password', () => {
   it('changes the password', async () => {
-    mockChangePassword.mockResolvedValue(undefined)
+    let body: unknown
+    server.use(
+      http.post(SET_PASSWORD, async ({ request }) => {
+        body = await request.json()
+        return new HttpResponse(null, { status: 204 })
+      }),
+    )
     renderPage()
 
     await userEvent.type(
@@ -201,7 +214,7 @@ describe('SettingsPage — password', () => {
     )
 
     await waitFor(() =>
-      expect(mockChangePassword).toHaveBeenCalledWith({
+      expect(body).toMatchObject({
         current_password: 'my-current-pass',
         new_password: 'a-brand-new-pass',
       }),

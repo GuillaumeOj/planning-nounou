@@ -1,37 +1,11 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Contract } from '@/src/api/contracts'
-import {
-  createLeave,
-  deleteLeave,
-  getLeaves,
-  type Leave,
-  updateLeave,
-} from '@/src/api/leaves'
+import { HttpResponse, http } from 'msw'
+import { describe, expect, it } from 'vitest'
+import type { ContractRead, LeaveRead } from '@/src/api'
 import { LeavesSection } from '@/src/components/LeavesSection'
+import { server } from '@/tests/msw/server'
 import { renderWithProviders, selectOption } from '@/tests/utils'
-
-vi.mock('@/src/api/leaves', () => {
-  const getLeaves = vi.fn()
-  return {
-    getLeaves,
-    createLeave: vi.fn(),
-    updateLeave: vi.fn(),
-    deleteLeave: vi.fn(),
-    leavesQueryOptions: (familyId: string, contractId: string) => ({
-      queryKey: ['contract-leaves', contractId],
-      queryFn: () => getLeaves(familyId, contractId),
-    }),
-  }
-})
-
-const m = {
-  get: vi.mocked(getLeaves),
-  create: vi.mocked(createLeave),
-  update: vi.mocked(updateLeave),
-  del: vi.mocked(deleteLeave),
-}
 
 const contract = {
   id: '10',
@@ -44,9 +18,9 @@ const contract = {
   families: [{ id: '1', name: 'Home', is_originator: true }],
   current_terms: null,
   current_schedule: null,
-} as Contract
+} as ContractRead
 
-function makeLeave(o: Partial<Leave> = {}): Leave {
+function makeLeave(o: Partial<LeaveRead> = {}): LeaveRead {
   return {
     id: 'L1',
     leave_type: 'paid',
@@ -59,28 +33,53 @@ function makeLeave(o: Partial<Leave> = {}): Leave {
   }
 }
 
+// The endpoints LeavesSection drives. `*` matches any origin so the relative baseUrl
+// ('/api') resolves regardless of the jsdom host.
+const LEAVES = '*/api/families/1/contracts/10/leaves/'
+const LEAVE = '*/api/families/1/contracts/10/leaves/L1/'
+
+// Register the list GET (returning `leaves`) plus create/update/delete handlers that
+// record what was sent, so tests can assert the request body — the MSW equivalent of
+// the old `expect(mockFn).toHaveBeenCalledWith(...)`.
+function setup(leaves: LeaveRead[] = []) {
+  const calls: {
+    create?: unknown
+    update?: unknown
+    deleted: boolean
+  } = { deleted: false }
+  server.use(
+    http.get(LEAVES, () => HttpResponse.json(leaves)),
+    http.post(LEAVES, async ({ request }) => {
+      calls.create = await request.json()
+      return HttpResponse.json(makeLeave(), { status: 201 })
+    }),
+    http.patch(LEAVE, async ({ request }) => {
+      calls.update = await request.json()
+      return HttpResponse.json(makeLeave())
+    }),
+    http.delete(LEAVE, () => {
+      calls.deleted = true
+      return new HttpResponse(null, { status: 204 })
+    }),
+  )
+  return calls
+}
+
 const render = () =>
   renderWithProviders(
     <LeavesSection familyId="1" contract={contract} month="2026-07" />,
   )
 
-beforeEach(() => {
-  m.get.mockResolvedValue([])
-  m.create.mockResolvedValue(makeLeave())
-  m.update.mockResolvedValue(makeLeave())
-  m.del.mockResolvedValue()
-})
-afterEach(() => vi.clearAllMocks())
-
 describe('LeavesSection', () => {
   it('shows the nanny name and an empty state', async () => {
+    setup([])
     render()
     expect(await screen.findByText('Marie Dupont')).toBeInTheDocument()
     expect(screen.getByText('No days off this month.')).toBeInTheDocument()
   })
 
   it('lists a multi-day paid leave and an hourly unpaid leave', async () => {
-    m.get.mockResolvedValue([
+    setup([
       makeLeave({ id: 'L2' }),
       makeLeave({
         id: 'L3',
@@ -101,6 +100,7 @@ describe('LeavesSection', () => {
   })
 
   it('requires start and end dates before saving', async () => {
+    const calls = setup()
     const user = userEvent.setup()
     render()
     await user.click(
@@ -110,10 +110,11 @@ describe('LeavesSection', () => {
     expect(
       await screen.findByText('Give a start and end date.'),
     ).toBeInTheDocument()
-    expect(m.create).not.toHaveBeenCalled()
+    expect(calls.create).toBeUndefined()
   })
 
   it('creates a full-day paid leave', async () => {
+    const calls = setup()
     const user = userEvent.setup()
     render()
     await user.click(
@@ -123,21 +124,18 @@ describe('LeavesSection', () => {
     await user.type(screen.getByLabelText('To'), '07/10/2026')
     await user.click(screen.getByRole('button', { name: 'Save days off' }))
     await waitFor(() =>
-      expect(m.create).toHaveBeenCalledWith(
-        '1',
-        '10',
-        expect.objectContaining({
-          leave_type: 'paid',
-          start_date: '2026-07-06',
-          end_date: '2026-07-10',
-          portion: 'full_day',
-          hours: null,
-        }),
-      ),
+      expect(calls.create).toMatchObject({
+        leave_type: 'paid',
+        start_date: '2026-07-06',
+        end_date: '2026-07-10',
+        portion: 'full_day',
+        hours: null,
+      }),
     )
   })
 
   it('offers hourly only for unpaid leave and creates it with hours', async () => {
+    const calls = setup()
     const user = userEvent.setup()
     render()
     await user.click(
@@ -161,19 +159,16 @@ describe('LeavesSection', () => {
     await user.click(screen.getByRole('button', { name: 'Save days off' }))
 
     await waitFor(() =>
-      expect(m.create).toHaveBeenCalledWith(
-        '1',
-        '10',
-        expect.objectContaining({
-          leave_type: 'unpaid',
-          portion: 'hourly',
-          hours: '3.5',
-        }),
-      ),
+      expect(calls.create).toMatchObject({
+        leave_type: 'unpaid',
+        portion: 'hourly',
+        hours: '3.5',
+      }),
     )
   })
 
   it('requires hours for an hourly leave', async () => {
+    const calls = setup()
     const user = userEvent.setup()
     render()
     await user.click(
@@ -187,10 +182,11 @@ describe('LeavesSection', () => {
     expect(
       await screen.findByText('Give the number of hours for an hourly leave.'),
     ).toBeInTheDocument()
-    expect(m.create).not.toHaveBeenCalled()
+    expect(calls.create).toBeUndefined()
   })
 
   it('resets hourly to whole day when switching away from unpaid', async () => {
+    setup()
     const user = userEvent.setup()
     render()
     await user.click(
@@ -211,34 +207,31 @@ describe('LeavesSection', () => {
   })
 
   it('edits an existing leave', async () => {
-    m.get.mockResolvedValue([makeLeave()])
+    const calls = setup([makeLeave()])
     const user = userEvent.setup()
     render()
     await user.click(await screen.findByRole('button', { name: 'Edit' }))
     await user.type(screen.getByLabelText('Notes'), 'sick child')
     await user.click(screen.getByRole('button', { name: 'Save days off' }))
     await waitFor(() =>
-      expect(m.update).toHaveBeenCalledWith(
-        '1',
-        '10',
-        'L1',
-        expect.objectContaining({ notes: 'sick child' }),
-      ),
+      expect(calls.update).toMatchObject({ notes: 'sick child' }),
     )
   })
 
   it('deletes a leave after confirmation', async () => {
-    m.get.mockResolvedValue([makeLeave()])
+    const calls = setup([makeLeave()])
     const user = userEvent.setup()
     render()
     await user.click(await screen.findByRole('button', { name: 'Delete' }))
     const dialog = await screen.findByRole('alertdialog')
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
-    await waitFor(() => expect(m.del).toHaveBeenCalledWith('1', '10', 'L1'))
+    await waitFor(() => expect(calls.deleted).toBe(true))
   })
 
   it('surfaces a server error on save', async () => {
-    m.create.mockRejectedValue(new Error('boom'))
+    setup()
+    // A 500 with no body carries no field messages, so the UI shows the fallback.
+    server.use(http.post(LEAVES, () => new HttpResponse(null, { status: 500 })))
     const user = userEvent.setup()
     render()
     await user.click(
@@ -253,6 +246,7 @@ describe('LeavesSection', () => {
   })
 
   it('cancels the form', async () => {
+    setup()
     const user = userEvent.setup()
     render()
     await user.click(

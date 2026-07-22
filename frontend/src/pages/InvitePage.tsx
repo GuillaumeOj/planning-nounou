@@ -1,13 +1,12 @@
 import { useForm } from '@tanstack/react-form'
-import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { extractErrorMessages } from '@/src/api/errors'
 import {
-  acceptInvitation,
-  declineInvitation,
-  getInvitationPreview,
-} from '@/src/api/family'
+  useInvitationsAcceptCreateMutation,
+  useInvitationsDeclineCreateMutation,
+  useInvitationsRetrieveQuery,
+} from '@/src/api'
+import { extractErrorMessages } from '@/src/api/errors'
 import { useAuth } from '@/src/auth/AuthContext'
 import { FormErrors } from '@/src/components/FormErrors'
 import { TextField } from '@/src/components/TextField'
@@ -22,11 +21,7 @@ export default function InvitePage() {
   const { token = '' } = useParams()
   const { isAuthenticated } = useAuth()
 
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['invitation', token],
-    queryFn: () => getInvitationPreview(token),
-    retry: false,
-  })
+  const { data, isLoading, isError } = useInvitationsRetrieveQuery({ token })
 
   return (
     <main className="flex flex-1 items-center justify-center p-4 sm:p-6">
@@ -82,12 +77,14 @@ function RespondActions({ token }: { token: string }) {
   const [errors, setErrors] = useState<string[]>([])
   const [done, setDone] = useState<'accepted' | 'declined' | null>(null)
   const [busy, setBusy] = useState<'accept' | 'decline' | null>(null)
+  const [acceptInvitation] = useInvitationsAcceptCreateMutation()
+  const [declineInvitation] = useInvitationsDeclineCreateMutation()
 
   const accept = async () => {
     setErrors([])
     setBusy('accept')
     try {
-      await acceptInvitation(token)
+      await acceptInvitation({ token }).unwrap()
       setDone('accepted')
     } catch (err) {
       setErrors(extractErrorMessages(err, t('invite.error')))
@@ -100,7 +97,7 @@ function RespondActions({ token }: { token: string }) {
     setErrors([])
     setBusy('decline')
     try {
-      await declineInvitation(token)
+      await declineInvitation({ token }).unwrap()
       setDone('declined')
     } catch (err) {
       setErrors(extractErrorMessages(err, t('invite.error')))

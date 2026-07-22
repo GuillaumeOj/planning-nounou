@@ -1,34 +1,17 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { listChildren } from '@/src/api/children'
-import type { Contract } from '@/src/api/contracts'
-import {
-  type ContractChild,
-  createContractChild,
-  deleteContractChild,
-  getContractChildren,
-  updateContractChild,
-} from '@/src/api/declarations'
-import type { Family } from '@/src/api/family'
+import { HttpResponse, http } from 'msw'
+import { beforeEach, describe, expect, it } from 'vitest'
+import type {
+  ChildRead,
+  ContractChildRead,
+  ContractChildRequest,
+  ContractRead,
+  FamilyRead,
+} from '@/src/api'
 import { ContractChildrenSection } from '@/src/components/ContractChildrenSection'
+import { server } from '@/tests/msw/server'
 import { renderWithProviders, selectOption } from '@/tests/utils'
-
-vi.mock('@/src/api/declarations', () => ({
-  getContractChildren: vi.fn(),
-  createContractChild: vi.fn(),
-  updateContractChild: vi.fn(),
-  deleteContractChild: vi.fn(),
-}))
-vi.mock('@/src/api/children', () => ({ listChildren: vi.fn() }))
-
-const m = {
-  entries: vi.mocked(getContractChildren),
-  create: vi.mocked(createContractChild),
-  update: vi.mocked(updateContractChild),
-  remove: vi.mocked(deleteContractChild),
-  children: vi.mocked(listChildren),
-}
 
 const OWN_FAMILY = 'fam-1'
 const OTHER_FAMILY = 'fam-2'
@@ -47,9 +30,9 @@ const contractFamily = (id: string) => ({
 const contract = {
   id: 'contract-1',
   families: [contractFamily(OWN_FAMILY), contractFamily(OTHER_FAMILY)],
-} as Contract
+} as ContractRead
 
-const fam = (o: Partial<Family> & Pick<Family, 'id'>): Family => ({
+const fam = (o: Partial<FamilyRead> & Pick<FamilyRead, 'id'>): FamilyRead => ({
   name: o.id,
   role: 'owner',
   is_claimed: true,
@@ -61,7 +44,7 @@ const fam = (o: Partial<Family> & Pick<Family, 'id'>): Family => ({
 // says otherwise.
 const OWNS_ONE = [fam({ id: OWN_FAMILY })]
 
-const child = (o: Partial<ContractChild> = {}): ContractChild => ({
+const child = (o: Partial<ContractChildRead> = {}): ContractChildRead => ({
   id: 'cc-1',
   child: 'kid-1',
   first_name: 'Léa',
@@ -70,7 +53,81 @@ const child = (o: Partial<ContractChild> = {}): ContractChild => ({
   ...o,
 })
 
-const render = (families: Family[] = OWNS_ONE, c: Contract = contract) =>
+// Each family's own children. OWN_FAMILY has two; the unclaimed one has Hugo.
+const DEFAULT_CHILDREN: Record<string, ChildRead[]> = {
+  [OWN_FAMILY]: [
+    { id: 'kid-1', first_name: 'Léa' },
+    { id: 'kid-2', first_name: 'Noé' },
+  ],
+  [UNCLAIMED_FAMILY]: [{ id: 'kid-9', first_name: 'Hugo' }],
+}
+
+// What each mutation was sent, captured off the wire — the MSW equivalent of the
+// old `expect(mockFn).toHaveBeenCalledWith(...)`. The family segment of the URL
+// is the family the write was routed through, which several tests assert.
+type Call = {
+  familyPk: string
+  contractPk: string
+  id?: string
+  body?: ContractChildRequest
+}
+
+// The list endpoints read from this mutable state, so a test just assigns to it
+// before rendering (the old beforeEach-default + per-test-override shape). Error
+// cases override a handler with a fresh `server.use(...)`, which takes priority.
+let state: {
+  entries: ContractChildRead[]
+  children: Record<string, ChildRead[]>
+  calls: { create?: Call; update?: Call; remove?: Call }
+}
+
+const CHILD = '*/api/families/:familyPk/children/'
+const CONTRACT_CHILDREN =
+  '*/api/families/:familyPk/contracts/:contractPk/children/'
+const CONTRACT_CHILD =
+  '*/api/families/:familyPk/contracts/:contractPk/children/:id/'
+
+beforeEach(() => {
+  state = { entries: [], children: DEFAULT_CHILDREN, calls: {} }
+  server.use(
+    // Each manageable family's children (one loader per family).
+    http.get(CHILD, ({ params }) =>
+      HttpResponse.json(state.children[params.familyPk as string] ?? []),
+    ),
+    // The children already on the contract.
+    http.get(CONTRACT_CHILDREN, () => HttpResponse.json(state.entries)),
+    http.post(CONTRACT_CHILDREN, async ({ params, request }) => {
+      state.calls.create = {
+        familyPk: params.familyPk as string,
+        contractPk: params.contractPk as string,
+        body: (await request.json()) as ContractChildRequest,
+      }
+      return HttpResponse.json(child(), { status: 201 })
+    }),
+    http.patch(CONTRACT_CHILD, async ({ params, request }) => {
+      state.calls.update = {
+        familyPk: params.familyPk as string,
+        contractPk: params.contractPk as string,
+        id: params.id as string,
+        body: (await request.json()) as ContractChildRequest,
+      }
+      return HttpResponse.json(child())
+    }),
+    http.delete(CONTRACT_CHILD, ({ params }) => {
+      state.calls.remove = {
+        familyPk: params.familyPk as string,
+        contractPk: params.contractPk as string,
+        id: params.id as string,
+      }
+      return new HttpResponse(null, { status: 204 })
+    }),
+  )
+})
+
+const render = (
+  families: FamilyRead[] = OWNS_ONE,
+  c: ContractRead = contract,
+) =>
   renderWithProviders(
     <ContractChildrenSection
       familyId={OWN_FAMILY}
@@ -79,21 +136,14 @@ const render = (families: Family[] = OWNS_ONE, c: Contract = contract) =>
     />,
   )
 
-beforeEach(() => {
-  vi.clearAllMocks()
-  m.entries.mockResolvedValue([])
-  // Each family's own children. OWN_FAMILY has two; the unclaimed one has Hugo.
-  m.children.mockImplementation((id: string) =>
-    Promise.resolve(
-      id === UNCLAIMED_FAMILY
-        ? [{ id: 'kid-9', first_name: 'Hugo' }]
-        : [
-            { id: 'kid-1', first_name: 'Léa' },
-            { id: 'kid-2', first_name: 'Noé' },
-          ],
-    ),
-  )
-})
+// The add button is disabled until each manageable family's children have
+// loaded over the wire (one query per family), so wait for it to be enabled
+// before opening the form — the fetch is async now that it is real HTTP.
+const clickAddChild = async () => {
+  const button = await screen.findByRole('button', { name: 'Add a child' })
+  await waitFor(() => expect(button).toBeEnabled())
+  await userEvent.click(button)
+}
 
 describe('ContractChildrenSection', () => {
   it('says so when no child is on the contract yet', async () => {
@@ -106,7 +156,7 @@ describe('ContractChildrenSection', () => {
   // An empty windows list does NOT mean "never" — it means the child is there
   // whenever the nanny works, so the summary has to say that out loud.
   it('reads an empty windows list as whole-time presence', async () => {
-    m.entries.mockResolvedValue([child()])
+    state.entries = [child()]
     render()
 
     expect(await screen.findByText('Léa')).toBeInTheDocument()
@@ -114,14 +164,24 @@ describe('ContractChildrenSection', () => {
   })
 
   it('summarises the days a windowed child is there', async () => {
-    m.entries.mockResolvedValue([
+    state.entries = [
       child({
         windows: [
-          { weekday: 0, start_time: '09:00:00', end_time: '17:00:00' },
-          { weekday: 3, start_time: '09:00:00', end_time: '12:00:00' },
+          {
+            id: 'w1',
+            weekday: 0,
+            start_time: '09:00:00',
+            end_time: '17:00:00',
+          },
+          {
+            id: 'w2',
+            weekday: 3,
+            start_time: '09:00:00',
+            end_time: '12:00:00',
+          },
         ],
       }),
-    ])
+    ]
     render()
 
     // English renders 12-hour times; the summary joins the days with a dot.
@@ -133,41 +193,41 @@ describe('ContractChildrenSection', () => {
   })
 
   it('adds a child present whenever the nanny works', async () => {
-    m.create.mockResolvedValue(child())
     render()
 
-    await userEvent.click(
-      await screen.findByRole('button', { name: 'Add a child' }),
-    )
+    await clickAddChild()
     await selectOption('Child', 'Léa')
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() =>
-      expect(m.create).toHaveBeenCalledWith(OWN_FAMILY, 'contract-1', {
-        child: 'kid-1',
-        windows: [],
+      expect(state.calls.create).toMatchObject({
+        familyPk: OWN_FAMILY,
+        contractPk: 'contract-1',
+        body: { child: 'kid-1', windows: [] },
       }),
     )
   })
 
   it('will not save without a child', async () => {
     render()
-    await userEvent.click(
-      await screen.findByRole('button', { name: 'Add a child' }),
-    )
+    await clickAddChild()
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     expect(await screen.findByText('Choose a child.')).toBeInTheDocument()
-    expect(m.create).not.toHaveBeenCalled()
+    expect(state.calls.create).toBeUndefined()
   })
 
   it('surfaces a failed save', async () => {
-    m.create.mockRejectedValue(new Error('nope'))
+    // A 500 with no body carries no field messages, so the UI shows the fallback.
+    server.use(
+      http.post(
+        CONTRACT_CHILDREN,
+        () => new HttpResponse(null, { status: 500 }),
+      ),
+    )
     render()
 
-    await userEvent.click(
-      await screen.findByRole('button', { name: 'Add a child' }),
-    )
+    await clickAddChild()
     await selectOption('Child', 'Léa')
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
@@ -177,23 +237,24 @@ describe('ContractChildrenSection', () => {
   })
 
   it('edits a child already on the contract', async () => {
-    m.entries.mockResolvedValue([child()])
-    m.update.mockResolvedValue(child())
+    state.entries = [child()]
     render()
 
     await userEvent.click(await screen.findByRole('button', { name: 'Edit' }))
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() =>
-      expect(m.update).toHaveBeenCalledWith(OWN_FAMILY, 'contract-1', 'cc-1', {
-        child: 'kid-1',
-        windows: [],
+      expect(state.calls.update).toMatchObject({
+        familyPk: OWN_FAMILY,
+        contractPk: 'contract-1',
+        id: 'cc-1',
+        body: { child: 'kid-1', windows: [] },
       }),
     )
   })
 
   it('takes a child off the contract once confirmed', async () => {
-    m.entries.mockResolvedValue([child()])
+    state.entries = [child()]
     render()
 
     await userEvent.click(await screen.findByRole('button', { name: 'Delete' }))
@@ -203,12 +264,16 @@ describe('ContractChildrenSection', () => {
     )
 
     await waitFor(() =>
-      expect(m.remove).toHaveBeenCalledWith(OWN_FAMILY, 'contract-1', 'cc-1'),
+      expect(state.calls.remove).toMatchObject({
+        familyPk: OWN_FAMILY,
+        contractPk: 'contract-1',
+        id: 'cc-1',
+      }),
     )
   })
 
   it('asks for a child in the family before offering the form', async () => {
-    m.children.mockResolvedValue([])
+    state.children = { [OWN_FAMILY]: [] }
     render()
 
     expect(
@@ -221,12 +286,10 @@ describe('ContractChildrenSection', () => {
 
   // Adding the same child twice would be a duplicate the backend rejects.
   it('does not offer a child already on the contract', async () => {
-    m.entries.mockResolvedValue([child()])
+    state.entries = [child()]
     render()
 
-    await userEvent.click(
-      await screen.findByRole('button', { name: 'Add a child' }),
-    )
+    await clickAddChild()
     await userEvent.click(screen.getByRole('combobox', { name: 'Child' }))
     const options = screen.getByRole('listbox')
     expect(within(options).queryByText('Léa')).not.toBeInTheDocument()
@@ -236,7 +299,7 @@ describe('ContractChildrenSection', () => {
   // The other family's children are half of what the split divides, so they are
   // shown — but the backend refuses writes to them, and so does the UI.
   it('shows the other family’s children read-only', async () => {
-    m.entries.mockResolvedValue([
+    state.entries = [
       child(),
       child({
         id: 'cc-2',
@@ -244,7 +307,7 @@ describe('ContractChildrenSection', () => {
         first_name: 'Hugo',
         family_id: OTHER_FAMILY,
       }),
-    ])
+    ]
     render()
 
     expect(await screen.findByText('Hugo')).toBeInTheDocument()
@@ -256,7 +319,7 @@ describe('ContractChildrenSection', () => {
   // A plain member of the family they are viewing manages no family here, so
   // the section offers no way to add — and must not claim the family is empty.
   it('offers no add affordance when the user manages no family here', async () => {
-    m.entries.mockResolvedValue([child()])
+    state.entries = [child()]
     render([fam({ id: OWN_FAMILY, role: 'member' })])
 
     // The read-only row still shows; the add area does not.
@@ -279,47 +342,44 @@ describe('ContractChildrenSection', () => {
   const contractWithUnclaimed = {
     id: 'contract-1',
     families: [contractFamily(OWN_FAMILY), contractFamily(UNCLAIMED_FAMILY)],
-  } as Contract
+  } as ContractRead
 
   it('edits an unclaimed family’s child, routed through that family', async () => {
-    m.entries.mockResolvedValue([
+    state.entries = [
       child({
         id: 'cc-9',
         child: 'kid-9',
         first_name: 'Hugo',
         family_id: UNCLAIMED_FAMILY,
       }),
-    ])
-    m.update.mockResolvedValue(child())
+    ]
     render(withUnclaimed, contractWithUnclaimed)
 
     await userEvent.click(await screen.findByRole('button', { name: 'Edit' }))
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() =>
-      expect(m.update).toHaveBeenCalledWith(
-        UNCLAIMED_FAMILY,
-        'contract-1',
-        'cc-9',
-        { child: 'kid-9', windows: [] },
-      ),
+      expect(state.calls.update).toMatchObject({
+        familyPk: UNCLAIMED_FAMILY,
+        contractPk: 'contract-1',
+        id: 'cc-9',
+        body: { child: 'kid-9', windows: [] },
+      }),
     )
   })
 
   it('adds an unclaimed family’s child, routed through that family', async () => {
-    m.create.mockResolvedValue(child())
     render(withUnclaimed, contractWithUnclaimed)
 
-    await userEvent.click(
-      await screen.findByRole('button', { name: 'Add a child' }),
-    )
+    await clickAddChild()
     await selectOption('Child', 'Hugo')
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() =>
-      expect(m.create).toHaveBeenCalledWith(UNCLAIMED_FAMILY, 'contract-1', {
-        child: 'kid-9',
-        windows: [],
+      expect(state.calls.create).toMatchObject({
+        familyPk: UNCLAIMED_FAMILY,
+        contractPk: 'contract-1',
+        body: { child: 'kid-9', windows: [] },
       }),
     )
   })
@@ -327,14 +387,14 @@ describe('ContractChildrenSection', () => {
   // Once the co-employer claims the family, the user no longer manages it: the
   // row goes read-only, matching the backend, which would now refuse the write.
   it('stops offering to edit a family once it is claimed', async () => {
-    m.entries.mockResolvedValue([
+    state.entries = [
       child({
         id: 'cc-9',
         child: 'kid-9',
         first_name: 'Hugo',
         family_id: UNCLAIMED_FAMILY,
       }),
-    ])
+    ]
     render(
       [
         fam({ id: OWN_FAMILY }),
@@ -353,9 +413,7 @@ describe('ContractChildrenSection', () => {
 describe('ContractChildrenSection windows', () => {
   const openWindows = async () => {
     render()
-    await userEvent.click(
-      await screen.findByRole('button', { name: 'Add a child' }),
-    )
+    await clickAddChild()
     await selectOption('Child', 'Léa')
     await userEvent.click(
       screen.getByRole('radio', { name: 'Only on certain days' }),
@@ -374,31 +432,33 @@ describe('ContractChildrenSection windows', () => {
     )
     expect(screen.queryByLabelText('Day')).not.toBeInTheDocument()
 
-    m.create.mockResolvedValue(child())
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
     await waitFor(() =>
-      expect(m.create).toHaveBeenCalledWith(OWN_FAMILY, 'contract-1', {
-        child: 'kid-1',
-        windows: [],
+      expect(state.calls.create).toMatchObject({
+        familyPk: OWN_FAMILY,
+        contractPk: 'contract-1',
+        body: { child: 'kid-1', windows: [] },
       }),
     )
   })
 
   it('saves the day windows that were filled in', async () => {
-    m.create.mockResolvedValue(child())
     await openWindows()
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() =>
-      expect(m.create).toHaveBeenCalledWith(OWN_FAMILY, 'contract-1', {
-        child: 'kid-1',
-        windows: [{ weekday: 0, start_time: '09:00', end_time: '17:00' }],
+      expect(state.calls.create).toMatchObject({
+        familyPk: OWN_FAMILY,
+        contractPk: 'contract-1',
+        body: {
+          child: 'kid-1',
+          windows: [{ weekday: 0, start_time: '09:00', end_time: '17:00' }],
+        },
       }),
     )
   })
 
   it('edits a window’s day and times', async () => {
-    m.create.mockResolvedValue(child())
     await openWindows()
 
     await selectOption('Day', 'Wednesday')
@@ -411,15 +471,18 @@ describe('ContractChildrenSection windows', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() =>
-      expect(m.create).toHaveBeenCalledWith(OWN_FAMILY, 'contract-1', {
-        child: 'kid-1',
-        windows: [{ weekday: 2, start_time: '08:30', end_time: '12:00' }],
+      expect(state.calls.create).toMatchObject({
+        familyPk: OWN_FAMILY,
+        contractPk: 'contract-1',
+        body: {
+          child: 'kid-1',
+          windows: [{ weekday: 2, start_time: '08:30', end_time: '12:00' }],
+        },
       }),
     )
   })
 
   it('backing out of a copy changes nothing', async () => {
-    m.create.mockResolvedValue(child())
     await openWindows()
 
     await userEvent.click(screen.getByRole('button', { name: 'Copy day' }))
@@ -432,9 +495,13 @@ describe('ContractChildrenSection windows', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() =>
-      expect(m.create).toHaveBeenCalledWith(OWN_FAMILY, 'contract-1', {
-        child: 'kid-1',
-        windows: [{ weekday: 0, start_time: '09:00', end_time: '17:00' }],
+      expect(state.calls.create).toMatchObject({
+        familyPk: OWN_FAMILY,
+        contractPk: 'contract-1',
+        body: {
+          child: 'kid-1',
+          windows: [{ weekday: 0, start_time: '09:00', end_time: '17:00' }],
+        },
       }),
     )
   })
@@ -442,7 +509,6 @@ describe('ContractChildrenSection windows', () => {
   // The Wednesday case: a child away midweek is four windows, and copying is
   // what stops a parent typing the same times four times and fumbling one.
   it('copies a day onto the other days, skipping the one left out', async () => {
-    m.create.mockResolvedValue(child())
     await openWindows()
 
     await userEvent.click(screen.getByRole('button', { name: 'Copy day' }))
@@ -452,14 +518,13 @@ describe('ContractChildrenSection windows', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Apply' }))
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
-    await waitFor(() => expect(m.create).toHaveBeenCalled())
-    const windows = m.create.mock.calls[0][2].windows
+    await waitFor(() => expect(state.calls.create).toBeDefined())
+    const windows = state.calls.create?.body?.windows
     // Mon/Tue/Thu/Fri present, Wednesday absent — that is the day off.
     expect(windows?.map((w) => w.weekday)).toEqual([0, 1, 3, 4])
   })
 
   it('removes a day from the windows', async () => {
-    m.create.mockResolvedValue(child())
     await openWindows()
 
     await userEvent.click(screen.getByRole('button', { name: 'Add a day' }))

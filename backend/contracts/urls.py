@@ -49,6 +49,18 @@ invitation_detail = views.ContractInvitationViewSet.as_view({"delete": "destroy"
 
 urlpatterns = [
     path("health/", views.health, name="health"),
+    # One-shot aggregates: the Home dashboard and the Planning calendar, each
+    # collapsing a screen's worth of per-contract requests into a single GET.
+    path(
+        "families/<uuid:family_pk>/dashboard/",
+        views.FamilyDashboardView.as_view(),
+        name="family-dashboard",
+    ),
+    path(
+        "families/<uuid:family_pk>/planning/",
+        views.FamilyPlanningView.as_view(),
+        name="family-planning",
+    ),
     # A family's shared contracts.
     path("families/<uuid:family_pk>/contracts/", contract_list, name="family-contracts"),
     path(

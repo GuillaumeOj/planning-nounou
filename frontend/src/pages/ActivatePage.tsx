@@ -1,7 +1,7 @@
 import { MailCheck } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { activate } from '@/src/api/auth'
+import { useAuthUsersActivationCreateMutation } from '@/src/api'
 import { AuthCard } from '@/src/components/AuthCard'
 import { useI18n } from '@/src/i18n/I18nContext'
 import type { TranslationKey } from '@/src/i18n/translations'
@@ -39,14 +39,16 @@ export default function ActivatePage() {
   const [status, setStatus] = useState<Status>('verifying')
   // Guard against a double-invoke in React StrictMode (dev): only activate once.
   const started = useRef(false)
+  const [activate] = useAuthUsersActivationCreateMutation()
 
   useEffect(() => {
     if (started.current) return
     started.current = true
-    activate({ uid, token })
+    activate({ activationRequest: { uid, token } })
+      .unwrap()
       .then(() => setStatus('success'))
       .catch(() => setStatus('error'))
-  }, [uid, token])
+  }, [uid, token, activate])
 
   const view = STATUS[status]
 

@@ -8,6 +8,7 @@
       "!node_modules",
       "!**/*.svg",
       "!src/components/ui",
+      "!src/api/generated.ts",
       "!src/index.css"
     ]
   },

@@ -1,32 +1,29 @@
 import { useForm } from '@tanstack/react-form'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
 import {
-  type Child,
-  createChild,
-  deleteChild,
-  listChildren,
-  updateChild,
-} from '@/src/api/children'
+  type ChildRead,
+  type FamilyRead,
+  type RoleEnum,
+  useFamiliesChildrenCreateMutation,
+  useFamiliesChildrenDestroyMutation,
+  useFamiliesChildrenListQuery,
+  useFamiliesChildrenPartialUpdateMutation,
+  useFamiliesCreateMutation,
+  useFamiliesDestroyMutation,
+  useFamiliesInvitationsCreateMutation,
+  useFamiliesInvitationsDestroyMutation,
+  useFamiliesInvitationsListQuery,
+  useFamiliesLeaveCreateMutation,
+  useFamiliesListQuery,
+  useFamiliesMembersDestroyMutation,
+  useFamiliesMembersListQuery,
+  useFamiliesPartialUpdateMutation,
+  useInvitationsAcceptCreateMutation,
+  useInvitationsDeclineCreateMutation,
+  useInvitationsListQuery,
+} from '@/src/api'
 import { extractErrorMessages } from '@/src/api/errors'
-import {
-  acceptInvitation,
-  createFamily,
-  createInvitation,
-  declineInvitation,
-  deleteFamily,
-  type Family,
-  type FamilyRole,
-  getFamilies,
-  getFamilyMembers,
-  getInvitations,
-  getMyInvitations,
-  leaveFamily,
-  removeFamilyMember,
-  revokeInvitation,
-  updateFamily,
-} from '@/src/api/family'
 import { useAuth } from '@/src/auth/AuthContext'
 import { ConfirmButton } from '@/src/components/ConfirmButton'
 import { FormErrors } from '@/src/components/FormErrors'
@@ -48,24 +45,15 @@ import {
   SelectValue,
 } from '@/src/components/ui/select'
 import { useI18n } from '@/src/i18n/I18nContext'
+import { canManageFamily } from '@/src/lib/family'
 import { roleLabel } from '@/src/lib/roleLabel'
-
-// A user can manage a family when they own it, or when they created it and it is
-// still unclaimed (no owner has joined yet). Mirrors the backend's can_manage.
-function canManage(family: Family): boolean {
-  return family.role === 'owner' || (family.role === null && !family.is_claimed)
-}
 
 export default function FamilyPage() {
   const { t } = useI18n()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
 
-  const {
-    data: families,
-    isLoading,
-    isError,
-  } = useQuery({ queryKey: ['families'], queryFn: getFamilies })
+  const { data: families, isLoading, isError } = useFamiliesListQuery()
 
   const selected = families?.find((f) => f.id === selectedId) ?? null
 
@@ -131,31 +119,21 @@ export default function FamilyPage() {
 }
 
 // Invitations addressed to the logged-in user — the way an existing account
-// discovers a family they've been invited to claim/join.
+// discovers a family they've been invited to claim/join. Cache invalidation is
+// handled by RTK Query tags: accepting also refetches the "families" tag (see
+// api/index.ts), declining refetches the "invitations" tag.
 function PendingInvitationsSection() {
   const { t } = useI18n()
-  const queryClient = useQueryClient()
 
-  const { data: invitations } = useQuery({
-    queryKey: ['my-invitations'],
-    queryFn: getMyInvitations,
-  })
+  const { data: invitations } = useInvitationsListQuery()
 
-  const acceptMutation = useMutation({
-    mutationFn: (token: string) => acceptInvitation(token),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['my-invitations'] })
-      queryClient.invalidateQueries({ queryKey: ['families'] })
-    },
-  })
-  const declineMutation = useMutation({
-    mutationFn: (token: string) => declineInvitation(token),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ['my-invitations'] }),
-  })
+  const [acceptInvite, { isLoading: accepting }] =
+    useInvitationsAcceptCreateMutation()
+  const [declineInvite, { isLoading: declining }] =
+    useInvitationsDeclineCreateMutation()
 
   if (!invitations || invitations.length === 0) return null
-  const busy = acceptMutation.isPending || declineMutation.isPending
+  const busy = accepting || declining
 
   return (
     <SectionCard title={t('family.inbox.title')} className="max-w-2xl">
@@ -178,7 +156,7 @@ function PendingInvitationsSection() {
                 type="button"
                 size="sm"
                 disabled={busy}
-                onClick={() => acceptMutation.mutate(invite.token)}
+                onClick={() => void acceptInvite({ token: invite.token })}
               >
                 {t('invite.accept')}
               </Button>
@@ -187,7 +165,7 @@ function PendingInvitationsSection() {
                 size="sm"
                 variant="outline"
                 disabled={busy}
-                onClick={() => declineMutation.mutate(invite.token)}
+                onClick={() => void declineInvite({ token: invite.token })}
               >
                 {t('invite.decline')}
               </Button>
@@ -204,7 +182,7 @@ function FamilyRow({
   selected,
   onSelect,
 }: {
-  family: Family
+  family: FamilyRead
   selected: boolean
   onSelect: () => void
 }) {
@@ -244,12 +222,12 @@ function CreateFamilyDialog({
   onCreated,
 }: {
   onClose: () => void
-  onCreated: (family: Family) => void
+  onCreated: (family: FamilyRead) => void
 }) {
   const { t } = useI18n()
-  const queryClient = useQueryClient()
   const [errors, setErrors] = useState<string[]>([])
   const [forSomeoneElse, setForSomeoneElse] = useState(false)
+  const [createFamily] = useFamiliesCreateMutation()
 
   const form = useForm({
     defaultValues: { name: '' },
@@ -257,10 +235,8 @@ function CreateFamilyDialog({
       setErrors([])
       try {
         const family = await createFamily({
-          name: value.name,
-          claim: !forSomeoneElse,
-        })
-        await queryClient.invalidateQueries({ queryKey: ['families'] })
+          familyRequest: { name: value.name, claim: !forSomeoneElse },
+        }).unwrap()
         onCreated(family)
       } catch (err) {
         setErrors(extractErrorMessages(err, t('family.createError')))
@@ -325,37 +301,36 @@ function FamilyDetail({
   family,
   onGone,
 }: {
-  family: Family
+  family: FamilyRead
   onGone: () => void
 }) {
   const { t } = useI18n()
-  const queryClient = useQueryClient()
   const [errors, setErrors] = useState<string[]>([])
   const [renaming, setRenaming] = useState(false)
 
-  const invalidateFamilies = () =>
-    queryClient.invalidateQueries({ queryKey: ['families'] })
-  const onError = (err: unknown) =>
-    setErrors(extractErrorMessages(err, t('family.actionError')))
+  const [deleteFamily] = useFamiliesDestroyMutation()
+  const [leaveFamily] = useFamiliesLeaveCreateMutation()
 
-  const deleteMutation = useMutation({
-    mutationFn: () => deleteFamily(family.id),
-    onSuccess: () => {
-      invalidateFamilies()
+  const remove = async () => {
+    setErrors([])
+    try {
+      await deleteFamily({ id: family.id }).unwrap()
       onGone()
-    },
-    onError,
-  })
-  const leaveMutation = useMutation({
-    mutationFn: () => leaveFamily(family.id),
-    onSuccess: () => {
-      invalidateFamilies()
+    } catch (err) {
+      setErrors(extractErrorMessages(err, t('family.actionError')))
+    }
+  }
+  const leave = async () => {
+    setErrors([])
+    try {
+      await leaveFamily({ id: family.id }).unwrap()
       onGone()
-    },
-    onError,
-  })
+    } catch (err) {
+      setErrors(extractErrorMessages(err, t('family.actionError')))
+    }
+  }
 
-  const manage = canManage(family)
+  const manage = canManageFamily(family)
   const isMember = family.role !== null
 
   return (
@@ -377,7 +352,7 @@ function FamilyDetail({
               trigger={t('family.leave')}
               title={t('family.leave')}
               description={t('family.leaveConfirm')}
-              onConfirm={() => leaveMutation.mutate()}
+              onConfirm={leave}
             />
           )}
           {manage && (
@@ -385,7 +360,7 @@ function FamilyDetail({
               trigger={t('family.delete')}
               title={t('family.delete')}
               description={t('family.deleteConfirm')}
-              onConfirm={() => deleteMutation.mutate()}
+              onConfirm={remove}
             />
           )}
         </div>
@@ -410,20 +385,22 @@ function RenameFamilyDialog({
   family,
   onClose,
 }: {
-  family: Family
+  family: FamilyRead
   onClose: () => void
 }) {
   const { t } = useI18n()
-  const queryClient = useQueryClient()
   const [errors, setErrors] = useState<string[]>([])
+  const [updateFamily] = useFamiliesPartialUpdateMutation()
 
   const form = useForm({
     defaultValues: { name: family.name },
     onSubmit: async ({ value }) => {
       setErrors([])
       try {
-        await updateFamily(family.id, { name: value.name })
-        await queryClient.invalidateQueries({ queryKey: ['families'] })
+        await updateFamily({
+          id: family.id,
+          patchedFamilyRequest: { name: value.name },
+        }).unwrap()
         onClose()
       } catch (err) {
         setErrors(extractErrorMessages(err, t('family.renameError')))
@@ -471,49 +448,54 @@ function RenameFamilyDialog({
 
 function ChildrenPanel({ familyId }: { familyId: string }) {
   const { t } = useI18n()
-  const queryClient = useQueryClient()
   const [errors, setErrors] = useState<string[]>([])
 
   const {
     data: children,
     isLoading,
     isError,
-  } = useQuery({
-    queryKey: ['children', familyId],
-    queryFn: () => listChildren(familyId),
-  })
+  } = useFamiliesChildrenListQuery({ familyPk: familyId })
 
-  const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: ['children', familyId] })
+  const [createChild] = useFamiliesChildrenCreateMutation()
+  const [updateChild] = useFamiliesChildrenPartialUpdateMutation()
+  const [deleteChild] = useFamiliesChildrenDestroyMutation()
+
   const onError = (err: unknown) =>
     setErrors(extractErrorMessages(err, t('family.children.error')))
 
-  const addMutation = useMutation({
-    mutationFn: (firstName: string) => createChild(familyId, firstName),
-    onSuccess: invalidate,
-    onError,
-  })
-  const renameMutation = useMutation({
-    mutationFn: ({ id, firstName }: { id: string; firstName: string }) =>
-      updateChild(familyId, id, firstName),
-    onSuccess: invalidate,
-    onError,
-  })
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => deleteChild(familyId, id),
-    onSuccess: invalidate,
-    onError,
-  })
+  const rename = async (id: string, firstName: string) => {
+    setErrors([])
+    try {
+      await updateChild({
+        familyPk: familyId,
+        id,
+        patchedChildRequest: { first_name: firstName },
+      }).unwrap()
+    } catch (err) {
+      onError(err)
+    }
+  }
+  const remove = async (id: string) => {
+    setErrors([])
+    try {
+      await deleteChild({ familyPk: familyId, id }).unwrap()
+    } catch (err) {
+      onError(err)
+    }
+  }
 
   const addForm = useForm({
     defaultValues: { first_name: '' },
     onSubmit: async ({ value }) => {
       setErrors([])
       try {
-        await addMutation.mutateAsync(value.first_name)
+        await createChild({
+          familyPk: familyId,
+          childRequest: { first_name: value.first_name },
+        }).unwrap()
         addForm.reset()
-      } catch {
-        // Surfaced by the mutation's onError handler.
+      } catch (err) {
+        onError(err)
       }
     },
   })
@@ -541,10 +523,8 @@ function ChildrenPanel({ familyId }: { familyId: string }) {
           <ChildRow
             key={child.id}
             child={child}
-            onRename={(firstName) =>
-              renameMutation.mutate({ id: child.id, firstName })
-            }
-            onDelete={() => deleteMutation.mutate(child.id)}
+            onRename={(firstName) => rename(child.id, firstName)}
+            onDelete={() => remove(child.id)}
           />
         ))}
       </ul>
@@ -590,7 +570,7 @@ function ChildRow({
   onRename,
   onDelete,
 }: {
-  child: Child
+  child: ChildRead
   onRename: (firstName: string) => void
   onDelete: () => void
 }) {
@@ -624,30 +604,19 @@ function ChildRow({
   )
 }
 
-function MembersPanel({ family }: { family: Family }) {
+function MembersPanel({ family }: { family: FamilyRead }) {
   const { t } = useI18n()
   const { user } = useAuth()
-  const queryClient = useQueryClient()
 
   const {
     data: members,
     isLoading,
     isError,
-  } = useQuery({
-    queryKey: ['family-members', family.id],
-    queryFn: () => getFamilyMembers(family.id),
-  })
+  } = useFamiliesMembersListQuery({ familyPk: family.id })
 
-  const removeMutation = useMutation({
-    mutationFn: (membershipId: string) =>
-      removeFamilyMember(family.id, membershipId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['family-members', family.id] })
-      queryClient.invalidateQueries({ queryKey: ['families'] })
-    },
-  })
+  const [removeMember] = useFamiliesMembersDestroyMutation()
 
-  const manage = canManage(family)
+  const manage = canManageFamily(family)
 
   return (
     <SectionCard title={t('family.members.title')}>
@@ -702,7 +671,9 @@ function MembersPanel({ family }: { family: Family }) {
                     trigger={t('family.members.remove')}
                     title={t('family.members.remove')}
                     description={t('family.members.removeConfirm')}
-                    onConfirm={() => removeMutation.mutate(member.id)}
+                    onConfirm={() =>
+                      void removeMember({ familyPk: family.id, id: member.id })
+                    }
                   />
                 )}
               </div>
@@ -714,37 +685,29 @@ function MembersPanel({ family }: { family: Family }) {
   )
 }
 
-function InvitationsPanel({ family }: { family: Family }) {
+function InvitationsPanel({ family }: { family: FamilyRead }) {
   const { t } = useI18n()
-  const queryClient = useQueryClient()
   const [errors, setErrors] = useState<string[]>([])
-  const [role, setRole] = useState<FamilyRole>('member')
+  const [role, setRole] = useState<RoleEnum>('member')
 
   const {
     data: invitations,
     isLoading,
     isError,
-  } = useQuery({
-    queryKey: ['family-invites', family.id],
-    queryFn: () => getInvitations(family.id),
-  })
+  } = useFamiliesInvitationsListQuery({ familyPk: family.id })
 
-  const invalidate = () =>
-    queryClient.invalidateQueries({ queryKey: ['family-invites', family.id] })
-
-  const revokeMutation = useMutation({
-    mutationFn: (invitationId: string) =>
-      revokeInvitation(family.id, invitationId),
-    onSuccess: invalidate,
-  })
+  const [createInvitation] = useFamiliesInvitationsCreateMutation()
+  const [revokeInvitation] = useFamiliesInvitationsDestroyMutation()
 
   const inviteForm = useForm({
     defaultValues: { email: '' },
     onSubmit: async ({ value }) => {
       setErrors([])
       try {
-        await createInvitation(family.id, { email: value.email, role })
-        await invalidate()
+        await createInvitation({
+          familyPk: family.id,
+          invitationRequest: { email: value.email, role },
+        }).unwrap()
         inviteForm.reset()
         setRole('member')
       } catch (err) {
@@ -781,14 +744,16 @@ function InvitationsPanel({ family }: { family: Family }) {
                   {invite.email}
                 </span>
                 <Badge variant="secondary" className="w-fit">
-                  {roleLabel(t, invite.role)}
+                  {roleLabel(t, invite.role ?? null)}
                 </Badge>
               </div>
               <Button
                 variant="destructive"
                 size="sm"
                 type="button"
-                onClick={() => revokeMutation.mutate(invite.id)}
+                onClick={() =>
+                  void revokeInvitation({ familyPk: family.id, id: invite.id })
+                }
               >
                 {t('family.invites.revoke')}
               </Button>
@@ -821,7 +786,7 @@ function InvitationsPanel({ family }: { family: Family }) {
           <Label htmlFor="invite-role">{t('family.invites.role')}</Label>
           <Select
             value={role}
-            onValueChange={(value) => setRole(value as FamilyRole)}
+            onValueChange={(value) => setRole(value as RoleEnum)}
           >
             <SelectTrigger id="invite-role">
               <SelectValue />

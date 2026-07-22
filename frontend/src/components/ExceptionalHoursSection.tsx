@@ -1,15 +1,14 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import type { Contract } from '@/src/api/contracts'
 import {
-  createExceptionalHours,
-  deleteExceptionalHours,
-  type ExceptionalHours,
-  type ExceptionalHoursInput,
-  type ExceptionalKind,
-  exceptionalHoursQueryOptions,
-  updateExceptionalHours,
-} from '@/src/api/declarations'
+  type ContractRead,
+  type ExceptionalHoursRead,
+  type ExceptionalHoursRequest,
+  type KindEnum,
+  useFamiliesContractsExceptionalHoursCreateMutation,
+  useFamiliesContractsExceptionalHoursDestroyMutation,
+  useFamiliesContractsExceptionalHoursListQuery,
+  useFamiliesContractsExceptionalHoursPartialUpdateMutation,
+} from '@/src/api'
 import { extractErrorMessages } from '@/src/api/errors'
 import { ConfirmButton } from '@/src/components/ConfirmButton'
 import { DateField, formatDate } from '@/src/components/DateField'
@@ -32,7 +31,7 @@ import type { Language, TranslationKey } from '@/src/i18n/translations'
 import { overlapsMonth } from '@/src/lib/months'
 
 interface HoursDraft {
-  kind: ExceptionalKind
+  kind: KindEnum
   is_shared: boolean
   start_date: string
   start_time: string
@@ -53,13 +52,13 @@ const EMPTY_HOURS: HoursDraft = {
   notes: '',
 }
 
-const KIND_KEYS: Record<ExceptionalKind, TranslationKey> = {
+const KIND_KEYS: Record<KindEnum, TranslationKey> = {
   effective: 'exceptional.kind.effective',
   presence_responsable: 'exceptional.kind.presence_responsable',
   night_presence: 'exceptional.kind.night_presence',
 }
 
-function entryToDraft(entry: ExceptionalHours): HoursDraft {
+function entryToDraft(entry: ExceptionalHoursRead): HoursDraft {
   return {
     kind: entry.kind,
     is_shared: entry.is_shared,
@@ -72,7 +71,7 @@ function entryToDraft(entry: ExceptionalHours): HoursDraft {
   }
 }
 
-function hoursDraftToInput(draft: HoursDraft): ExceptionalHoursInput {
+function hoursDraftToInput(draft: HoursDraft): ExceptionalHoursRequest {
   // Interventions count the times the nanny was woken, so they only mean
   // anything for a night. Any other kind files zero rather than carrying over a
   // count left behind by a change of mind.
@@ -91,7 +90,7 @@ function hoursDraftToInput(draft: HoursDraft): ExceptionalHoursInput {
 
 // The same window, whoever filed it — how a family's shared entry is matched to
 // the other family's, so a prompt disappears once it has been answered.
-function sameWindow(a: ExceptionalHours, b: ExceptionalHours): boolean {
+function sameWindow(a: ExceptionalHoursRead, b: ExceptionalHoursRead): boolean {
   return (
     a.start_date === b.start_date &&
     a.start_time === b.start_time &&
@@ -120,15 +119,13 @@ function HoursFields({
         <Label htmlFor="hours-kind">{t('exceptional.kind')}</Label>
         <Select
           value={draft.kind}
-          onValueChange={(value) =>
-            onChange({ kind: value as ExceptionalKind })
-          }
+          onValueChange={(value) => onChange({ kind: value as KindEnum })}
         >
           <SelectTrigger id="hours-kind">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {(Object.keys(KIND_KEYS) as ExceptionalKind[]).map((kind) => (
+            {(Object.keys(KIND_KEYS) as KindEnum[]).map((kind) => (
               <SelectItem key={kind} value={kind}>
                 {t(KIND_KEYS[kind])}
               </SelectItem>
@@ -229,11 +226,10 @@ export function ExceptionalHoursSection({
   month,
 }: {
   familyId: string
-  contract: Contract
+  contract: ContractRead
   month: string
 }) {
   const { t, lang } = useI18n()
-  const queryClient = useQueryClient()
   const [draft, setDraft] = useState<HoursDraft>(EMPTY_HOURS)
   const [editingId, setEditingId] = useState<string | 'new' | null>(null)
   const [errors, setErrors] = useState<string[]>([])
@@ -242,44 +238,33 @@ export function ExceptionalHoursSection({
   // whole, so the shared checkbox and the "add yours" prompts are hidden there.
   const isShared = contract.families.length > 1
 
-  const { data: entries, isError } = useQuery(
-    exceptionalHoursQueryOptions(familyId, contract.id),
-  )
-
-  const invalidate = () =>
-    queryClient.invalidateQueries({
-      queryKey: ['exceptional-hours', contract.id],
+  const { data: entries, isError } =
+    useFamiliesContractsExceptionalHoursListQuery({
+      familyPk: familyId,
+      contractPk: contract.id,
     })
+
+  // Cache invalidation is handled by RTK Query tags (see api/index.ts): any
+  // exceptional-hours mutation invalidates the "families" tag, refetching this
+  // list automatically.
+  const [createHours, { isLoading: creating }] =
+    useFamiliesContractsExceptionalHoursCreateMutation()
+  const [updateHours, { isLoading: updating }] =
+    useFamiliesContractsExceptionalHoursPartialUpdateMutation()
+  const [deleteHours] = useFamiliesContractsExceptionalHoursDestroyMutation()
+  const saving = creating || updating
+
   const close = () => {
     setEditingId(null)
     setErrors([])
   }
-
-  const mutation = useMutation({
-    mutationFn: () => {
-      const input = hoursDraftToInput(draft)
-      return editingId === 'new' || editingId === null
-        ? createExceptionalHours(familyId, contract.id, input)
-        : updateExceptionalHours(familyId, contract.id, editingId, input)
-    },
-    onSuccess: async () => {
-      await invalidate()
-      close()
-    },
-    onError: (err) => setErrors(extractErrorMessages(err, t('nanny.error'))),
-  })
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) =>
-      deleteExceptionalHours(familyId, contract.id, id),
-    onSuccess: invalidate,
-  })
 
   const open = (mode: string | 'new', initial: HoursDraft) => {
     setDraft(initial)
     setEditingId(mode)
     setErrors([])
   }
-  const submit = () => {
+  const submit = async () => {
     if (!draft.start_date || !draft.end_date) {
       setErrors([t('exceptional.datesRequired')])
       return
@@ -288,10 +273,29 @@ export function ExceptionalHoursSection({
       setErrors([t('exceptional.timesRequired')])
       return
     }
-    mutation.mutate()
+    const input = hoursDraftToInput(draft)
+    try {
+      if (editingId === 'new' || editingId === null) {
+        await createHours({
+          familyPk: familyId,
+          contractPk: contract.id,
+          exceptionalHoursRequest: input,
+        }).unwrap()
+      } else {
+        await updateHours({
+          familyPk: familyId,
+          contractPk: contract.id,
+          id: editingId,
+          patchedExceptionalHoursRequest: input,
+        }).unwrap()
+      }
+      close()
+    } catch (err) {
+      setErrors(extractErrorMessages(err, t('nanny.error')))
+    }
   }
 
-  const describe = (entry: ExceptionalHours) => {
+  const describe = (entry: ExceptionalHoursRead) => {
     const from = `${formatDate(entry.start_date, lang)} ${toDisplayTime(hhmm(entry.start_time), lang)}`
     // A night ends the next day; spell that date out rather than leave the
     // reader to assume the entry closed before midnight.
@@ -307,7 +311,7 @@ export function ExceptionalHoursSection({
     return `${from} → ${to} · ${t(KIND_KEYS[entry.kind])}${woken}${shared}`
   }
 
-  const monthMatch = (entry: ExceptionalHours) =>
+  const monthMatch = (entry: ExceptionalHoursRead) =>
     overlapsMonth(entry.start_date, entry.end_date, month)
 
   // The endpoint returns this family's own entries and every family's shared
@@ -328,7 +332,7 @@ export function ExceptionalHoursSection({
       !own.some((mine) => mine.is_shared && sameWindow(mine, other)),
   )
 
-  const answerPrompt = (other: ExceptionalHours) =>
+  const answerPrompt = (other: ExceptionalHoursRead) =>
     open('new', {
       kind: other.kind,
       is_shared: true,
@@ -354,11 +358,7 @@ export function ExceptionalHoursSection({
           />
           <FormErrors messages={errors} />
           <div className="flex gap-2">
-            <Button
-              type="button"
-              onClick={submit}
-              disabled={mutation.isPending}
-            >
+            <Button type="button" onClick={submit} disabled={saving}>
               {t('exceptional.hours.save')}
             </Button>
             <Button type="button" variant="outline" onClick={close}>
@@ -436,7 +436,13 @@ export function ExceptionalHoursSection({
                   trigger={t('nanny.delete')}
                   title={t('nanny.delete')}
                   description={t('exceptional.hours.confirmDelete')}
-                  onConfirm={() => deleteMutation.mutate(entry.id)}
+                  onConfirm={() =>
+                    void deleteHours({
+                      familyPk: familyId,
+                      contractPk: contract.id,
+                      id: entry.id,
+                    })
+                  }
                 />
               </span>
             </li>

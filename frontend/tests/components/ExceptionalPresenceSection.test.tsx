@@ -1,44 +1,15 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Contract } from '@/src/api/contracts'
-import {
-  type ContractChild,
-  createExceptionalPresence,
-  deleteExceptionalPresence,
-  type ExceptionalPresence,
-  getContractChildren,
-  getExceptionalPresences,
-  updateExceptionalPresence,
-} from '@/src/api/declarations'
+import { HttpResponse, http } from 'msw'
+import { describe, expect, it } from 'vitest'
+import type {
+  ContractChildRead,
+  ContractRead,
+  ExceptionalPresenceRead,
+} from '@/src/api'
 import { ExceptionalPresenceSection } from '@/src/components/ExceptionalPresenceSection'
+import { server } from '@/tests/msw/server'
 import { renderWithProviders, selectOption } from '@/tests/utils'
-
-vi.mock('@/src/api/declarations', () => {
-  const getExceptionalPresences = vi.fn()
-  return {
-    getExceptionalPresences,
-    createExceptionalPresence: vi.fn(),
-    updateExceptionalPresence: vi.fn(),
-    deleteExceptionalPresence: vi.fn(),
-    getContractChildren: vi.fn(),
-    exceptionalPresencesQueryOptions: (
-      familyId: string,
-      contractId: string,
-    ) => ({
-      queryKey: ['exceptional-presences', contractId],
-      queryFn: () => getExceptionalPresences(familyId, contractId),
-    }),
-  }
-})
-
-const m = {
-  get: vi.mocked(getExceptionalPresences),
-  create: vi.mocked(createExceptionalPresence),
-  update: vi.mocked(updateExceptionalPresence),
-  del: vi.mocked(deleteExceptionalPresence),
-  children: vi.mocked(getContractChildren),
-}
 
 const contract = {
   id: '10',
@@ -51,11 +22,11 @@ const contract = {
   families: [{ id: '1', name: 'Home', is_originator: true }],
   current_terms: null,
   current_schedule: null,
-} as Contract
+} as ContractRead
 
 // The picker submits the Child, not the ContractChild that carries it: `id` and
 // `child` differ here so a mix-up cannot pass unnoticed.
-function makeChild(o: Partial<ContractChild> = {}): ContractChild {
+function makeChild(o: Partial<ContractChildRead> = {}): ContractChildRead {
   return {
     id: 'CC1',
     child: 'C1',
@@ -67,8 +38,8 @@ function makeChild(o: Partial<ContractChild> = {}): ContractChild {
 }
 
 function makePresence(
-  o: Partial<ExceptionalPresence> = {},
-): ExceptionalPresence {
+  o: Partial<ExceptionalPresenceRead> = {},
+): ExceptionalPresenceRead {
   return {
     id: 'P1',
     child: 'C1',
@@ -81,6 +52,43 @@ function makePresence(
   }
 }
 
+// The endpoints the section drives. `*` matches any origin so the relative
+// baseUrl ('/api') resolves regardless of the jsdom host.
+const PRESENCES = '*/api/families/1/contracts/10/exceptional-presences/'
+const PRESENCE = '*/api/families/1/contracts/10/exceptional-presences/P1/'
+const CHILDREN = '*/api/families/1/contracts/10/children/'
+
+// Register the presences list GET, the contract-children list GET (the picker's
+// options), plus create/update/delete handlers that record what was sent so
+// tests can assert the request body.
+function setup(
+  entries: ExceptionalPresenceRead[] = [],
+  children: ContractChildRead[] = [makeChild()],
+) {
+  const calls: {
+    create?: unknown
+    update?: unknown
+    deleted: boolean
+  } = { deleted: false }
+  server.use(
+    http.get(PRESENCES, () => HttpResponse.json(entries)),
+    http.get(CHILDREN, () => HttpResponse.json(children)),
+    http.post(PRESENCES, async ({ request }) => {
+      calls.create = await request.json()
+      return HttpResponse.json(makePresence(), { status: 201 })
+    }),
+    http.patch(PRESENCE, async ({ request }) => {
+      calls.update = await request.json()
+      return HttpResponse.json(makePresence())
+    }),
+    http.delete(PRESENCE, () => {
+      calls.deleted = true
+      return new HttpResponse(null, { status: 204 })
+    }),
+  )
+  return calls
+}
+
 const render = () =>
   renderWithProviders(
     <ExceptionalPresenceSection
@@ -90,17 +98,9 @@ const render = () =>
     />,
   )
 
-beforeEach(() => {
-  m.get.mockResolvedValue([])
-  m.children.mockResolvedValue([makeChild()])
-  m.create.mockResolvedValue(makePresence())
-  m.update.mockResolvedValue(makePresence())
-  m.del.mockResolvedValue()
-})
-afterEach(() => vi.clearAllMocks())
-
 describe('ExceptionalPresenceSection', () => {
   it('shows the nanny name and an empty state', async () => {
+    setup()
     render()
     expect(await screen.findByText('Marie Dupont')).toBeInTheDocument()
     expect(
@@ -109,7 +109,7 @@ describe('ExceptionalPresenceSection', () => {
   })
 
   it('lists a presence with the child and the hours', async () => {
-    m.get.mockResolvedValue([makePresence()])
+    setup([makePresence()])
     render()
     expect(
       await screen.findByText('07/08/2026 · Léa · 9:00 AM → 12:00 PM'),
@@ -117,10 +117,10 @@ describe('ExceptionalPresenceSection', () => {
   })
 
   it('offers the contract’s children in the picker', async () => {
-    m.children.mockResolvedValue([
-      makeChild(),
-      makeChild({ id: 'CC2', child: 'C2', first_name: 'Tom' }),
-    ])
+    setup(
+      [],
+      [makeChild(), makeChild({ id: 'CC2', child: 'C2', first_name: 'Tom' })],
+    )
     const user = userEvent.setup()
     render()
     await user.click(
@@ -139,7 +139,7 @@ describe('ExceptionalPresenceSection', () => {
   })
 
   it('says so rather than offer a form when the contract covers no children', async () => {
-    m.children.mockResolvedValue([])
+    setup([], [])
     render()
     expect(
       await screen.findByText('Add the children this contract covers first.'),
@@ -150,6 +150,7 @@ describe('ExceptionalPresenceSection', () => {
   })
 
   it('requires a child before saving', async () => {
+    const calls = setup()
     const user = userEvent.setup()
     render()
     await user.click(
@@ -161,10 +162,11 @@ describe('ExceptionalPresenceSection', () => {
       screen.getByRole('button', { name: 'Save the exceptional presence' }),
     )
     expect(await screen.findByText('Choose a child.')).toBeInTheDocument()
-    expect(m.create).not.toHaveBeenCalled()
+    expect(calls.create).toBeUndefined()
   })
 
   it('requires a date before saving', async () => {
+    const calls = setup()
     const user = userEvent.setup()
     render()
     await user.click(
@@ -177,10 +179,11 @@ describe('ExceptionalPresenceSection', () => {
       screen.getByRole('button', { name: 'Save the exceptional presence' }),
     )
     expect(await screen.findByText('Give a date.')).toBeInTheDocument()
-    expect(m.create).not.toHaveBeenCalled()
+    expect(calls.create).toBeUndefined()
   })
 
   it('requires start and end times before saving', async () => {
+    const calls = setup()
     const user = userEvent.setup()
     render()
     await user.click(
@@ -196,10 +199,11 @@ describe('ExceptionalPresenceSection', () => {
     expect(
       await screen.findByText('Give a start and end time.'),
     ).toBeInTheDocument()
-    expect(m.create).not.toHaveBeenCalled()
+    expect(calls.create).toBeUndefined()
   })
 
   it('creates a presence for the child, not the contract child', async () => {
+    const calls = setup()
     const user = userEvent.setup()
     render()
     await user.click(
@@ -215,21 +219,17 @@ describe('ExceptionalPresenceSection', () => {
       screen.getByRole('button', { name: 'Save the exceptional presence' }),
     )
     await waitFor(() =>
-      expect(m.create).toHaveBeenCalledWith(
-        '1',
-        '10',
-        expect.objectContaining({
-          child: 'C1',
-          date: '2026-07-08',
-          start_time: '09:00',
-          end_time: '12:00',
-        }),
-      ),
+      expect(calls.create).toMatchObject({
+        child: 'C1',
+        date: '2026-07-08',
+        start_time: '09:00',
+        end_time: '12:00',
+      }),
     )
   })
 
   it('edits an existing presence', async () => {
-    m.get.mockResolvedValue([makePresence()])
+    const calls = setup([makePresence()])
     const user = userEvent.setup()
     render()
     await user.click(await screen.findByRole('button', { name: 'Edit' }))
@@ -238,31 +238,30 @@ describe('ExceptionalPresenceSection', () => {
       screen.getByRole('button', { name: 'Save the exceptional presence' }),
     )
     await waitFor(() =>
-      expect(m.update).toHaveBeenCalledWith(
-        '1',
-        '10',
-        'P1',
-        expect.objectContaining({
-          child: 'C1',
-          notes: 'no school',
-          start_time: '09:00',
-        }),
-      ),
+      expect(calls.update).toMatchObject({
+        child: 'C1',
+        notes: 'no school',
+        start_time: '09:00',
+      }),
     )
   })
 
   it('deletes a presence after confirmation', async () => {
-    m.get.mockResolvedValue([makePresence()])
+    const calls = setup([makePresence()])
     const user = userEvent.setup()
     render()
     await user.click(await screen.findByRole('button', { name: 'Delete' }))
     const dialog = await screen.findByRole('alertdialog')
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
-    await waitFor(() => expect(m.del).toHaveBeenCalledWith('1', '10', 'P1'))
+    await waitFor(() => expect(calls.deleted).toBe(true))
   })
 
   it('surfaces a server error on save', async () => {
-    m.create.mockRejectedValue(new Error('boom'))
+    setup()
+    // A 500 with no body carries no field messages, so the UI shows the fallback.
+    server.use(
+      http.post(PRESENCES, () => new HttpResponse(null, { status: 500 })),
+    )
     const user = userEvent.setup()
     render()
     await user.click(
@@ -283,6 +282,7 @@ describe('ExceptionalPresenceSection', () => {
   })
 
   it('cancels the form', async () => {
+    setup()
     const user = userEvent.setup()
     render()
     await user.click(

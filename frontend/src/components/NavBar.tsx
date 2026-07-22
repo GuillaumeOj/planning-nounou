@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query'
 import {
   CalendarDays,
   ChevronUp,
@@ -12,8 +11,10 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
-import { getMyContractInvitations } from '@/src/api/contracts'
-import { getMyInvitations } from '@/src/api/family'
+import {
+  useContractInvitationsListQuery,
+  useInvitationsListQuery,
+} from '@/src/api'
 import { useAuth } from '@/src/auth/AuthContext'
 import { AppearanceControls } from '@/src/components/AppearanceControls'
 import { BrandLockup } from '@/src/components/BrandLockup'
@@ -46,17 +47,11 @@ export function NavBar() {
   const { pathname } = useLocation()
 
   // Surface invitations addressed to this user as a badge on the Family link.
-  const { data: invitations } = useQuery({
-    queryKey: ['my-invitations'],
-    queryFn: getMyInvitations,
-  })
+  const { data: invitations } = useInvitationsListQuery()
   const pendingInvites = invitations?.length ?? 0
 
   // Likewise for shared-contract invitations, badged on the Nannies link.
-  const { data: contractInvitations } = useQuery({
-    queryKey: ['my-contract-invitations'],
-    queryFn: getMyContractInvitations,
-  })
+  const { data: contractInvitations } = useContractInvitationsListQuery()
   const pendingContractInvites = contractInvitations?.length ?? 0
 
   const displayName = user?.first_name || user?.email || ''

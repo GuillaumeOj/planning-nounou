@@ -1,38 +1,26 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Contract } from '@/src/api/contracts'
-import {
-  fileDeclaration,
-  getDeclarations,
-  type MonthlyDeclaration,
-  updateDeclaration,
-} from '@/src/api/declarations'
+import { HttpResponse, http } from 'msw'
+import { beforeEach, describe, expect, it } from 'vitest'
+import type {
+  ContractRead,
+  MonthlyDeclarationRead,
+  PatchedMonthlyDeclarationRequest,
+} from '@/src/api'
 import { DeclarationSection } from '@/src/components/DeclarationSection'
+import { server } from '@/tests/msw/server'
 import { renderWithProviders } from '@/tests/utils'
-
-vi.mock('@/src/api/declarations', () => ({
-  getDeclarations: vi.fn(),
-  updateDeclaration: vi.fn(),
-  fileDeclaration: vi.fn(),
-}))
-
-const m = {
-  declarations: vi.mocked(getDeclarations),
-  update: vi.mocked(updateDeclaration),
-  file: vi.mocked(fileDeclaration),
-}
 
 const OWN_FAMILY = 'fam-1'
 
 const contract = {
   id: 'contract-1',
   nanny: { id: 'n1', first_name: 'Marie', last_name: 'Dupont' },
-} as Contract
+} as ContractRead
 
 function makeDeclaration(
-  o: Partial<MonthlyDeclaration> = {},
-): MonthlyDeclaration {
+  o: Partial<MonthlyDeclarationRead> = {},
+): MonthlyDeclarationRead {
   return {
     id: 'dec-1',
     family: OWN_FAMILY,
@@ -65,6 +53,57 @@ function makeDeclaration(
   }
 }
 
+// What each mutation was sent, captured off the wire — the MSW equivalent of the
+// old `expect(mockFn).toHaveBeenCalledWith(...)`. The list endpoint reads from
+// mutable state so a test can vary it before rendering.
+let state: {
+  declarations: MonthlyDeclarationRead[]
+  listMonth?: string
+  update?: {
+    familyPk: string
+    contractPk: string
+    id: string
+    body: PatchedMonthlyDeclarationRequest
+  }
+  filed?: { familyPk: string; contractPk: string; id: string }
+}
+
+const LIST = '*/api/families/:familyPk/contracts/:contractPk/declarations/'
+const DECLARATION =
+  '*/api/families/:familyPk/contracts/:contractPk/declarations/:id/'
+const FILE =
+  '*/api/families/:familyPk/contracts/:contractPk/declarations/:id/file/'
+
+beforeEach(() => {
+  state = { declarations: [makeDeclaration()] }
+  server.use(
+    http.get(LIST, ({ request }) => {
+      state.listMonth =
+        new URL(request.url).searchParams.get('month') ?? undefined
+      return HttpResponse.json(state.declarations)
+    }),
+    http.patch(DECLARATION, async ({ params, request }) => {
+      state.update = {
+        familyPk: params.familyPk as string,
+        contractPk: params.contractPk as string,
+        id: params.id as string,
+        body: (await request.json()) as PatchedMonthlyDeclarationRequest,
+      }
+      return HttpResponse.json(
+        makeDeclaration({ kilometers: '42.00', mileage_amount: '18.90' }),
+      )
+    }),
+    http.post(FILE, ({ params }) => {
+      state.filed = {
+        familyPk: params.familyPk as string,
+        contractPk: params.contractPk as string,
+        id: params.id as string,
+      }
+      return HttpResponse.json(makeDeclaration({ status: 'filed' }))
+    }),
+  )
+})
+
 const render = (month = '2026-06') =>
   renderWithProviders(
     <DeclarationSection
@@ -74,20 +113,11 @@ const render = (month = '2026-06') =>
     />,
   )
 
-beforeEach(() => {
-  vi.clearAllMocks()
-  m.declarations.mockResolvedValue([makeDeclaration()])
-})
-
 describe('DeclarationSection', () => {
   it('asks for the month it was given', async () => {
     render('2026-06')
     await screen.findByText('Ada')
-    expect(m.declarations).toHaveBeenCalledWith(
-      OWN_FAMILY,
-      'contract-1',
-      '2026-06',
-    )
+    expect(state.listMonth).toBe('2026-06')
   })
 
   it('shows the figures a parent types into pajemploi', async () => {
@@ -124,7 +154,7 @@ describe('DeclarationSection', () => {
   })
 
   it('says so when there is nothing to declare', async () => {
-    m.declarations.mockResolvedValue([])
+    state.declarations = []
     render()
     expect(
       await screen.findByText('Nothing to declare for this month.'),
@@ -132,7 +162,7 @@ describe('DeclarationSection', () => {
   })
 
   it('reports a load failure rather than an empty month', async () => {
-    m.declarations.mockRejectedValue(new Error('boom'))
+    server.use(http.get(LIST, () => new HttpResponse(null, { status: 500 })))
     render()
     expect(
       await screen.findByText('Could not load the declarations.'),
@@ -155,13 +185,13 @@ describe('DeclarationSection', () => {
   })
 
   it('shows the night lines once there are nights', async () => {
-    m.declarations.mockResolvedValue([
+    state.declarations = [
       makeDeclaration({
         night_count: 2,
         night_indemnity: '48.00',
         night_presence_rate: '2.75',
       }),
-    ])
+    ]
     render()
 
     expect(await screen.findByText('Nights')).toBeInTheDocument()
@@ -172,12 +202,12 @@ describe('DeclarationSection', () => {
   })
 
   it('shows the expenses and benefits the contract carries', async () => {
-    m.declarations.mockResolvedValue([
+    state.declarations = [
       makeDeclaration({
         transport_amount: '30.00',
         benefits_in_kind_amount: '12.50',
       }),
-    ])
+    ]
     render()
 
     expect(await screen.findByText('Transport')).toBeInTheDocument()
@@ -207,9 +237,7 @@ describe('DeclarationSection', () => {
 
 describe('DeclarationSection kilometres', () => {
   it('saves the kilometres and takes the backend’s normalisation', async () => {
-    m.update.mockResolvedValue(
-      makeDeclaration({ kilometers: '42.00', mileage_amount: '18.90' }),
-    )
+    // The PATCH handler returns kilometers '42.00'.
     render()
 
     const field = await screen.findByLabelText('Kilometres driven')
@@ -218,8 +246,11 @@ describe('DeclarationSection kilometres', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() =>
-      expect(m.update).toHaveBeenCalledWith(OWN_FAMILY, 'contract-1', 'dec-1', {
-        kilometers: '42',
+      expect(state.update).toMatchObject({
+        familyPk: OWN_FAMILY,
+        contractPk: 'contract-1',
+        id: 'dec-1',
+        body: { kilometers: '42' },
       }),
     )
     await waitFor(() => expect(field).toHaveValue(42))
@@ -237,7 +268,9 @@ describe('DeclarationSection kilometres', () => {
   })
 
   it('surfaces a failed save rather than pretending it worked', async () => {
-    m.update.mockRejectedValue(new Error('nope'))
+    server.use(
+      http.patch(DECLARATION, () => new HttpResponse(null, { status: 500 })),
+    )
     render()
 
     await userEvent.type(await screen.findByLabelText('Kilometres driven'), '5')
@@ -251,7 +284,6 @@ describe('DeclarationSection kilometres', () => {
 
 describe('DeclarationSection filing', () => {
   it('files only after the confirmation is accepted', async () => {
-    m.file.mockResolvedValue(makeDeclaration({ status: 'filed' }))
     render()
 
     await userEvent.click(
@@ -261,7 +293,7 @@ describe('DeclarationSection filing', () => {
     expect(
       screen.getByText(/Filing records these figures as sent to pajemploi/),
     ).toBeInTheDocument()
-    expect(m.file).not.toHaveBeenCalled()
+    expect(state.filed).toBeUndefined()
 
     const dialog = screen.getByRole('alertdialog')
     await userEvent.click(
@@ -269,7 +301,11 @@ describe('DeclarationSection filing', () => {
     )
 
     await waitFor(() =>
-      expect(m.file).toHaveBeenCalledWith(OWN_FAMILY, 'contract-1', 'dec-1'),
+      expect(state.filed).toMatchObject({
+        familyPk: OWN_FAMILY,
+        contractPk: 'contract-1',
+        id: 'dec-1',
+      }),
     )
   })
 
@@ -281,11 +317,11 @@ describe('DeclarationSection filing', () => {
     )
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
 
-    expect(m.file).not.toHaveBeenCalled()
+    expect(state.filed).toBeUndefined()
   })
 
   it('surfaces a failed filing', async () => {
-    m.file.mockRejectedValue(new Error('nope'))
+    server.use(http.post(FILE, () => new HttpResponse(null, { status: 500 })))
     render()
 
     await userEvent.click(
@@ -303,7 +339,7 @@ describe('DeclarationSection filing', () => {
 
   // Past its grace window a filed declaration is locked, so nothing on it writes.
   it('a locked filed declaration offers neither kilometres nor filing', async () => {
-    m.declarations.mockResolvedValue([
+    state.declarations = [
       makeDeclaration({
         status: 'filed',
         is_editable: false,
@@ -311,7 +347,7 @@ describe('DeclarationSection filing', () => {
         kilometers: '42.00',
         mileage_amount: '18.90',
       }),
-    ])
+    ]
     render()
 
     expect(await screen.findByText('Filed')).toBeInTheDocument()
@@ -329,14 +365,14 @@ describe('DeclarationSection filing', () => {
   // kilometres control is still there, though the file button is gone (it is
   // already filed), and a note says until when it can still change.
   it('a filed declaration in its grace window stays editable', async () => {
-    m.declarations.mockResolvedValue([
+    state.declarations = [
       makeDeclaration({
         status: 'filed',
         is_editable: true,
         filed_at: '2026-07-03T09:30:00Z',
         editable_until: '2026-09-30',
       }),
-    ])
+    ]
     render()
 
     expect(await screen.findByText('Filed')).toBeInTheDocument()
@@ -371,7 +407,7 @@ describe('DeclarationSection warnings', () => {
   // The quote and the link are the point: a parent can check the figure against
   // the convention rather than take our word for it.
   it('spells out the warning and cites the article behind it', async () => {
-    m.declarations.mockResolvedValue([warned()])
+    state.declarations = [warned()]
     render()
 
     expect(
@@ -388,11 +424,11 @@ describe('DeclarationSection warnings', () => {
   })
 
   it('shows a warning with no source at all', async () => {
-    m.declarations.mockResolvedValue([
+    state.declarations = [
       makeDeclaration({
         warnings: [{ code: 'split_without_children', source: null }],
       }),
-    ])
+    ]
     render()
 
     expect(
@@ -405,11 +441,11 @@ describe('DeclarationSection warnings', () => {
   // A code we have no wording for is still worth showing: silence would hide a
   // figure the parent should question.
   it('falls back to the raw code for a warning it cannot spell out', async () => {
-    m.declarations.mockResolvedValue([
+    state.declarations = [
       makeDeclaration({
         warnings: [{ code: 'some_new_backend_warning', source: null }],
       }),
-    ])
+    ]
     render()
 
     expect(
@@ -452,9 +488,7 @@ describe('DeclarationSection rate periods', () => {
 
   // The one case where total != hours × rate, so it is the one case worth the space.
   it('lists the periods once the rates moved mid-month', async () => {
-    m.declarations.mockResolvedValue([
-      makeDeclaration({ rate_periods: periods }),
-    ])
+    state.declarations = [makeDeclaration({ rate_periods: periods })]
     render()
 
     expect(
@@ -466,9 +500,7 @@ describe('DeclarationSection rate periods', () => {
   })
 
   it('stays quiet when a single rate ran all month', async () => {
-    m.declarations.mockResolvedValue([
-      makeDeclaration({ rate_periods: [periods[0]] }),
-    ])
+    state.declarations = [makeDeclaration({ rate_periods: [periods[0]] })]
     render()
     await screen.findByText('Normal hours')
 

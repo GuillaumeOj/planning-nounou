@@ -1,7 +1,7 @@
 import { MailCheck } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { resendActivation } from '@/src/api/auth'
+import { useAuthUsersResendActivationCreateMutation } from '@/src/api'
 import { extractErrorMessages } from '@/src/api/errors'
 import { AuthCard } from '@/src/components/AuthCard'
 import { FormErrors } from '@/src/components/FormErrors'
@@ -30,6 +30,7 @@ export function VerifyEmailNotice({
   const [errors, setErrors] = useState<string[]>([])
   const [resent, setResent] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [resendActivation] = useAuthUsersResendActivationCreateMutation()
   const loginTo = next ? `/login?next=${encodeURIComponent(next)}` : '/login'
 
   const lead = (
@@ -43,7 +44,7 @@ export function VerifyEmailNotice({
     setResent(false)
     setBusy(true)
     try {
-      await resendActivation(email)
+      await resendActivation({ sendEmailResetRequest: { email } }).unwrap()
       setResent(true)
     } catch (err) {
       setErrors(extractErrorMessages(err, t('verify.resendError')))

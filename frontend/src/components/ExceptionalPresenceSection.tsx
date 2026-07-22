@@ -1,15 +1,14 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import type { Contract } from '@/src/api/contracts'
 import {
-  createExceptionalPresence,
-  deleteExceptionalPresence,
-  type ExceptionalPresence,
-  type ExceptionalPresenceInput,
-  exceptionalPresencesQueryOptions,
-  getContractChildren,
-  updateExceptionalPresence,
-} from '@/src/api/declarations'
+  type ContractRead,
+  type ExceptionalPresenceRead,
+  type ExceptionalPresenceRequest,
+  useFamiliesContractsChildrenListQuery,
+  useFamiliesContractsExceptionalPresencesCreateMutation,
+  useFamiliesContractsExceptionalPresencesDestroyMutation,
+  useFamiliesContractsExceptionalPresencesListQuery,
+  useFamiliesContractsExceptionalPresencesPartialUpdateMutation,
+} from '@/src/api'
 import { extractErrorMessages } from '@/src/api/errors'
 import { ConfirmButton } from '@/src/components/ConfirmButton'
 import { DateField, formatDate } from '@/src/components/DateField'
@@ -46,7 +45,7 @@ const EMPTY_PRESENCE: PresenceDraft = {
   notes: '',
 }
 
-function entryToDraft(entry: ExceptionalPresence): PresenceDraft {
+function entryToDraft(entry: ExceptionalPresenceRead): PresenceDraft {
   return {
     child: entry.child,
     date: entry.date,
@@ -56,7 +55,9 @@ function entryToDraft(entry: ExceptionalPresence): PresenceDraft {
   }
 }
 
-function presenceDraftToInput(draft: PresenceDraft): ExceptionalPresenceInput {
+function presenceDraftToInput(
+  draft: PresenceDraft,
+): ExceptionalPresenceRequest {
   return {
     child: draft.child,
     date: draft.date,
@@ -144,24 +145,25 @@ export function ExceptionalPresenceSection({
   month,
 }: {
   familyId: string
-  contract: Contract
+  contract: ContractRead
   month: string
 }) {
   const { t, lang } = useI18n()
-  const queryClient = useQueryClient()
   const [draft, setDraft] = useState<PresenceDraft>(EMPTY_PRESENCE)
   const [editingId, setEditingId] = useState<string | 'new' | null>(null)
   const [errors, setErrors] = useState<string[]>([])
 
-  const { data: entries, isError } = useQuery(
-    exceptionalPresencesQueryOptions(familyId, contract.id),
-  )
+  const { data: entries, isError } =
+    useFamiliesContractsExceptionalPresencesListQuery({
+      familyPk: familyId,
+      contractPk: contract.id,
+    })
 
   // The contract's children are the only ones that can be exceptionally present
   // on it, so they are the whole of the picker.
-  const { data: contractChildren } = useQuery({
-    queryKey: ['contract-children', contract.id],
-    queryFn: () => getContractChildren(familyId, contract.id),
+  const { data: contractChildren } = useFamiliesContractsChildrenListQuery({
+    familyPk: familyId,
+    contractPk: contract.id,
   })
   // The picker submits the *child*, not the ContractChild that carries them:
   // that is the id the presence endpoint stores.
@@ -170,40 +172,28 @@ export function ExceptionalPresenceSection({
     name: c.first_name,
   }))
 
-  const invalidate = () =>
-    queryClient.invalidateQueries({
-      queryKey: ['exceptional-presences', contract.id],
-    })
+  // Cache invalidation is handled by RTK Query tags (see api/index.ts): any
+  // exceptional-presence mutation invalidates the "families" tag, refetching
+  // this list automatically.
+  const [createPresence, { isLoading: creating }] =
+    useFamiliesContractsExceptionalPresencesCreateMutation()
+  const [updatePresence, { isLoading: updating }] =
+    useFamiliesContractsExceptionalPresencesPartialUpdateMutation()
+  const [deletePresence] =
+    useFamiliesContractsExceptionalPresencesDestroyMutation()
+  const saving = creating || updating
+
   const close = () => {
     setEditingId(null)
     setErrors([])
   }
-
-  const mutation = useMutation({
-    mutationFn: () => {
-      const input = presenceDraftToInput(draft)
-      return editingId === 'new' || editingId === null
-        ? createExceptionalPresence(familyId, contract.id, input)
-        : updateExceptionalPresence(familyId, contract.id, editingId, input)
-    },
-    onSuccess: async () => {
-      await invalidate()
-      close()
-    },
-    onError: (err) => setErrors(extractErrorMessages(err, t('nanny.error'))),
-  })
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) =>
-      deleteExceptionalPresence(familyId, contract.id, id),
-    onSuccess: invalidate,
-  })
 
   const open = (mode: string | 'new', initial: PresenceDraft) => {
     setDraft(initial)
     setEditingId(mode)
     setErrors([])
   }
-  const submit = () => {
+  const submit = async () => {
     if (!draft.child) {
       setErrors([t('exceptional.presence.childRequired')])
       return
@@ -216,10 +206,29 @@ export function ExceptionalPresenceSection({
       setErrors([t('exceptional.timesRequired')])
       return
     }
-    mutation.mutate()
+    const input = presenceDraftToInput(draft)
+    try {
+      if (editingId === 'new' || editingId === null) {
+        await createPresence({
+          familyPk: familyId,
+          contractPk: contract.id,
+          exceptionalPresenceRequest: input,
+        }).unwrap()
+      } else {
+        await updatePresence({
+          familyPk: familyId,
+          contractPk: contract.id,
+          id: editingId,
+          patchedExceptionalPresenceRequest: input,
+        }).unwrap()
+      }
+      close()
+    } catch (err) {
+      setErrors(extractErrorMessages(err, t('nanny.error')))
+    }
   }
 
-  const describe = (entry: ExceptionalPresence) =>
+  const describe = (entry: ExceptionalPresenceRead) =>
     `${formatDate(entry.date, lang)} · ${entry.first_name} · ${toDisplayTime(hhmm(entry.start_time), lang)} → ${toDisplayTime(hhmm(entry.end_time), lang)}`
 
   // Only this month's exceptional presences.
@@ -239,11 +248,7 @@ export function ExceptionalPresenceSection({
           />
           <FormErrors messages={errors} />
           <div className="flex gap-2">
-            <Button
-              type="button"
-              onClick={submit}
-              disabled={mutation.isPending}
-            >
+            <Button type="button" onClick={submit} disabled={saving}>
               {t('exceptional.presence.save')}
             </Button>
             <Button type="button" variant="outline" onClick={close}>
@@ -295,7 +300,13 @@ export function ExceptionalPresenceSection({
                   trigger={t('nanny.delete')}
                   title={t('nanny.delete')}
                   description={t('exceptional.presence.confirmDelete')}
-                  onConfirm={() => deleteMutation.mutate(entry.id)}
+                  onConfirm={() =>
+                    void deletePresence({
+                      familyPk: familyId,
+                      contractPk: contract.id,
+                      id: entry.id,
+                    })
+                  }
                 />
               </span>
             </li>

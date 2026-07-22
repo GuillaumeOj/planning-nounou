@@ -2,6 +2,7 @@ from typing import cast
 
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema
 from rest_framework import generics, mixins, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -38,6 +39,9 @@ class FamilyViewSet(viewsets.ModelViewSet):
     """
 
     serializer_class = FamilySerializer
+    # Class-level queryset so the OpenAPI generator can derive the UUID pk path-param type;
+    # get_queryset below is what actually runs (scoped to the requesting user).
+    queryset = Family.objects.all()
 
     def get_queryset(self):
         # `memberships` feeds the serializer's role/is_claimed; the member User
@@ -49,6 +53,7 @@ class FamilyViewSet(viewsets.ModelViewSet):
             return [permissions.IsAuthenticated(), IsFamilyManager()]
         return [permissions.IsAuthenticated(), IsFamilyMember()]
 
+    @extend_schema(request=None, responses={204: None})
     @action(detail=True, methods=["post"])
     def leave(self, request: Request, pk: str | None = None) -> Response:
         """Remove yourself from a family. The sole owner cannot leave."""
@@ -175,7 +180,9 @@ class InvitationAcceptView(generics.GenericAPIView):
     """Accept an invitation as the logged-in user, joining the family."""
 
     permission_classes = [permissions.IsAuthenticated]
+    serializer_class = FamilySerializer
 
+    @extend_schema(request=None, responses=FamilySerializer)
     def post(self, request: Request, token: str) -> Response:
         invitation = _get_actionable_invitation(token)
         invitation.accept(cast(User, request.user))
@@ -187,6 +194,7 @@ class InvitationDeclineView(generics.GenericAPIView):
 
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(request=None, responses={204: None})
     def post(self, request: Request, token: str) -> Response:
         invitation = _get_actionable_invitation(token)
         invitation.decline()

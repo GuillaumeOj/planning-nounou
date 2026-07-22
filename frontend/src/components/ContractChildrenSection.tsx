@@ -1,22 +1,19 @@
+import { useCallback, useEffect, useState } from 'react'
 import {
-  useMutation,
-  useQueries,
-  useQuery,
-  useQueryClient,
-} from '@tanstack/react-query'
-import { useState } from 'react'
-import { listChildren } from '@/src/api/children'
-import type { Contract } from '@/src/api/contracts'
-import {
-  type ContractChild,
-  type ContractChildWindow,
-  createContractChild,
-  deleteContractChild,
-  getContractChildren,
-  updateContractChild,
-} from '@/src/api/declarations'
+  type ChildRead,
+  type ContractChildRead,
+  type ContractChildRequest,
+  type ContractChildWindowRead,
+  type ContractChildWindowRequest,
+  type ContractRead,
+  type FamilyRead,
+  useFamiliesChildrenListQuery,
+  useFamiliesContractsChildrenCreateMutation,
+  useFamiliesContractsChildrenDestroyMutation,
+  useFamiliesContractsChildrenListQuery,
+  useFamiliesContractsChildrenPartialUpdateMutation,
+} from '@/src/api'
 import { extractErrorMessages } from '@/src/api/errors'
-import { canManageFamily, type Family } from '@/src/api/family'
 import { ConfirmButton } from '@/src/components/ConfirmButton'
 import { DayWindowFields } from '@/src/components/DayWindowFields'
 import { FormErrors } from '@/src/components/FormErrors'
@@ -34,8 +31,13 @@ import {
 } from '@/src/components/ui/select'
 import { useI18n } from '@/src/i18n/I18nContext'
 import type { Language, TranslationKey } from '@/src/i18n/translations'
+import { canManageFamily } from '@/src/lib/family'
 import { type DayWindow, sortByDay, WEEKDAY_KEYS } from '@/src/lib/weekdays'
 
+// A family the acting user may manage: one they own, or one they created and
+// nobody has claimed yet (copied from the old api/family.ts). Mirrors the
+// backend's Family.can_manage — a write routed through such a family is
+// authorised, and stops being so the instant the family is claimed.
 // What a new window opens as. The nanny's own day is the natural span, but her
 // schedule varies by day and version, so a neutral working day is the honest
 // default — the parent narrows it.
@@ -48,7 +50,7 @@ interface ChildDraft {
 
 const EMPTY_CHILD: ChildDraft = { child: '', windows: [] }
 
-function entryToDraft(entry: ContractChild): ChildDraft {
+function entryToDraft(entry: ContractChildRead): ChildDraft {
   return {
     child: entry.child,
     windows: entry.windows.map((w) => ({
@@ -64,7 +66,7 @@ function entryToDraft(entry: ContractChild): ChildDraft {
 // a blank would assume the opposite. ContractChildWindow is already a DayWindow
 // bar an optional id, so the server rows sort as they arrive.
 function describePresence(
-  windows: ContractChildWindow[],
+  windows: ContractChildWindowRead[],
   t: (key: TranslationKey) => string,
   lang: Language,
 ): string {
@@ -157,6 +159,26 @@ function ChildFields({
   )
 }
 
+// RTK Query has no `useQueries`, so one loader per manageable family fetches
+// that family's children and reports them back up. The parent aggregates them
+// into the picker options and the create-target routing — the children are
+// needed as a single combined list, not rendered per family.
+function FamilyChildrenLoader({
+  familyId,
+  onLoaded,
+}: {
+  familyId: string
+  onLoaded: (familyId: string, children: ChildRead[]) => void
+}) {
+  const { data, isSuccess } = useFamiliesChildrenListQuery({
+    familyPk: familyId,
+  })
+  useEffect(() => {
+    if (isSuccess) onLoaded(familyId, data ?? [])
+  }, [isSuccess, data, familyId, onLoaded])
+  return null
+}
+
 // The children a contract covers, and when each is there. This is what the pay
 // split divides by: without it a shared contract has nothing to split, and the
 // declaration says so (`split_without_children`).
@@ -166,11 +188,10 @@ export function ContractChildrenSection({
   families,
 }: {
   familyId: string
-  contract: Contract
-  families: Family[]
+  contract: ContractRead
+  families: FamilyRead[]
 }) {
   const { t, lang } = useI18n()
-  const queryClient = useQueryClient()
   const [draft, setDraft] = useState<ChildDraft>(EMPTY_CHILD)
   const [editingId, setEditingId] = useState<string | 'new' | null>(null)
   // The family the current form writes through. A write is scoped to a family's
@@ -179,10 +200,20 @@ export function ContractChildrenSection({
   // save time (null until then).
   const [actingFamilyId, setActingFamilyId] = useState<string | null>(null)
   const [errors, setErrors] = useState<string[]>([])
+  // Children of each manageable family, filled by the loaders below.
+  const [childrenByFamily, setChildrenByFamily] = useState<
+    Record<string, ChildRead[]>
+  >({})
+  const handleChildrenLoaded = useCallback(
+    (fid: string, children: ChildRead[]) => {
+      setChildrenByFamily((prev) => ({ ...prev, [fid]: children }))
+    },
+    [],
+  )
 
-  const { data: entries } = useQuery({
-    queryKey: ['contract-children', contract.id],
-    queryFn: () => getContractChildren(familyId, contract.id),
+  const { data: entries } = useFamiliesContractsChildrenListQuery({
+    familyPk: familyId,
+    contractPk: contract.id,
   })
 
   // The families on this contract the acting user may manage: their own, plus
@@ -195,64 +226,34 @@ export function ContractChildrenSection({
   )
   const manageableIds = new Set(manageableFamilies.map((f) => f.id))
 
-  const childQueries = useQueries({
-    queries: manageableFamilies.map((cf) => ({
-      queryKey: ['children', cf.id],
-      queryFn: () => listChildren(cf.id),
-    })),
-  })
-  const childrenLoaded = childQueries.every((q) => q.isSuccess)
+  const childrenLoaded = manageableFamilies.every(
+    (cf) => cf.id in childrenByFamily,
+  )
   // Every child of a manageable family, tagged with the family that owns it so a
   // new row can be routed through it.
-  const ownChildren = manageableFamilies.flatMap((cf, i) =>
-    (childQueries[i].data ?? []).map((c) => ({
+  const ownChildren = manageableFamilies.flatMap((cf) =>
+    (childrenByFamily[cf.id] ?? []).map((c) => ({
       id: c.id,
       name: c.first_name,
       familyId: cf.id,
     })),
   )
 
-  const invalidate = () =>
-    Promise.all([
-      queryClient.invalidateQueries({
-        queryKey: ['contract-children', contract.id],
-      }),
-      // The split — and so every figure on the declaration — moves with this.
-      queryClient.invalidateQueries({ queryKey: ['declarations'] }),
-    ])
+  // Cache invalidation is handled by RTK Query tags (see api/index.ts): a
+  // contract-child mutation invalidates the "families" tag, refetching both the
+  // entries here and every declaration (whose split moves with this).
+  const [createContractChild, { isLoading: creating }] =
+    useFamiliesContractsChildrenCreateMutation()
+  const [updateContractChild, { isLoading: updating }] =
+    useFamiliesContractsChildrenPartialUpdateMutation()
+  const [deleteContractChild] = useFamiliesContractsChildrenDestroyMutation()
+  const saving = creating || updating
+
   const close = () => {
     setEditingId(null)
     setActingFamilyId(null)
     setErrors([])
   }
-
-  const mutation = useMutation({
-    mutationFn: () => {
-      const input = { child: draft.child, windows: draft.windows }
-      if (editingId === 'new' || editingId === null) {
-        const target = ownChildren.find((c) => c.id === draft.child)?.familyId
-        if (!target) throw new Error('No family owns the chosen child.')
-        return createContractChild(target, contract.id, input)
-      }
-      // actingFamilyId is pinned to the edited row's family when the form opens.
-      return updateContractChild(
-        actingFamilyId as string,
-        contract.id,
-        editingId,
-        input,
-      )
-    },
-    onSuccess: async () => {
-      await invalidate()
-      close()
-    },
-    onError: (err) => setErrors(extractErrorMessages(err, t('nanny.error'))),
-  })
-  const deleteMutation = useMutation({
-    mutationFn: (entry: ContractChild) =>
-      deleteContractChild(entry.family_id, contract.id, entry.id),
-    onSuccess: invalidate,
-  })
 
   const open = (
     mode: string | 'new',
@@ -264,12 +265,37 @@ export function ContractChildrenSection({
     setActingFamilyId(family)
     setErrors([])
   }
-  const submit = () => {
+  const submit = async () => {
     if (!draft.child) {
       setErrors([t('contractChild.childRequired')])
       return
     }
-    mutation.mutate()
+    const input: ContractChildRequest = {
+      child: draft.child,
+      windows: draft.windows as ContractChildWindowRequest[],
+    }
+    try {
+      if (editingId === 'new' || editingId === null) {
+        const target = ownChildren.find((c) => c.id === draft.child)?.familyId
+        if (!target) throw new Error('No family owns the chosen child.')
+        await createContractChild({
+          familyPk: target,
+          contractPk: contract.id,
+          contractChildRequest: input,
+        }).unwrap()
+      } else {
+        // actingFamilyId is pinned to the edited row's family when the form opens.
+        await updateContractChild({
+          familyPk: actingFamilyId as string,
+          contractPk: contract.id,
+          id: editingId,
+          patchedContractChildRequest: input,
+        }).unwrap()
+      }
+      close()
+    } catch (err) {
+      setErrors(extractErrorMessages(err, t('nanny.error')))
+    }
   }
 
   // A child already on the contract is not a candidate to add again — but the
@@ -286,6 +312,14 @@ export function ContractChildrenSection({
       title={t('contractChild.title')}
       description={t('contractChild.description')}
     >
+      {manageableFamilies.map((cf) => (
+        <FamilyChildrenLoader
+          key={cf.id}
+          familyId={cf.id}
+          onLoaded={handleChildrenLoaded}
+        />
+      ))}
+
       {editingId !== null ? (
         <div className="flex flex-col gap-4 rounded-md border p-3">
           <ChildFields
@@ -297,11 +331,7 @@ export function ContractChildrenSection({
           />
           <FormErrors messages={errors} />
           <div className="flex gap-2">
-            <Button
-              type="button"
-              onClick={submit}
-              disabled={mutation.isPending}
-            >
+            <Button type="button" onClick={submit} disabled={saving}>
               {t('contractChild.save')}
             </Button>
             <Button type="button" variant="outline" onClick={close}>
@@ -368,7 +398,13 @@ export function ContractChildrenSection({
                       trigger={t('nanny.delete')}
                       title={t('nanny.delete')}
                       description={t('contractChild.confirmDelete')}
-                      onConfirm={() => deleteMutation.mutate(entry)}
+                      onConfirm={() =>
+                        void deleteContractChild({
+                          familyPk: entry.family_id,
+                          contractPk: contract.id,
+                          id: entry.id,
+                        })
+                      }
                     />
                   </span>
                 )}

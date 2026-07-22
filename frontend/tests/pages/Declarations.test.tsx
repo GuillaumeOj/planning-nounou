@@ -1,30 +1,16 @@
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { HttpResponse, http } from 'msw'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { type Contract, getContracts } from '@/src/api/contracts'
-import { getDeclarations } from '@/src/api/declarations'
-import { getFamilies } from '@/src/api/family'
+import type { ContractRead, FamilyRead } from '@/src/api'
 import Declarations from '@/src/pages/Declarations'
+import { server } from '@/tests/msw/server'
 import { renderWithProviders, selectOption } from '@/tests/utils'
 
-vi.mock('@/src/api/family', () => ({ getFamilies: vi.fn() }))
-vi.mock('@/src/api/contracts', () => ({ getContracts: vi.fn() }))
-vi.mock('@/src/api/declarations', () => ({
-  getDeclarations: vi.fn(),
-  updateDeclaration: vi.fn(),
-  fileDeclaration: vi.fn(),
-}))
-
-const m = {
-  families: vi.mocked(getFamilies),
-  contracts: vi.mocked(getContracts),
-  declarations: vi.mocked(getDeclarations),
-}
-
-const family = {
+const family: FamilyRead = {
   id: 'fam-1',
   name: 'Home',
-  role: 'owner' as const,
+  role: 'owner',
   is_claimed: true,
   created_at: '',
 }
@@ -32,16 +18,55 @@ const family = {
 const contract = {
   id: 'contract-1',
   nanny: { id: 'n1', first_name: 'Marie', last_name: 'Dupont' },
-} as Contract
+} as ContractRead
+
+// The three requests the page (and the DeclarationSection it renders) fire: the
+// family list, the acting family's contracts, then per contract the month's
+// declarations. The handlers record what was asked for so a test can assert the
+// scope — the MSW equivalent of the old `expect(getDeclarations).toHaveBeenCalledWith`.
+function setup({
+  families = [family],
+  contracts = [contract],
+  contractsError = false,
+}: {
+  families?: FamilyRead[]
+  contracts?: ContractRead[]
+  contractsError?: boolean
+} = {}) {
+  const calls = {
+    contracts: [] as string[],
+    declarations: [] as {
+      familyPk: string
+      contractPk: string
+      month: string | null
+    }[],
+  }
+  server.use(
+    http.get('*/api/families/', () => HttpResponse.json(families)),
+    http.get('*/api/families/:familyPk/contracts/', ({ params }) => {
+      calls.contracts.push(params.familyPk as string)
+      if (contractsError) return new HttpResponse(null, { status: 500 })
+      return HttpResponse.json(contracts)
+    }),
+    http.get(
+      '*/api/families/:familyPk/contracts/:contractPk/declarations/',
+      ({ params, request }) => {
+        calls.declarations.push({
+          familyPk: params.familyPk as string,
+          contractPk: params.contractPk as string,
+          month: new URL(request.url).searchParams.get('month'),
+        })
+        return HttpResponse.json([])
+      },
+    ),
+  )
+  return calls
+}
 
 beforeEach(() => {
-  vi.clearAllMocks()
   // The month a parent lands on is derived from today, so pin today.
   vi.useFakeTimers({ shouldAdvanceTime: true })
   vi.setSystemTime(new Date('2026-07-17T09:00:00Z'))
-  m.families.mockResolvedValue([family])
-  m.contracts.mockResolvedValue([contract])
-  m.declarations.mockResolvedValue([])
 })
 
 afterEach(() => {
@@ -52,19 +77,21 @@ describe('Declarations', () => {
   // You declare a month once it is over, so the month just gone is what a parent
   // almost always came here for.
   it('lands on last month', async () => {
+    const calls = setup()
     renderWithProviders(<Declarations />)
 
     expect(await screen.findByText('June 2026')).toBeInTheDocument()
     await waitFor(() =>
-      expect(m.declarations).toHaveBeenCalledWith(
-        'fam-1',
-        'contract-1',
-        '2026-06',
-      ),
+      expect(calls.declarations).toContainEqual({
+        familyPk: 'fam-1',
+        contractPk: 'contract-1',
+        month: '2026-06',
+      }),
     )
   })
 
   it('asks for the month it moved to', async () => {
+    const calls = setup()
     renderWithProviders(<Declarations />)
     await screen.findByText('June 2026')
 
@@ -74,11 +101,11 @@ describe('Declarations', () => {
 
     expect(await screen.findByText('May 2026')).toBeInTheDocument()
     await waitFor(() =>
-      expect(m.declarations).toHaveBeenCalledWith(
-        'fam-1',
-        'contract-1',
-        '2026-05',
-      ),
+      expect(calls.declarations).toContainEqual({
+        familyPk: 'fam-1',
+        contractPk: 'contract-1',
+        month: '2026-05',
+      }),
     )
 
     await userEvent.click(screen.getByRole('button', { name: 'Next month' }))
@@ -86,6 +113,7 @@ describe('Declarations', () => {
   })
 
   it('jumps back to the current month', async () => {
+    const calls = setup()
     renderWithProviders(<Declarations />)
     await screen.findByText('June 2026')
 
@@ -93,22 +121,24 @@ describe('Declarations', () => {
 
     expect(await screen.findByText('July 2026')).toBeInTheDocument()
     await waitFor(() =>
-      expect(m.declarations).toHaveBeenCalledWith(
-        'fam-1',
-        'contract-1',
-        '2026-07',
-      ),
+      expect(calls.declarations).toContainEqual({
+        familyPk: 'fam-1',
+        contractPk: 'contract-1',
+        month: '2026-07',
+      }),
     )
   })
 
   it('renders a section per contract', async () => {
-    m.contracts.mockResolvedValue([
-      contract,
-      {
-        id: 'contract-2',
-        nanny: { id: 'n2', first_name: 'Jeanne', last_name: 'Martin' },
-      } as Contract,
-    ])
+    setup({
+      contracts: [
+        contract,
+        {
+          id: 'contract-2',
+          nanny: { id: 'n2', first_name: 'Jeanne', last_name: 'Martin' },
+        } as ContractRead,
+      ],
+    })
     renderWithProviders(<Declarations />)
 
     expect(await screen.findByText('Marie Dupont')).toBeInTheDocument()
@@ -118,27 +148,26 @@ describe('Declarations', () => {
   // The acting family is the one whose declaration can be written, so switching
   // it has to re-scope the request rather than just relabel the page.
   it('reads as the family that was picked', async () => {
-    m.families.mockResolvedValue([
-      family,
-      { ...family, id: 'fam-2', name: 'Grandparents' },
-    ])
+    const calls = setup({
+      families: [family, { ...family, id: 'fam-2', name: 'Grandparents' }],
+    })
     renderWithProviders(<Declarations />)
     await screen.findByText('Marie Dupont')
 
     await selectOption('Acting as family', 'Grandparents')
 
-    await waitFor(() => expect(m.contracts).toHaveBeenCalledWith('fam-2'))
+    await waitFor(() => expect(calls.contracts).toContain('fam-2'))
     await waitFor(() =>
-      expect(m.declarations).toHaveBeenCalledWith(
-        'fam-2',
-        'contract-1',
-        '2026-06',
-      ),
+      expect(calls.declarations).toContainEqual({
+        familyPk: 'fam-2',
+        contractPk: 'contract-1',
+        month: '2026-06',
+      }),
     )
   })
 
   it('says so when there are no contracts to declare for', async () => {
-    m.contracts.mockResolvedValue([])
+    setup({ contracts: [] })
     renderWithProviders(<Declarations />)
 
     expect(
@@ -149,17 +178,17 @@ describe('Declarations', () => {
   })
 
   it('asks for a family before anything else when there is none', async () => {
-    m.families.mockResolvedValue([])
+    const calls = setup({ families: [] })
     renderWithProviders(<Declarations />)
 
     expect(
       await screen.findByText('Create a family first, then add a nanny.'),
     ).toBeInTheDocument()
-    expect(m.declarations).not.toHaveBeenCalled()
+    expect(calls.declarations).toHaveLength(0)
   })
 
   it('reports a failure to load the contracts', async () => {
-    m.contracts.mockRejectedValue(new Error('boom'))
+    setup({ contractsError: true })
     renderWithProviders(<Declarations />)
 
     expect(

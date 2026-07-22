@@ -1,19 +1,62 @@
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { HttpResponse, http } from 'msw'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { getMyContractInvitations } from '@/src/api/contracts'
-import { getMyInvitations } from '@/src/api/family'
+import type { ContractInvitationRead, InvitationRead } from '@/src/api'
 import { useAuth } from '@/src/auth/AuthContext'
 import { NavBar } from '@/src/components/NavBar'
+import { server } from '@/tests/msw/server'
 import { makeAuth, renderWithProviders } from '@/tests/utils'
 
 vi.mock('@/src/auth/AuthContext', () => ({ useAuth: vi.fn() }))
-vi.mock('@/src/api/family', () => ({ getMyInvitations: vi.fn() }))
-vi.mock('@/src/api/contracts', () => ({ getMyContractInvitations: vi.fn() }))
 const mockUseAuth = vi.mocked(useAuth)
-const mockGetMyInvitations = vi.mocked(getMyInvitations)
-const mockGetMyContractInvitations = vi.mocked(getMyContractInvitations)
 const logout = vi.fn()
+
+// NavBar always fires these two on mount for its badge counts (see NavBar.tsx).
+// An /api request with no handler fails the test, so every render needs both.
+const INVITATIONS = '*/api/invitations/'
+const CONTRACT_INVITATIONS = '*/api/contract-invitations/'
+
+// Register list handlers that return the given rows. Only the array length feeds
+// the badge counts, so the fixtures carry just enough to type as *Read rows.
+function setup(
+  invitations: InvitationRead[] = [],
+  contractInvitations: ContractInvitationRead[] = [],
+) {
+  server.use(
+    http.get(INVITATIONS, () => HttpResponse.json(invitations)),
+    http.get(CONTRACT_INVITATIONS, () =>
+      HttpResponse.json(contractInvitations),
+    ),
+  )
+}
+
+function makeInvitation(o: Partial<InvitationRead> = {}): InvitationRead {
+  return {
+    id: '1',
+    email: 'invitee@example.com',
+    role: 'member',
+    status: 'pending',
+    token: 't1',
+    created_at: '2026-01-01T00:00:00Z',
+    expires_at: '2026-01-08T00:00:00Z',
+    ...o,
+  }
+}
+
+function makeContractInvitation(
+  o: Partial<ContractInvitationRead> = {},
+): ContractInvitationRead {
+  return {
+    id: '1',
+    email: 'invitee@example.com',
+    status: 'pending',
+    token: 'c1',
+    created_at: '2026-01-01T00:00:00Z',
+    expires_at: '2026-01-08T00:00:00Z',
+    ...o,
+  }
+}
 
 function setUser(overrides: Partial<Parameters<typeof makeAuth>[0]> = {}) {
   mockUseAuth.mockReturnValue(
@@ -34,8 +77,8 @@ function setUser(overrides: Partial<Parameters<typeof makeAuth>[0]> = {}) {
 beforeEach(() => {
   vi.clearAllMocks()
   setUser()
-  mockGetMyInvitations.mockResolvedValue([])
-  mockGetMyContractInvitations.mockResolvedValue([])
+  // Default to no pending invitations; individual tests override with setup(...).
+  setup()
 })
 
 describe('NavBar', () => {
@@ -76,21 +119,9 @@ describe('NavBar', () => {
   })
 
   it('badges the Family link with the pending invitation count', async () => {
-    mockGetMyInvitations.mockResolvedValue([
-      {
-        id: '1',
-        family_name: 'Dupont',
-        role: 'member',
-        token: 't1',
-        expires_at: '2026-01-08T00:00:00Z',
-      },
-      {
-        id: '2',
-        family_name: 'Martin',
-        role: 'owner',
-        token: 't2',
-        expires_at: '2026-01-08T00:00:00Z',
-      },
+    setup([
+      makeInvitation({ id: '1', role: 'member', token: 't1' }),
+      makeInvitation({ id: '2', role: 'owner', token: 't2' }),
     ])
     renderWithProviders(<NavBar />)
 
@@ -100,15 +131,7 @@ describe('NavBar', () => {
   })
 
   it('badges the Nannies link with pending contract invitations', async () => {
-    mockGetMyContractInvitations.mockResolvedValue([
-      {
-        id: '1',
-        nanny_first_name: 'Marie',
-        nanny_last_name: 'Dupont',
-        token: 'c1',
-        expires_at: '2026-01-08T00:00:00Z',
-      },
-    ])
+    setup([], [makeContractInvitation({ id: '1', token: 'c1' })])
     renderWithProviders(<NavBar />)
 
     expect(

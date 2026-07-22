@@ -1,14 +1,13 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { TriangleAlert } from 'lucide-react'
 import { useState } from 'react'
-import type { Contract } from '@/src/api/contracts'
 import {
-  type DeclarationWarning,
-  fileDeclaration,
-  getDeclarations,
-  type MonthlyDeclaration,
-  updateDeclaration,
-} from '@/src/api/declarations'
+  type ContractRead,
+  type DeclarationWarningRead,
+  type MonthlyDeclarationRead,
+  useFamiliesContractsDeclarationsFileCreateMutation,
+  useFamiliesContractsDeclarationsListQuery,
+  useFamiliesContractsDeclarationsPartialUpdateMutation,
+} from '@/src/api'
 import { extractErrorMessages } from '@/src/api/errors'
 import { ConfirmButton } from '@/src/components/ConfirmButton'
 import { formatDate } from '@/src/components/DateField'
@@ -73,7 +72,7 @@ function isSafeHttpUrl(url: string): boolean {
 // The article behind a warning, quoted verbatim. This is the point of showing a
 // warning at all: a parent about to type a figure into pajemploi can check it
 // against the convention rather than take our word.
-function WarningItem({ warning }: { warning: DeclarationWarning }) {
+function WarningItem({ warning }: { warning: DeclarationWarningRead }) {
   const { t } = useI18n()
   const key = WARNING_KEYS[warning.code]
 
@@ -105,7 +104,7 @@ function WarningItem({ warning }: { warning: DeclarationWarning }) {
   )
 }
 
-function Warnings({ warnings }: { warnings: DeclarationWarning[] }) {
+function Warnings({ warnings }: { warnings: DeclarationWarningRead[] }) {
   const { t } = useI18n()
   if (warnings.length === 0) return null
 
@@ -127,7 +126,7 @@ function Warnings({ warnings }: { warnings: DeclarationWarning[] }) {
 // Only shown when the rates moved mid-month, which is the one case where
 // total != hours × rate and a parent would otherwise be unable to reproduce the
 // figure. A single period is the norm and says nothing worth the space.
-function RatePeriods({ declaration }: { declaration: MonthlyDeclaration }) {
+function RatePeriods({ declaration }: { declaration: MonthlyDeclarationRead }) {
   const { t, lang } = useI18n()
   if (declaration.rate_periods.length < 2) return null
 
@@ -166,30 +165,33 @@ function Kilometers({
 }: {
   familyId: string
   contractId: string
-  declaration: MonthlyDeclaration
+  declaration: MonthlyDeclarationRead
 }) {
   const { t, lang } = useI18n()
-  const queryClient = useQueryClient()
   const [kilometers, setKilometers] = useState(declaration.kilometers)
   const [errors, setErrors] = useState<string[]>([])
 
-  const mutation = useMutation({
-    mutationFn: () =>
-      updateDeclaration(familyId, contractId, declaration.id, { kilometers }),
-    onSuccess: async (updated) => {
+  // Cache invalidation is handled by RTK Query tags (see api/index.ts): the
+  // declaration mutation invalidates the "families" tag, refetching the list.
+  const [updateDeclaration, { isLoading: saving }] =
+    useFamiliesContractsDeclarationsPartialUpdateMutation()
+
+  const save = async () => {
+    try {
+      const updated = await updateDeclaration({
+        familyPk: familyId,
+        contractPk: contractId,
+        id: declaration.id,
+        patchedMonthlyDeclarationRequest: { kilometers },
+      }).unwrap()
       setErrors([])
       // Take the backend's normalisation ('42' comes back '42.00') rather than
       // leaving the field showing what was typed.
       setKilometers(updated.kilometers)
-      // Only this contract's rows moved, and reading them recomputes and writes
-      // every non-frozen row on the backend — so do not sweep the other cards in.
-      await queryClient.invalidateQueries({
-        queryKey: ['declarations', contractId],
-      })
-    },
-    onError: (error) =>
-      setErrors(extractErrorMessages(error, t('declaration.saveError'))),
-  })
+    } catch (error) {
+      setErrors(extractErrorMessages(error, t('declaration.saveError')))
+    }
+  }
 
   // Saving a value the server already holds would be a write for nothing.
   const dirty = kilometers !== declaration.kilometers
@@ -217,12 +219,10 @@ function Kilometers({
           type="button"
           size="sm"
           variant="outline"
-          disabled={!dirty || mutation.isPending}
-          onClick={() => mutation.mutate()}
+          disabled={!dirty || saving}
+          onClick={save}
         >
-          {mutation.isPending
-            ? t('declaration.saving')
-            : t('declaration.saveKilometers')}
+          {saving ? t('declaration.saving') : t('declaration.saveKilometers')}
         </Button>
       </div>
       <p className="text-xs text-muted-foreground">
@@ -243,10 +243,9 @@ function DeclarationCard({
 }: {
   familyId: string
   contractId: string
-  declaration: MonthlyDeclaration
+  declaration: MonthlyDeclarationRead
 }) {
   const { t, lang } = useI18n()
-  const queryClient = useQueryClient()
   const [errors, setErrors] = useState<string[]>([])
 
   const isFiled = declaration.status === 'filed'
@@ -258,17 +257,21 @@ function DeclarationCard({
   // family's, so being yours is no longer part of the question.
   const editsKilometers = declaration.is_editable
 
-  const fileMutation = useMutation({
-    mutationFn: () => fileDeclaration(familyId, contractId, declaration.id),
-    onSuccess: async () => {
+  const [fileDeclaration, { isLoading: filing }] =
+    useFamiliesContractsDeclarationsFileCreateMutation()
+
+  const file = async () => {
+    try {
+      await fileDeclaration({
+        familyPk: familyId,
+        contractPk: contractId,
+        id: declaration.id,
+      }).unwrap()
       setErrors([])
-      await queryClient.invalidateQueries({
-        queryKey: ['declarations', contractId],
-      })
-    },
-    onError: (error) =>
-      setErrors(extractErrorMessages(error, t('declaration.fileError'))),
-  })
+    } catch (error) {
+      setErrors(extractErrorMessages(error, t('declaration.fileError')))
+    }
+  }
 
   // The order matches the pajemploi form the parent copies these into, top to
   // bottom: hours at 25%, then 50%, then normal.
@@ -396,15 +399,11 @@ function DeclarationCard({
         <div className="self-start">
           <ConfirmButton
             variant="default"
-            trigger={
-              fileMutation.isPending
-                ? t('declaration.filing')
-                : t('declaration.file')
-            }
+            trigger={filing ? t('declaration.filing') : t('declaration.file')}
             title={t('declaration.confirmFileTitle')}
             description={t('declaration.confirmFileDescription')}
-            disabled={fileMutation.isPending}
-            onConfirm={() => fileMutation.mutate()}
+            disabled={filing}
+            onConfirm={file}
           />
         </div>
       )}
@@ -421,7 +420,7 @@ export function DeclarationSection({
   month,
 }: {
   familyId: string
-  contract: Contract
+  contract: ContractRead
   month: string
 }) {
   const { t } = useI18n()
@@ -430,14 +429,14 @@ export function DeclarationSection({
     data: declarations,
     isLoading,
     isError,
-  } = useQuery({
-    // familyId is part of the key, not just the fetch: the endpoint returns only
-    // the acting family's row, so a user who manages both families of a shared
-    // contract must not be served the first family's figures under the second.
-    // The invalidations above key on ['declarations', contractId] alone, which
-    // still prefix-matches this and sweeps every family/month for the contract.
-    queryKey: ['declarations', contract.id, familyId, month],
-    queryFn: () => getDeclarations(familyId, contract.id, month),
+    // familyPk is part of the query args, not just the request: the endpoint
+    // returns only the acting family's row, so a user who manages both families
+    // of a shared contract must not be served the first family's figures under
+    // the second. RTK caches per (familyPk, contractPk, month).
+  } = useFamiliesContractsDeclarationsListQuery({
+    familyPk: familyId,
+    contractPk: contract.id,
+    month,
   })
 
   return (

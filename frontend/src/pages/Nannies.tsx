@@ -1,42 +1,43 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { format } from 'date-fns'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { type Child, listChildren } from '@/src/api/children'
 import {
-  acceptContractInvitation,
-  attachContractFamily,
-  type Contract,
-  type ContractInput,
-  type ContractSchedule,
-  type ContractScheduleInput,
-  type ContractTerms,
-  type ContractTermsInput,
-  createContract,
-  createContractInvitation,
-  createContractSchedule,
-  createContractTerms,
-  declineContractInvitation,
-  deleteContract,
-  deleteContractSchedule,
-  deleteContractTerms,
-  getContractInvitations,
-  getContractSchedules,
-  getContracts,
-  getContractTerms,
-  getMinimumWage,
-  getMyContractInvitations,
-  getPaidLeaveDefault,
-  type Nanny,
-  revokeContractInvitation,
-  type ScheduleBlock,
-  type SplitMethod,
-  updateContract,
-  updateContractSchedule,
-  updateContractTerms,
-} from '@/src/api/contracts'
-import { createContractChild } from '@/src/api/declarations'
+  type ChildRead,
+  type ContractRead,
+  type ContractRequestWrite,
+  type ContractScheduleRead,
+  type ContractScheduleRequest,
+  type ContractTermsRead,
+  type ContractTermsRequest,
+  type FamilyRead,
+  type NannyBriefRead,
+  type ScheduleBlockRead,
+  type SplitMethodEnum,
+  useContractInvitationsAcceptCreateMutation,
+  useContractInvitationsDeclineCreateMutation,
+  useContractInvitationsListQuery,
+  useFamiliesChildrenListQuery,
+  useFamiliesContractsAttachFamilyCreateMutation,
+  useFamiliesContractsChildrenCreateMutation,
+  useFamiliesContractsCreateMutation,
+  useFamiliesContractsDestroyMutation,
+  useFamiliesContractsInvitationsCreateMutation,
+  useFamiliesContractsInvitationsDestroyMutation,
+  useFamiliesContractsInvitationsListQuery,
+  useFamiliesContractsListQuery,
+  useFamiliesContractsPartialUpdateMutation,
+  useFamiliesContractsScheduleCreateMutation,
+  useFamiliesContractsScheduleDestroyMutation,
+  useFamiliesContractsScheduleListQuery,
+  useFamiliesContractsSchedulePartialUpdateMutation,
+  useFamiliesContractsTermsCreateMutation,
+  useFamiliesContractsTermsDestroyMutation,
+  useFamiliesContractsTermsListQuery,
+  useFamiliesContractsTermsPartialUpdateMutation,
+  useMinimumWageRetrieveQuery,
+  usePaidLeaveDefaultRetrieveQuery,
+  type WeekdayEnum,
+} from '@/src/api'
 import { extractErrorMessages } from '@/src/api/errors'
-import { canManageFamily, type Family, getFamilies } from '@/src/api/family'
 import { ConfirmButton } from '@/src/components/ConfirmButton'
 import { ConfirmByTypingDialog } from '@/src/components/ConfirmByTypingDialog'
 import { ContractChildrenSection } from '@/src/components/ContractChildrenSection'
@@ -61,10 +62,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/src/components/ui/select'
+import { useActiveFamily } from '@/src/hooks/useActiveFamily'
 import { useI18n } from '@/src/i18n/I18nContext'
 import type { Language, TranslationKey } from '@/src/i18n/translations'
+import { canManageFamily } from '@/src/lib/family'
 import { type DayWindow, WEEKDAY_KEYS } from '@/src/lib/weekdays'
 
+// A family the acting user can manage: one they own, or an unclaimed one with no
+// role yet. Copied from the old api/family.ts helper.
 // --- Static reference content -----------------------------------------------
 
 const URSSAF_MIN =
@@ -153,7 +158,7 @@ const EMPTY_TERMS: TermsDraft = {
   benefits_in_kind: '',
 }
 
-function termsToDraft(terms: ContractTerms): TermsDraft {
+function termsToDraft(terms: ContractTermsRead): TermsDraft {
   return {
     effective_from: terms.effective_from,
     net_hourly_rate: terms.net_hourly_rate,
@@ -164,7 +169,7 @@ function termsToDraft(terms: ContractTerms): TermsDraft {
   }
 }
 
-function termsDraftToInput(draft: TermsDraft): ContractTermsInput {
+function termsDraftToInput(draft: TermsDraft): ContractTermsRequest {
   return {
     effective_from: draft.effective_from || undefined,
     net_hourly_rate: draft.net_hourly_rate,
@@ -190,7 +195,7 @@ function moneyWithUnit(
 // them. This is the "all the information" the summary shows rather than the rate
 // alone.
 function termsFigures(
-  terms: ContractTerms,
+  terms: ContractTermsRead,
   t: (key: TranslationKey) => string,
 ): Figure[] {
   return MONEY_FIELDS.map((mf) => ({
@@ -202,7 +207,7 @@ function termsFigures(
 
 // One day's blocks as a single string, sorted by start time. Shared by the
 // schedule summary and the diff so the separator and ordering never drift.
-function formatDayBlocks(blocks: ScheduleBlock[], lang: Language): string {
+function formatDayBlocks(blocks: ScheduleBlockRead[], lang: Language): string {
   return [...blocks]
     .sort((a, b) => a.start_time.localeCompare(b.start_time))
     .map((b) => formatTimeRange(b.start_time, b.end_time, lang))
@@ -212,11 +217,11 @@ function formatDayBlocks(blocks: ScheduleBlock[], lang: Language): string {
 // The current weekly schedule as one row per worked day, each listing that day's
 // time blocks — the actual hours, not just the weekly total.
 function scheduleFigures(
-  blocks: ScheduleBlock[],
+  blocks: ScheduleBlockRead[],
   t: (key: TranslationKey) => string,
   lang: Language,
 ): Figure[] {
-  const byDay = new Map<number, ScheduleBlock[]>()
+  const byDay = new Map<number, ScheduleBlockRead[]>()
   for (const block of blocks) {
     const day = byDay.get(block.weekday) ?? []
     day.push(block)
@@ -240,7 +245,7 @@ interface ScheduleDraft {
 
 const EMPTY_SCHEDULE: ScheduleDraft = { effective_from: '', blocks: [] }
 
-function scheduleToDraft(schedule: ContractSchedule): ScheduleDraft {
+function scheduleToDraft(schedule: ContractScheduleRead): ScheduleDraft {
   return {
     effective_from: schedule.effective_from,
     blocks: schedule.blocks.map((b) => ({
@@ -252,10 +257,14 @@ function scheduleToDraft(schedule: ContractSchedule): ScheduleDraft {
   }
 }
 
-function scheduleDraftToInput(draft: ScheduleDraft): ContractScheduleInput {
+function scheduleDraftToInput(draft: ScheduleDraft): ContractScheduleRequest {
   return {
     effective_from: draft.effective_from || undefined,
-    blocks: draft.blocks,
+    blocks: draft.blocks.map((b) => ({
+      weekday: b.weekday as WeekdayEnum,
+      start_time: b.start_time,
+      end_time: b.end_time,
+    })),
   }
 }
 
@@ -275,10 +284,7 @@ function TermsFields({
   // The minimum is date-specific: warn against the minimum for the *effective*
   // date, not today (a rate fine in the past may be below today's minimum).
   const onDate = draft.effective_from || format(new Date(), 'yyyy-MM-dd')
-  const { data: minimum } = useQuery({
-    queryKey: ['minimum-wage', onDate],
-    queryFn: () => getMinimumWage(onDate),
-  })
+  const { data: minimum } = useMinimumWageRetrieveQuery({ on: onDate })
   const min = minimum?.net_hourly_rate
   const netBelow = netBlurred && rateBelowMinimum(draft.net_hourly_rate, min)
 
@@ -406,7 +412,10 @@ function rateBelowMinimum(
   return min != null && rate !== '' && Number(rate) < Number(min)
 }
 
-function belowMinimum(rate: string, current: ContractTerms | null): boolean {
+function belowMinimum(
+  rate: string,
+  current: ContractTermsRead | null,
+): boolean {
   return rateBelowMinimum(rate, current?.minimum_net_hourly_rate)
 }
 
@@ -486,8 +495,8 @@ function HistoryDiffDialog({
 }
 
 function termsDiffRows(
-  item: ContractTerms,
-  prev: ContractTerms | undefined,
+  item: ContractTermsRead,
+  prev: ContractTermsRead | undefined,
   t: (key: TranslationKey) => string,
 ): DiffRow[] {
   return MONEY_FIELDS.map((mf) => ({
@@ -501,7 +510,7 @@ function termsDiffRows(
 // One day's blocks as a single string, or an em dash when the nanny doesn't work
 // that day — so a day that gained or lost hours reads as a real change.
 function dayValue(
-  blocks: ScheduleBlock[],
+  blocks: ScheduleBlockRead[],
   weekday: number,
   lang: Language,
 ): string {
@@ -510,8 +519,8 @@ function dayValue(
 }
 
 function scheduleDiffRows(
-  item: ContractSchedule,
-  prev: ContractSchedule | undefined,
+  item: ContractScheduleRead,
+  prev: ContractScheduleRead | undefined,
   t: (key: TranslationKey) => string,
   lang: Language,
 ): DiffRow[] {
@@ -537,10 +546,9 @@ function TermsSection({
   contract,
 }: {
   familyId: string
-  contract: Contract
+  contract: ContractRead
 }) {
   const { t, lang } = useI18n()
-  const queryClient = useQueryClient()
   const [draft, setDraft] = useState<TermsDraft>(EMPTY_TERMS)
   const [editingId, setEditingId] = useState<string | 'new' | null>(null)
   const [errors, setErrors] = useState<string[]>([])
@@ -548,43 +556,50 @@ function TermsSection({
   // Index into `history` of the entry whose diff is open, or null.
   const [diffIndex, setDiffIndex] = useState<number | null>(null)
 
-  const { data: history } = useQuery({
-    queryKey: ['contract-terms', contract.id],
-    queryFn: () => getContractTerms(familyId, contract.id),
+  const { data: history } = useFamiliesContractsTermsListQuery({
+    familyPk: familyId,
+    contractPk: contract.id,
   })
 
-  const invalidate = async () => {
-    await queryClient.invalidateQueries({
-      queryKey: ['contract-terms', contract.id],
-    })
-    await queryClient.invalidateQueries({ queryKey: ['contracts', familyId] })
-  }
+  // Cache invalidation is handled by RTK Query tags (see api/index.ts): any
+  // family-scoped mutation invalidates the "families" tag, refetching this list
+  // and the parent contract automatically.
+  const [createTerms, { isLoading: creating }] =
+    useFamiliesContractsTermsCreateMutation()
+  const [updateTerms, { isLoading: updating }] =
+    useFamiliesContractsTermsPartialUpdateMutation()
+  const [deleteTerms] = useFamiliesContractsTermsDestroyMutation()
+  const saving = creating || updating
+
   const close = () => {
     setEditingId(null)
     setConfirming(false)
     setErrors([])
   }
 
-  const mutation = useMutation({
-    mutationFn: () => {
-      const input = termsDraftToInput(draft)
-      return editingId === 'new' || editingId === null
-        ? createContractTerms(familyId, contract.id, input)
-        : updateContractTerms(familyId, contract.id, editingId, input)
-    },
-    onSuccess: async () => {
-      await invalidate()
+  const save = async () => {
+    const input = termsDraftToInput(draft)
+    try {
+      if (editingId === 'new' || editingId === null) {
+        await createTerms({
+          familyPk: familyId,
+          contractPk: contract.id,
+          contractTermsRequest: input,
+        }).unwrap()
+      } else {
+        await updateTerms({
+          familyPk: familyId,
+          contractPk: contract.id,
+          id: editingId,
+          patchedContractTermsRequest: input,
+        }).unwrap()
+      }
       close()
-    },
-    onError: (err) => {
+    } catch (err) {
       setErrors(extractErrorMessages(err, t('nanny.error')))
       setConfirming(false)
-    },
-  })
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => deleteContractTerms(familyId, contract.id, id),
-    onSuccess: invalidate,
-  })
+    }
+  }
 
   const open = (mode: string | 'new', initial: TermsDraft) => {
     setDraft(initial)
@@ -707,7 +722,13 @@ function TermsSection({
                     trigger={t('nanny.delete')}
                     title={t('nanny.delete')}
                     description={t('terms.confirmDelete')}
-                    onConfirm={() => deleteMutation.mutate(terms.id)}
+                    onConfirm={() =>
+                      void deleteTerms({
+                        familyPk: familyId,
+                        contractPk: contract.id,
+                        id: terms.id,
+                      })
+                    }
                   />
                 </span>
               </li>
@@ -733,8 +754,8 @@ function TermsSection({
       {confirming && (
         <ConsequenceDialog
           lines={consequenceLines()}
-          busy={mutation.isPending}
-          onConfirm={() => mutation.mutate()}
+          busy={saving}
+          onConfirm={() => void save()}
           onCancel={() => setConfirming(false)}
         />
       )}
@@ -749,10 +770,9 @@ function ScheduleSection({
   contract,
 }: {
   familyId: string
-  contract: Contract
+  contract: ContractRead
 }) {
   const { t, lang } = useI18n()
-  const queryClient = useQueryClient()
   const [draft, setDraft] = useState<ScheduleDraft>(EMPTY_SCHEDULE)
   const [editingId, setEditingId] = useState<string | 'new' | null>(null)
   const [errors, setErrors] = useState<string[]>([])
@@ -760,44 +780,48 @@ function ScheduleSection({
   // Index into `history` of the entry whose diff is open, or null.
   const [diffIndex, setDiffIndex] = useState<number | null>(null)
 
-  const { data: history } = useQuery({
-    queryKey: ['contract-schedule', contract.id],
-    queryFn: () => getContractSchedules(familyId, contract.id),
+  const { data: history } = useFamiliesContractsScheduleListQuery({
+    familyPk: familyId,
+    contractPk: contract.id,
   })
 
-  const invalidate = async () => {
-    await queryClient.invalidateQueries({
-      queryKey: ['contract-schedule', contract.id],
-    })
-    await queryClient.invalidateQueries({ queryKey: ['contracts', familyId] })
-  }
+  // Cache invalidation is handled by RTK Query tags (see api/index.ts).
+  const [createSchedule, { isLoading: creating }] =
+    useFamiliesContractsScheduleCreateMutation()
+  const [updateSchedule, { isLoading: updating }] =
+    useFamiliesContractsSchedulePartialUpdateMutation()
+  const [deleteSchedule] = useFamiliesContractsScheduleDestroyMutation()
+  const saving = creating || updating
+
   const close = () => {
     setEditingId(null)
     setConfirming(false)
     setErrors([])
   }
 
-  const mutation = useMutation({
-    mutationFn: () => {
-      const input = scheduleDraftToInput(draft)
-      return editingId === 'new' || editingId === null
-        ? createContractSchedule(familyId, contract.id, input)
-        : updateContractSchedule(familyId, contract.id, editingId, input)
-    },
-    onSuccess: async () => {
-      await invalidate()
+  const save = async () => {
+    const input = scheduleDraftToInput(draft)
+    try {
+      if (editingId === 'new' || editingId === null) {
+        await createSchedule({
+          familyPk: familyId,
+          contractPk: contract.id,
+          contractScheduleRequest: input,
+        }).unwrap()
+      } else {
+        await updateSchedule({
+          familyPk: familyId,
+          contractPk: contract.id,
+          id: editingId,
+          patchedContractScheduleRequest: input,
+        }).unwrap()
+      }
       close()
-    },
-    onError: (err) => {
+    } catch (err) {
       setErrors(extractErrorMessages(err, t('nanny.error')))
       setConfirming(false)
-    },
-  })
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) =>
-      deleteContractSchedule(familyId, contract.id, id),
-    onSuccess: invalidate,
-  })
+    }
+  }
 
   const open = (mode: string | 'new', initial: ScheduleDraft) => {
     setDraft(initial)
@@ -911,7 +935,13 @@ function ScheduleSection({
                     trigger={t('nanny.delete')}
                     title={t('nanny.delete')}
                     description={t('schedule.confirmDelete')}
-                    onConfirm={() => deleteMutation.mutate(schedule.id)}
+                    onConfirm={() =>
+                      void deleteSchedule({
+                        familyPk: familyId,
+                        contractPk: contract.id,
+                        id: schedule.id,
+                      })
+                    }
                   />
                 </span>
               </li>
@@ -946,8 +976,8 @@ function ScheduleSection({
               ? t('consequence.scheduleNew')
               : t('consequence.editInPlace'),
           ]}
-          busy={mutation.isPending}
-          onConfirm={() => mutation.mutate()}
+          busy={saving}
+          onConfirm={() => void save()}
           onCancel={() => setConfirming(false)}
         />
       )}
@@ -960,10 +990,10 @@ function ScheduleSection({
 // The families the acting user could attach to this contract: ones they manage,
 // that are neither the acting family nor already on it.
 function attachableFamilies(
-  families: Family[],
+  families: FamilyRead[],
   actingFamilyId: string,
   excludeIds: string[],
-): Family[] {
+): FamilyRead[] {
   return families.filter(
     (f) =>
       canManageFamily(f) &&
@@ -971,6 +1001,15 @@ function attachableFamilies(
       !excludeIds.includes(f.id),
   )
 }
+
+// The RTK Query mutation triggers `applyFamilyAttachments` drives — passed in so
+// the hooks stay at component level (a plain async helper can't call hooks).
+type AttachFamilyTrigger = ReturnType<
+  typeof useFamiliesContractsAttachFamilyCreateMutation
+>[0]
+type CreateContractChildTrigger = ReturnType<
+  typeof useFamiliesContractsChildrenCreateMutation
+>[0]
 
 // One attachable family: a checkbox to include it, and — once included — its
 // children to put on the contract alongside it. Its own query so the child list
@@ -981,7 +1020,7 @@ function AttachFamilyOption({
   onToggleFamily,
   onToggleChild,
 }: {
-  family: Family
+  family: FamilyRead
   // undefined when the family is not selected; a (possibly empty) list otherwise.
   childIds: string[] | undefined
   onToggleFamily: () => void
@@ -989,11 +1028,10 @@ function AttachFamilyOption({
 }) {
   const { t } = useI18n()
   const selected = childIds !== undefined
-  const { data: children } = useQuery({
-    queryKey: ['children', family.id],
-    queryFn: () => listChildren(family.id),
-    enabled: selected,
-  })
+  const { data: children } = useFamiliesChildrenListQuery(
+    { familyPk: family.id },
+    { skip: !selected },
+  )
   return (
     <div className="flex flex-col gap-1">
       <label className="flex items-center gap-2 text-sm">
@@ -1003,7 +1041,7 @@ function AttachFamilyOption({
       {selected && (
         <div className="flex flex-col gap-1 pl-6">
           {children && children.length > 0 ? (
-            children.map((child: Child) => (
+            children.map((child: ChildRead) => (
               <label key={child.id} className="flex items-center gap-2 text-sm">
                 <Checkbox
                   checked={(childIds ?? []).includes(child.id)}
@@ -1031,7 +1069,7 @@ function ManagedFamilyPicker({
   value,
   onChange,
 }: {
-  candidates: Family[]
+  candidates: FamilyRead[]
   value: Record<string, string[]>
   onChange: (value: Record<string, string[]>) => void
 }) {
@@ -1066,8 +1104,11 @@ function ManagedFamilyPicker({
 }
 
 // Attach the picked families to a contract and put their chosen children on it.
-// Shared by the wizard (once it has created the contract) and the edit view.
+// Shared by the wizard (once it has created the contract) and the edit view. The
+// mutation triggers are passed in from the calling component's hooks.
 async function applyFamilyAttachments(
+  attachFamily: AttachFamilyTrigger,
+  createContractChild: CreateContractChildTrigger,
   actingFamilyId: string,
   contractId: string,
   selection: Record<string, string[]>,
@@ -1078,16 +1119,21 @@ async function applyFamilyAttachments(
   // family's children once its attach resolves.
   await Promise.all(
     Object.entries(selection).map(async ([targetFamilyId, childIds]) => {
-      await attachContractFamily(actingFamilyId, contractId, targetFamilyId)
+      await attachFamily({
+        familyPk: actingFamilyId,
+        id: contractId,
+        attachFamilyRequestRequest: { family_id: targetFamilyId },
+      }).unwrap()
       // A child is added through its own family's endpoint — the acting user
       // manages that family, and it now shares the contract, so the child is
       // allowed on it.
       await Promise.all(
         childIds.map((childId) =>
-          createContractChild(targetFamilyId, contractId, {
-            child: childId,
-            windows: [],
-          }),
+          createContractChild({
+            familyPk: targetFamilyId,
+            contractPk: contractId,
+            contractChildRequest: { child: childId, windows: [] },
+          }).unwrap(),
         ),
       )
     }),
@@ -1102,14 +1148,14 @@ function SharingSection({
   families,
 }: {
   familyId: string
-  contract: Contract
-  families: Family[]
+  contract: ContractRead
+  families: FamilyRead[]
 }) {
   const { t } = useI18n()
-  const queryClient = useQueryClient()
   const [email, setEmail] = useState('')
   const [errors, setErrors] = useState<string[]>([])
   const [attachSel, setAttachSel] = useState<Record<string, string[]>>({})
+  const [attaching, setAttaching] = useState(false)
 
   const attachCandidates = attachableFamilies(
     families,
@@ -1117,41 +1163,50 @@ function SharingSection({
     contract.families.map((f) => f.id),
   )
 
-  const { data: invitations } = useQuery({
-    queryKey: ['contract-invitations', contract.id],
-    queryFn: () => getContractInvitations(familyId, contract.id),
+  const { data: invitations } = useFamiliesContractsInvitationsListQuery({
+    familyPk: familyId,
+    contractPk: contract.id,
   })
-  const invalidate = () =>
-    queryClient.invalidateQueries({
-      queryKey: ['contract-invitations', contract.id],
-    })
 
-  const inviteMutation = useMutation({
-    mutationFn: () => createContractInvitation(familyId, contract.id, email),
-    onSuccess: async () => {
-      await invalidate()
+  // Cache invalidation is handled by RTK Query tags (see api/index.ts).
+  const [createInvitation, { isLoading: inviting }] =
+    useFamiliesContractsInvitationsCreateMutation()
+  const [revokeInvitation] = useFamiliesContractsInvitationsDestroyMutation()
+  const [attachFamily] = useFamiliesContractsAttachFamilyCreateMutation()
+  const [createChild] = useFamiliesContractsChildrenCreateMutation()
+
+  const submitInvite = async () => {
+    try {
+      await createInvitation({
+        familyPk: familyId,
+        contractPk: contract.id,
+        contractInvitationRequest: { email },
+      }).unwrap()
       setEmail('')
       setErrors([])
-    },
-    onError: (err) => setErrors(extractErrorMessages(err, t('nanny.error'))),
-  })
-  const revokeMutation = useMutation({
-    mutationFn: (id: string) =>
-      revokeContractInvitation(familyId, contract.id, id),
-    onSuccess: invalidate,
-  })
-  const attachMutation = useMutation({
-    mutationFn: () => applyFamilyAttachments(familyId, contract.id, attachSel),
-    onSuccess: async () => {
+    } catch (err) {
+      setErrors(extractErrorMessages(err, t('nanny.error')))
+    }
+  }
+
+  const submitAttach = async () => {
+    setAttaching(true)
+    try {
+      await applyFamilyAttachments(
+        attachFamily,
+        createChild,
+        familyId,
+        contract.id,
+        attachSel,
+      )
       setAttachSel({})
       setErrors([])
-      await queryClient.invalidateQueries({ queryKey: ['contracts', familyId] })
-      await queryClient.invalidateQueries({
-        queryKey: ['contract-children', contract.id],
-      })
-    },
-    onError: (err) => setErrors(extractErrorMessages(err, t('nanny.error'))),
-  })
+    } catch (err) {
+      setErrors(extractErrorMessages(err, t('nanny.error')))
+    } finally {
+      setAttaching(false)
+    }
+  }
 
   const pending = (invitations ?? []).filter((i) => i.status === 'pending')
 
@@ -1187,12 +1242,10 @@ function SharingSection({
             <Button
               type="button"
               className="self-start"
-              disabled={attachMutation.isPending}
-              onClick={() => attachMutation.mutate()}
+              disabled={attaching}
+              onClick={() => void submitAttach()}
             >
-              {attachMutation.isPending
-                ? t('nanny.saving')
-                : t('attach.button')}
+              {attaching ? t('nanny.saving') : t('attach.button')}
             </Button>
           )}
         </div>
@@ -1202,7 +1255,7 @@ function SharingSection({
         className="flex flex-col gap-2"
         onSubmit={(event) => {
           event.preventDefault()
-          inviteMutation.mutate()
+          void submitInvite()
         }}
       >
         <Label htmlFor="invite-email">{t('sharing.email')}</Label>
@@ -1214,8 +1267,8 @@ function SharingSection({
           onChange={(e) => setEmail(e.target.value)}
         />
         <FormErrors messages={errors} />
-        <Button type="submit" disabled={inviteMutation.isPending}>
-          {inviteMutation.isPending ? t('sharing.sending') : t('sharing.send')}
+        <Button type="submit" disabled={inviting}>
+          {inviting ? t('sharing.sending') : t('sharing.send')}
         </Button>
       </form>
 
@@ -1235,7 +1288,13 @@ function SharingSection({
                   trigger={t('sharing.revoke')}
                   title={t('sharing.revoke')}
                   description={t('sharing.confirmRevoke')}
-                  onConfirm={() => revokeMutation.mutate(invitation.id)}
+                  onConfirm={() =>
+                    void revokeInvitation({
+                      familyPk: familyId,
+                      contractPk: contract.id,
+                      id: invitation.id,
+                    })
+                  }
                 />
               </li>
             ))}
@@ -1248,7 +1307,7 @@ function SharingSection({
 
 // --- how the families split the hours ---------------------------------------
 
-const SPLIT_METHODS: SplitMethod[] = ['equal', 'by_children']
+const SPLIT_METHODS: SplitMethodEnum[] = ['equal', 'by_children']
 
 // The radios the families set once and can revisit — 50/50 or fair-by-children.
 // Just the choices; the caller supplies the heading, so this reads the same in
@@ -1258,8 +1317,8 @@ function SplitMethodChoice({
   onChange,
   disabled,
 }: {
-  value: SplitMethod
-  onChange: (value: SplitMethod) => void
+  value: SplitMethodEnum
+  onChange: (value: SplitMethodEnum) => void
   disabled?: boolean
 }) {
   const { t } = useI18n()
@@ -1267,7 +1326,7 @@ function SplitMethodChoice({
     <RadioGroup
       className="flex flex-col gap-2"
       value={value}
-      onValueChange={(next) => onChange(next as SplitMethod)}
+      onValueChange={(next) => onChange(next as SplitMethodEnum)}
       disabled={disabled}
     >
       {SPLIT_METHODS.map((method) => (
@@ -1293,21 +1352,25 @@ function SplitSection({
   contract,
 }: {
   familyId: string
-  contract: Contract
+  contract: ContractRead
 }) {
   const { t } = useI18n()
-  const queryClient = useQueryClient()
   const [errors, setErrors] = useState<string[]>([])
+  const [updateContract, { isLoading: saving }] =
+    useFamiliesContractsPartialUpdateMutation()
 
-  const mutation = useMutation({
-    mutationFn: (split_method: SplitMethod) =>
-      updateContract(familyId, contract.id, { split_method }),
-    onSuccess: async () => {
+  const setSplit = async (split_method: SplitMethodEnum) => {
+    try {
+      await updateContract({
+        familyPk: familyId,
+        id: contract.id,
+        patchedContractRequest: { split_method },
+      }).unwrap()
       setErrors([])
-      await queryClient.invalidateQueries({ queryKey: ['contracts', familyId] })
-    },
-    onError: (err) => setErrors(extractErrorMessages(err, t('nanny.error'))),
-  })
+    } catch (err) {
+      setErrors(extractErrorMessages(err, t('nanny.error')))
+    }
+  }
 
   return (
     <SectionCard
@@ -1316,8 +1379,8 @@ function SplitSection({
     >
       <SplitMethodChoice
         value={contract.split_method}
-        onChange={(method) => mutation.mutate(method)}
-        disabled={mutation.isPending}
+        onChange={(method) => void setSplit(method)}
+        disabled={saving}
       />
       <FormErrors messages={errors} />
     </SectionCard>
@@ -1344,8 +1407,8 @@ function ContractWizard({
   onCreated,
 }: {
   familyId: string
-  nannies: Nanny[]
-  families: Family[]
+  nannies: NannyBriefRead[]
+  families: FamilyRead[]
   onClose: () => void
   onCreated: () => void
 }) {
@@ -1358,30 +1421,36 @@ function ContractWizard({
   const [lastName, setLastName] = useState('')
   const [startingDate, setStartingDate] = useState('')
   const [paidLeave, setPaidLeave] = useState('')
-  const [splitMethod, setSplitMethod] = useState<SplitMethod>('equal')
+  const [splitMethod, setSplitMethod] = useState<SplitMethodEnum>('equal')
   const [terms, setTerms] = useState<TermsDraft>(EMPTY_TERMS)
   const [schedule, setSchedule] = useState<ScheduleDraft>(EMPTY_SCHEDULE)
   const [childIds, setChildIds] = useState<string[]>([])
   const [shareEmail, setShareEmail] = useState('')
   // Families the user also manages, to attach directly (see ManagedFamilyPicker).
   const [attachSel, setAttachSel] = useState<Record<string, string[]>>({})
+  const [submitting, setSubmitting] = useState(false)
   const attachCandidates = attachableFamilies(families, familyId, [])
 
   // Whose children are on offer: this family's own. The other family adds its
   // own from its side once the contract is shared.
-  const { data: children } = useQuery({
-    queryKey: ['children', familyId],
-    queryFn: () => listChildren(familyId),
+  const { data: children } = useFamiliesChildrenListQuery({
+    familyPk: familyId,
   })
+
+  // The wizard runs these mutations in sequence (see submit) — each awaited via
+  // `.unwrap()` so a failure stops the chain and surfaces a message.
+  const [createContract] = useFamiliesContractsCreateMutation()
+  const [createTerms] = useFamiliesContractsTermsCreateMutation()
+  const [createSchedule] = useFamiliesContractsScheduleCreateMutation()
+  const [createChild] = useFamiliesContractsChildrenCreateMutation()
+  const [createInvitation] = useFamiliesContractsInvitationsCreateMutation()
+  const [attachFamily] = useFamiliesContractsAttachFamilyCreateMutation()
 
   // Pre-fill the paid-leave field with the branch default so a family need not
   // know the figure; they can still overwrite it. `leaveTouched` flips the moment
   // the user edits the field, so a late-arriving default never clobbers what they
   // typed — including an intentional "0", which a falsy check would miss.
-  const { data: paidLeaveDefault } = useQuery({
-    queryKey: ['paid-leave-default'],
-    queryFn: getPaidLeaveDefault,
-  })
+  const { data: paidLeaveDefault } = usePaidLeaveDefaultRetrieveQuery({})
   const leaveTouched = useRef(false)
   useEffect(() => {
     if (leaveTouched.current || paidLeaveDefault?.annual_days == null) return
@@ -1393,9 +1462,11 @@ function ContractWizard({
       prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id],
     )
 
-  const mutation = useMutation({
-    mutationFn: async () => {
-      const input: ContractInput = {
+  const submit = async () => {
+    setSubmitting(true)
+    setErrors([])
+    try {
+      const input: ContractRequestWrite = {
         starting_date: startingDate,
         paid_leave_days: paidLeave ? Number(paidLeave) : undefined,
         split_method: splitMethod,
@@ -1403,39 +1474,56 @@ function ContractWizard({
           ? { nanny_id: nannyId }
           : { first_name: firstName, last_name: lastName }),
       }
-      const contract = await createContract(familyId, input)
+      const contract = await createContract({
+        familyPk: familyId,
+        contractRequest: input,
+      }).unwrap()
       if (terms.net_hourly_rate) {
-        await createContractTerms(
-          familyId,
-          contract.id,
-          termsDraftToInput(terms),
-        )
+        await createTerms({
+          familyPk: familyId,
+          contractPk: contract.id,
+          contractTermsRequest: termsDraftToInput(terms),
+        }).unwrap()
       }
       if (schedule.blocks.length > 0) {
-        await createContractSchedule(
-          familyId,
-          contract.id,
-          scheduleDraftToInput(schedule),
-        )
+        await createSchedule({
+          familyPk: familyId,
+          contractPk: contract.id,
+          contractScheduleRequest: scheduleDraftToInput(schedule),
+        }).unwrap()
       }
       // Whole-time presence: the wizard's children are there whenever the nanny
       // works, which is the common case. Narrowing is the section's job.
       for (const id of childIds) {
-        await createContractChild(familyId, contract.id, {
-          child: id,
-          windows: [],
-        })
+        await createChild({
+          familyPk: familyId,
+          contractPk: contract.id,
+          contractChildRequest: { child: id, windows: [] },
+        }).unwrap()
       }
       if (shareEmail) {
-        await createContractInvitation(familyId, contract.id, shareEmail)
+        await createInvitation({
+          familyPk: familyId,
+          contractPk: contract.id,
+          contractInvitationRequest: { email: shareEmail },
+        }).unwrap()
       }
       // Families the user manages themselves are attached directly, with the
       // children they bring — no invitation to accept.
-      await applyFamilyAttachments(familyId, contract.id, attachSel)
-    },
-    onSuccess: onCreated,
-    onError: (err) => setErrors(extractErrorMessages(err, t('nanny.error'))),
-  })
+      await applyFamilyAttachments(
+        attachFamily,
+        createChild,
+        familyId,
+        contract.id,
+        attachSel,
+      )
+      onCreated()
+    } catch (err) {
+      setErrors(extractErrorMessages(err, t('nanny.error')))
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   const canLeaveStep1 =
     !!startingDate && (useExisting ? nannyId !== '' : !!firstName && !!lastName)
@@ -1656,10 +1744,10 @@ function ContractWizard({
         ) : (
           <Button
             type="button"
-            onClick={() => mutation.mutate()}
-            disabled={mutation.isPending}
+            onClick={() => void submit()}
+            disabled={submitting}
           >
-            {mutation.isPending ? t('wizard.creating') : t('wizard.finish')}
+            {submitting ? t('wizard.creating') : t('wizard.finish')}
           </Button>
         )}
       </div>
@@ -1678,7 +1766,7 @@ function DeleteContractDialog({
   busy,
   onConfirm,
 }: {
-  nanny: Nanny
+  nanny: NannyBriefRead
   busy: boolean
   onConfirm: () => void
 }) {
@@ -1708,35 +1796,24 @@ function DeleteContractDialog({
 function PendingContractInvitationsSection({
   families,
 }: {
-  families: Family[]
+  families: FamilyRead[]
 }) {
   const { t } = useI18n()
-  const queryClient = useQueryClient()
   // Per-invitation choice of which family joins; defaults to the first one.
   const [joinAs, setJoinAs] = useState<Record<string, string>>({})
 
-  const { data: invitations } = useQuery({
-    queryKey: ['my-contract-invitations'],
-    queryFn: getMyContractInvitations,
-  })
+  const { data: invitations } = useContractInvitationsListQuery()
 
-  const acceptMutation = useMutation({
-    mutationFn: ({ token, familyId }: { token: string; familyId: string }) =>
-      acceptContractInvitation(token, familyId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['my-contract-invitations'] })
-      queryClient.invalidateQueries({ queryKey: ['contracts'] })
-    },
-  })
-  const declineMutation = useMutation({
-    mutationFn: (token: string) => declineContractInvitation(token),
-    onSuccess: () =>
-      queryClient.invalidateQueries({ queryKey: ['my-contract-invitations'] }),
-  })
+  // Accepting joins a family, so it also refetches the "families" tag — wired in
+  // api/index.ts. Declining just clears the invitation. No manual invalidation.
+  const [acceptInvitation, { isLoading: accepting }] =
+    useContractInvitationsAcceptCreateMutation()
+  const [declineInvitation, { isLoading: declining }] =
+    useContractInvitationsDeclineCreateMutation()
 
   if (!invitations || invitations.length === 0) return null
   const manageable = families.filter(canManageFamily)
-  const busy = acceptMutation.isPending || declineMutation.isPending
+  const busy = accepting || declining
 
   return (
     <SectionCard title={t('contract.inbox.title')} className="max-w-2xl">
@@ -1797,7 +1874,12 @@ function PendingContractInvitationsSection({
                     size="sm"
                     disabled={busy}
                     onClick={() =>
-                      acceptMutation.mutate({ token: invite.token, familyId })
+                      void acceptInvitation({
+                        token: invite.token,
+                        acceptContractInvitationRequestRequest: {
+                          family_id: familyId,
+                        },
+                      })
                     }
                   >
                     {t('invite.accept')}
@@ -1807,7 +1889,9 @@ function PendingContractInvitationsSection({
                     size="sm"
                     variant="outline"
                     disabled={busy}
-                    onClick={() => declineMutation.mutate(invite.token)}
+                    onClick={() =>
+                      void declineInvitation({ token: invite.token })
+                    }
                   >
                     {t('invite.decline')}
                   </Button>
@@ -1823,42 +1907,27 @@ function PendingContractInvitationsSection({
 
 export default function Nannies() {
   const { t, lang } = useI18n()
-  const queryClient = useQueryClient()
-  const [familyId, setFamilyId] = useState<string | null>(null)
+  const { families, setFamilyId, activeFamilyId } = useActiveFamily()
   const [openId, setOpenId] = useState<string | null>(null)
   const [wizardOpen, setWizardOpen] = useState(false)
-
-  const { data: families } = useQuery({
-    queryKey: ['families'],
-    queryFn: getFamilies,
-  })
-
-  const activeFamilyId = useMemo(() => {
-    if (familyId !== null) return familyId
-    return families && families.length > 0 ? families[0].id : null
-  }, [familyId, families])
 
   const {
     data: contracts,
     isLoading,
     isError,
-  } = useQuery({
-    queryKey: ['contracts', activeFamilyId],
-    queryFn: () => getContracts(activeFamilyId as string),
-    enabled: activeFamilyId !== null,
-  })
+  } = useFamiliesContractsListQuery(
+    { familyPk: activeFamilyId ?? '' },
+    { skip: activeFamilyId === null },
+  )
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: string) => deleteContract(activeFamilyId as string, id),
-    onSuccess: () =>
-      queryClient.invalidateQueries({
-        queryKey: ['contracts', activeFamilyId],
-      }),
-  })
+  // Deleting a contract invalidates the "families" tag, refetching this list
+  // automatically (see api/index.ts). No manual invalidation needed.
+  const [deleteContract, { isLoading: deleting }] =
+    useFamiliesContractsDestroyMutation()
 
   // Nannies the acting family already works with, for reuse in the wizard.
   const knownNannies = useMemo(() => {
-    const map = new Map<string, Nanny>()
+    const map = new Map<string, NannyBriefRead>()
     for (const c of contracts ?? []) map.set(c.nanny.id, c.nanny)
     return [...map.values()]
   }, [contracts])
@@ -1968,8 +2037,13 @@ export default function Nannies() {
                       </Button>
                       <DeleteContractDialog
                         nanny={contract.nanny}
-                        busy={deleteMutation.isPending}
-                        onConfirm={() => deleteMutation.mutate(contract.id)}
+                        busy={deleting}
+                        onConfirm={() =>
+                          void deleteContract({
+                            familyPk: activeFamilyId as string,
+                            id: contract.id,
+                          })
+                        }
                       />
                     </div>
                   </div>
@@ -2016,12 +2090,7 @@ export default function Nannies() {
           nannies={knownNannies}
           families={families}
           onClose={() => setWizardOpen(false)}
-          onCreated={() => {
-            queryClient.invalidateQueries({
-              queryKey: ['contracts', activeFamilyId],
-            })
-            setWizardOpen(false)
-          }}
+          onCreated={() => setWizardOpen(false)}
         />
       )}
     </main>

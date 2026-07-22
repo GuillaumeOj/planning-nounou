@@ -2,7 +2,7 @@ import { useForm } from '@tanstack/react-form'
 import { KeyRound } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { requestPasswordReset } from '@/src/api/auth'
+import { useAuthUsersResetPasswordCreateMutation } from '@/src/api'
 import { extractErrorMessages } from '@/src/api/errors'
 import { AuthCard } from '@/src/components/AuthCard'
 import { FormErrors } from '@/src/components/FormErrors'
@@ -15,13 +15,16 @@ export default function ForgotPasswordPage() {
   const { t } = useI18n()
   const [errors, setErrors] = useState<string[]>([])
   const [sent, setSent] = useState(false)
+  const [requestPasswordReset] = useAuthUsersResetPasswordCreateMutation()
 
   const form = useForm({
     defaultValues: { email: '' },
     onSubmit: async ({ value }) => {
       setErrors([])
       try {
-        await requestPasswordReset(value.email)
+        await requestPasswordReset({
+          sendEmailResetRequest: { email: value.email },
+        }).unwrap()
         // Always report success — the API never reveals whether the email exists.
         setSent(true)
       } catch (err) {

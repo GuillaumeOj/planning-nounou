@@ -1,9 +1,10 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactElement } from 'react'
+import { Provider } from 'react-redux'
 import { MemoryRouter } from 'react-router-dom'
 import { vi } from 'vitest'
+import { makeStore } from '@/src/app/store'
 import type { AuthContextValue } from '@/src/auth/AuthContext'
 import { I18nProvider } from '@/src/i18n/I18nContext'
 import { ThemeProvider } from '@/src/theme/ThemeContext'
@@ -38,20 +39,21 @@ export function makeAuth(
   }
 }
 
-// Render a UI tree inside the app-wide providers (theme, i18n, query, router).
+// Render a UI tree inside the app-wide providers (theme, i18n, Redux store, router).
+// A fresh Redux store per render isolates the RTK Query cache between tests, so one
+// test's fetched data never leaks into the next. Server responses are mocked with MSW
+// (see tests/msw/server.ts); register handlers with `server.use(...)` in each test.
 export function renderWithProviders(
   ui: ReactElement,
   { route = '/' }: { route?: string } = {},
 ) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  })
+  const store = makeStore()
   return render(
     <ThemeProvider>
       <I18nProvider>
-        <QueryClientProvider client={client}>
+        <Provider store={store}>
           <MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>
-        </QueryClientProvider>
+        </Provider>
       </I18nProvider>
     </ThemeProvider>,
   )
