@@ -35,12 +35,16 @@ import { formatDays, formatMoney } from '@/src/lib/utils'
 const RECENT_MONTHS = 4
 
 // The nanny's congés-payés standing for the current reference period: the agreed
-// total, what has accrued so far, what has been taken, and what is left.
+// total, what has accrued so far, what has been taken, and what is left. The
+// « rappel de 1/10 » estimate (`balance.tenth`) is not shown here: the dashboard
+// stays light, so it is served on demand by the dedicated paid-leave endpoint.
+type PaidLeaveDayKey = 'total_days' | 'accrued' | 'taken' | 'remaining'
+
 function PaidLeave({ balance }: { balance: PaidLeaveBalanceRead }) {
   const { t, lang } = useI18n()
   const days = t('home.paidLeave.days')
   // The unit rides on each value so the shared FigureGroup renders the row as-is.
-  const figure = (key: keyof PaidLeaveBalanceRead) =>
+  const figure = (key: PaidLeaveDayKey) =>
     `${formatDays(balance[key], lang)} ${days}`
   const rows: Figure[] = [
     { label: t('home.paidLeave.total'), value: figure('total_days') },

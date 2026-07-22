@@ -439,6 +439,56 @@ night and holiday indemnities are kept apart from the bands.
 > warning box beside the figures. The signal is the whole point: the lower number is
 > correct, and saying why is what keeps it from looking wrong.
 
+### 3.2bis Maintien de salaire is not the whole story: the « rappel de 1/10 »
+
+Paying paid leave by maintien de salaire (§3.2) is lawful, but only as *half* of a
+comparison. [Art. L3141-24][cdt-3141-24] makes the indemnité de congés payés the **more
+favourable** of maintien and the **règle du 1/10** — a tenth of the *rémunération brute
+totale* of the 1 June–31 May reference period. When the tenth wins, the difference is a
+real debt, the **« rappel de 1/10 »**, settled once a year (by 31 May, or at the solde de
+tout compte). Overtime, worked bank holidays, présence de nuit and a mid-year raise all
+swell the tenth's base without touching the maintien already paid, so the tenth wins more
+often than one would guess — even a plain year does, because the tenth is 10 % of 52 weeks
+against 5 weeks of maintien.
+
+This lives in `contracts/paid_leave_tenth.py` (pure) and `declarations_repo.tenth_reconciliation`
+(the year aggregation), kept apart from `compute_month` because it is a *reference-period*
+figure, not a monthly one:
+
+- **The base** (art. L3141-24): salary + its overtime majorations + the worked-holiday
+  supplement + the night indemnity + benefits in kind. Frais (transport, kilométrage) are
+  reimbursements, not pay, and stay out. Summed over the twelve months, per family — each is
+  its own pajemploi employer and owes its own rappel.
+- **The comparison is in brut**, as the article frames it. The engine prices in net, so one
+  number crosses the line: the cotisations-salariales rate (`SalaryContributionRate`,
+  admin-managed with history, `brut = net / (1 − rate)`). The winner is basis-invariant — the
+  rappel is grossed up to report and brought back to net to declare.
+- **Maintien is measured on the acquired *entitlement*, not the leave taken.** Under
+  mensualisation the salary already pays the full acquired entitlement (52 weeks = worked +
+  leave) whether or not the nanny actually rests, so the tenth is compared to that: `accrued
+  jours ouvrables ÷ 6 weeks × each family's weekly base salary`. Measuring against days *taken*
+  would balloon the rappel whenever leave is under-taken — paying for rest never taken, which
+  the law forbids mid-contract. Untaken leave is instead handled below.
+- **Untaken leave → the indemnité compensatrice**, but only at the contract's end (art. 140.1.2
+  / solde de tout compte): `maintien(entitlement) − maintien(taken)`, the value of leave acquired
+  but not taken, written onto the final month's `paid_leave_compensatrice`. A regular May close
+  does **not** cash it out — mid-contract, untaken leave is lost or carried, not paid. So `rappel
+  + compensatrice = max(tenth, maintien_entitlement) − maintien_taken`, which decomposes right in
+  every case (taken-all → just the rappel; taken-none → rappel + full entitlement cashed out).
+- **Where it surfaces:** a running estimate on the paid-leave dashboard all year (the `tenth`
+  block of the balance endpoint); the rappel on the reference period's closing month (May) or the
+  contract's final month (`paid_leave_rappel` + the `paid_leave_tenth` calculation detail); and
+  the compensatrice on the final month only (`paid_leave_compensatrice`) — each NULL otherwise, so
+  "nothing this month" reads apart from "reconciled, nothing owed". Every declaration also carries
+  a `gross_hourly_rate` so the brut basis is visible.
+
+> [!NOTE]
+> Two simplifications recorded rather than hidden: maintien values a leave week at the base rate,
+> not at an overtime week's habitual majoration, and assimilated periods (maternity at full
+> theoretical pay, sickness capped at 80 %, art. L3141-5) are not yet added back into the tenth's
+> base. Both move the figure only for the rarer variable-pay years, and both are flagged here for
+> when a real case needs them.
+
 ### 3.3 An *unchômé* bank holiday is paid extra, and we owe it
 
 An earlier version of this document asserted, in bold and pre-defended against future
@@ -544,6 +594,7 @@ so the same quote can back a docstring, an API warning, and a "why?" link in the
 
 [urssaf-contrat]: https://www.urssaf.fr/accueil/particulier/particulier-employeur/embaucher-un-salarie/contrat-travail-salarie-domicile.html#ancre-le-contenu-du-contrat-de-travail
 [urssaf-cp]: https://www.urssaf.fr/accueil/particulier/particulier-employeur/gerer-les-absences/gestion-conges-payes.html
+[cdt-3141-24]: https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000049461568
 [cdtn-hs]: https://code.travail.gouv.fr/contribution/3239-heures-supplementaires
 [ccn-47-1]: https://convention-collective-idcc3239.cgt.fr/socle-commun/article-47-1-1er-mai/
 [ccn-47-2]: https://convention-collective-idcc3239.cgt.fr/socle-commun/article-47-2-jours-feries-ordinaires/

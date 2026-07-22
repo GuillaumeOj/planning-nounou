@@ -4,7 +4,7 @@ from datetime import date
 from decimal import Decimal
 from typing import ClassVar
 
-from django.core.validators import MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
@@ -75,6 +75,45 @@ class PaidLeaveAllowance(EffectiveDatedReference):
         """The default paid-leave days in force on `on` (default today), or None."""
         row = cls._row_on(on)
         return row.annual_days if row else None
+
+
+class SalaryContributionRate(EffectiveDatedReference):
+    """The employee-side social-contribution rate (cotisations salariales), from a date.
+
+    Global (national URSSAF figure for garde d'enfants à domicile), admin-managed
+    with history like :class:`MinimumWage`, and re-indexed over time. The app prices
+    everything in *net*, but the congés-payés « rappel de 1/10 » is a *brut*
+    comparison (art. L3141-24), so it needs one number to cross the net⇄brut line:
+
+        brut = net / (1 − rate)      net = brut × (1 − rate)
+
+    ``rate`` is the fraction withheld from brut (e.g. ``0.2188025`` ≈ 21.88 %). A new
+    dated row records a re-indexation without losing the old value.
+    """
+
+    #: Fraction of brut withheld as cotisations salariales, in [0, 1).
+    rate = models.DecimalField(
+        max_digits=9,
+        decimal_places=7,
+        validators=[MinValueValidator(Decimal("0")), MaxValueValidator(Decimal("0.9999999"))],
+    )
+
+    def __str__(self) -> str:
+        return f"{self.rate} from {self.effective_from}"
+
+    @classmethod
+    def applicable_on(cls, on: date | None = None) -> Decimal | None:
+        """The cotisations-salariales rate in force on `on` (default today), or None."""
+        row = cls._row_on(on)
+        return row.rate if row else None
+
+    @classmethod
+    def net_to_brut(cls, net: Decimal, on: date | None = None) -> Decimal | None:
+        """Gross a net amount up by the rate in force on `on`. None if no rate is set."""
+        rate = cls.applicable_on(on)
+        if rate is None:
+            return None
+        return net / (Decimal("1") - rate)
 
 
 class BankHoliday(UUIDModel):

@@ -39,7 +39,11 @@ function makeDeclaration(
     night_count: 0,
     night_indemnity: '0.00',
     holiday_majoration: '0.00',
+    paid_leave_rappel: null,
+    paid_leave_tenth: null,
+    paid_leave_compensatrice: null,
     net_hourly_rate: '5.50',
+    gross_hourly_rate: '7.04',
     night_presence_rate: '0.00',
     mileage_rate: '0.45',
     rate_periods: [],
@@ -224,12 +228,93 @@ describe('DeclarationSection', () => {
     expect(screen.queryByText('Benefits in kind')).not.toBeInTheDocument()
   })
 
+  it('lays out the 1/10 calculation on a closing month that owes a top-up', async () => {
+    state.declarations = [
+      makeDeclaration({
+        paid_leave_rappel: '42.00',
+        paid_leave_tenth: {
+          period_start: '2025-06-01',
+          period_end: '2026-05-31',
+          assiette_brut: '20880.00',
+          tenth_brut: '2088.00',
+          maintien_brut: '2046.00',
+          rappel_brut: '54.00',
+          rappel_net: '42.00',
+        },
+      }),
+    ]
+    render()
+
+    // The whole working is shown, not just the amount: gross assiette, its tenth,
+    // the maintien already paid, and the net top-up owed.
+    expect(
+      await screen.findByText('Paid-leave 1/10 top-up'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Gross pay over the year')).toBeInTheDocument()
+    expect(screen.getByText('€20,880.00')).toBeInTheDocument()
+    expect(screen.getByText('1/10 of it (10%)')).toBeInTheDocument()
+    expect(screen.getByText('Salary kept during leave')).toBeInTheDocument()
+    expect(screen.getByText('Top-up owed (net)')).toBeInTheDocument()
+    expect(screen.getByText('€42.00')).toBeInTheDocument()
+  })
+
+  it('omits the 1/10 block on an ordinary month (null)', async () => {
+    render()
+    await screen.findByText('Net salary')
+
+    expect(screen.queryByText('Paid-leave 1/10 top-up')).not.toBeInTheDocument()
+  })
+
+  it('shows the indemnité compensatrice on a contract-end month', async () => {
+    state.declarations = [
+      makeDeclaration({ paid_leave_compensatrice: '320.00' }),
+    ]
+    render()
+
+    expect(
+      await screen.findByText('Untaken paid-leave payout'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('€320.00')).toBeInTheDocument()
+  })
+
+  it('omits the compensatrice on an ordinary month (null)', async () => {
+    render()
+    await screen.findByText('Net salary')
+
+    expect(
+      screen.queryByText('Untaken paid-leave payout'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('omits the 1/10 block when the reconciliation owes nothing', async () => {
+    state.declarations = [
+      makeDeclaration({
+        paid_leave_tenth: {
+          period_start: '2025-06-01',
+          period_end: '2026-05-31',
+          assiette_brut: '20000.00',
+          tenth_brut: '2000.00',
+          maintien_brut: '2100.00',
+          rappel_brut: '0.00',
+          rappel_net: '0.00',
+        },
+      }),
+    ]
+    render()
+    await screen.findByText('Net salary')
+
+    expect(screen.queryByText('Paid-leave 1/10 top-up')).not.toBeInTheDocument()
+  })
+
   // The rates a figure was priced at, so a parent can reproduce the total.
-  it('shows the rates applied', async () => {
+  it('shows the rates applied, gross rate included', async () => {
     render()
 
     expect(await screen.findByText('Net hourly rate')).toBeInTheDocument()
     expect(screen.getByText('€5.50/hour')).toBeInTheDocument()
+    // The gross hourly rate rides on every declaration.
+    expect(screen.getByText('Gross hourly rate')).toBeInTheDocument()
+    expect(screen.getByText('€7.04/hour')).toBeInTheDocument()
     expect(screen.getByText('Mileage rate')).toBeInTheDocument()
     expect(screen.getByText('€0.45/km')).toBeInTheDocument()
   })

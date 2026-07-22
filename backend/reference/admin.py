@@ -1,11 +1,21 @@
 from django.contrib import admin
 
-from reference.models import BankHoliday, MinimumWage, PaidLeaveAllowance
+from reference.models import (
+    BankHoliday,
+    MinimumWage,
+    PaidLeaveAllowance,
+    SalaryContributionRate,
+)
 
 
 @admin.register(MinimumWage)
 class MinimumWageAdmin(admin.ModelAdmin):
     list_display = ("effective_from", "net_hourly_rate")
+
+
+@admin.register(SalaryContributionRate)
+class SalaryContributionRateAdmin(admin.ModelAdmin):
+    list_display = ("effective_from", "rate")
 
 
 @admin.register(PaidLeaveAllowance)

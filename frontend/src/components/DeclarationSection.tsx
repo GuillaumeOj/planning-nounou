@@ -4,6 +4,7 @@ import {
   type ContractRead,
   type DeclarationWarningRead,
   type MonthlyDeclarationRead,
+  type TenthReconciliationRead,
   useFamiliesContractsDeclarationsFileCreateMutation,
   useFamiliesContractsDeclarationsListQuery,
   useFamiliesContractsDeclarationsPartialUpdateMutation,
@@ -233,6 +234,80 @@ function Kilometers({
   )
 }
 
+// The congés-payés « rappel de 1/10 », shown in full on the closing month so a
+// parent sees WHY an extra amount is due, not just that it is. The law (art. 140.1.2
+// CCN 3239) owes the higher of maintien de salaire and 1/10 of the year's gross pay;
+// this lays out both and the difference. Only rendered when something is actually owed.
+function PaidLeaveTenth({ tenth }: { tenth: TenthReconciliationRead }) {
+  const { t, lang } = useI18n()
+  const rows: Figure[] = [
+    {
+      label: t('declaration.tenth.assiette'),
+      value: formatMoney(tenth.assiette_brut, lang),
+    },
+    {
+      label: t('declaration.tenth.tenth'),
+      value: formatMoney(tenth.tenth_brut, lang),
+    },
+    {
+      label: t('declaration.tenth.maintien'),
+      value: formatMoney(tenth.maintien_brut, lang),
+    },
+    // The gross shortfall (tenth − maintien) so the brut figures above reconcile,
+    // then the net conversion — the amount actually declared.
+    {
+      label: t('declaration.tenth.rappelBrut'),
+      value: formatMoney(tenth.rappel_brut, lang),
+    },
+    {
+      label: t('declaration.tenth.rappelNet'),
+      value: formatMoney(tenth.rappel_net, lang),
+      strong: true,
+    },
+  ]
+  return (
+    <div className="flex flex-col gap-2 rounded-md bg-background/60 p-3">
+      <FigureGroup
+        title={t('declaration.tenth.title')}
+        rows={rows}
+        aside={
+          <span className="text-xs text-muted-foreground">
+            {formatDate(tenth.period_start, lang)} →{' '}
+            {formatDate(tenth.period_end, lang)}
+          </span>
+        }
+      />
+      <p className="text-xs text-muted-foreground">
+        {t('declaration.tenth.explanation')}
+      </p>
+    </div>
+  )
+}
+
+// The indemnité compensatrice de congés payés: leave acquired but not taken, cashed
+// out when the contract ends (art. 140.1.2 / solde de tout compte). Only shown on the
+// final month, and separate from the rappel so the two do not read as one figure.
+function PaidLeaveCompensatrice({ amount }: { amount: string }) {
+  const { t, lang } = useI18n()
+  return (
+    <div className="flex flex-col gap-2 rounded-md bg-background/60 p-3">
+      <FigureGroup
+        title={t('declaration.compensatrice.title')}
+        rows={[
+          {
+            label: t('declaration.compensatrice.amount'),
+            value: formatMoney(amount, lang),
+            strong: true,
+          },
+        ]}
+      />
+      <p className="text-xs text-muted-foreground">
+        {t('declaration.compensatrice.explanation')}
+      </p>
+    </div>
+  )
+}
+
 // One family's declaration for the month. Every family's is shown — a parent
 // wants to see the whole arrangement adds up — but only your own can be written,
 // and only while it is a draft.
@@ -336,6 +411,8 @@ function DeclarationCard({
       label: t('declaration.mileageAmount'),
       value: formatMoney(declaration.mileage_amount, lang),
     }),
+    // The congés-payés « rappel de 1/10 » gets its own explained block below (see
+    // PaidLeaveTenth), not a terse line here — it needs the calculation to make sense.
   ]
 
   const rates: Figure[] = [
@@ -343,6 +420,12 @@ function DeclarationCard({
       label: t('declaration.netHourlyRate'),
       value: `${formatMoney(declaration.net_hourly_rate, lang)}${t('declaration.perHour')}`,
     },
+    // The gross hourly cost, shown on every declaration: it is what the nanny earns
+    // before cotisations, and the basis the 1/10 comparison is made in.
+    ...when(declaration.gross_hourly_rate != null, {
+      label: t('declaration.grossHourlyRate'),
+      value: `${formatMoney(declaration.gross_hourly_rate ?? '0', lang)}${t('declaration.perHour')}`,
+    }),
     ...when(!isZero(declaration.night_presence_rate), {
       label: t('declaration.nightPresenceRate'),
       value: `${formatMoney(declaration.night_presence_rate, lang)}${t('declaration.perHour')}`,
@@ -362,6 +445,16 @@ function DeclarationCard({
 
       <FigureGroup title={t('declaration.hours')} rows={hours} />
       <FigureGroup title={t('declaration.pay')} rows={pay} />
+      {declaration.paid_leave_tenth &&
+        Number(declaration.paid_leave_tenth.rappel_net) > 0 && (
+          <PaidLeaveTenth tenth={declaration.paid_leave_tenth} />
+        )}
+      {declaration.paid_leave_compensatrice != null &&
+        Number(declaration.paid_leave_compensatrice) > 0 && (
+          <PaidLeaveCompensatrice
+            amount={declaration.paid_leave_compensatrice}
+          />
+        )}
       <FigureGroup title={t('declaration.extras')} rows={extras} />
 
       {editsKilometers && (

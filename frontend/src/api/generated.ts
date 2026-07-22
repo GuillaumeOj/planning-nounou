@@ -1975,6 +1975,16 @@ export type MonthlyDeclaration = {
   kilometers: string;
 };
 export type MonthlyDeclarationStatusEnum = "draft" | "filed";
+export type TenthReconciliation = {};
+export type TenthReconciliationRead = {
+  period_start: string;
+  period_end: string;
+  assiette_brut: string;
+  tenth_brut: string;
+  maintien_brut: string;
+  rappel_brut: string;
+  rappel_net: string;
+};
 export type RatePeriod = {
   from: string;
   to: string;
@@ -2014,7 +2024,11 @@ export type MonthlyDeclarationRead = {
   night_count: number;
   night_indemnity: string;
   holiday_majoration: string;
+  paid_leave_rappel: string | null;
+  paid_leave_tenth: TenthReconciliationRead | null;
+  paid_leave_compensatrice: string | null;
   net_hourly_rate: string;
+  gross_hourly_rate: string | null;
   night_presence_rate: string;
   mileage_rate: string;
   rate_periods: RatePeriod[];
@@ -2206,6 +2220,7 @@ export type PaidLeaveBalanceRead = {
   accrued: string;
   taken: string;
   remaining: string;
+  tenth: TenthReconciliationRead | null;
 };
 export type Dashboard = {};
 export type DashboardContract = {

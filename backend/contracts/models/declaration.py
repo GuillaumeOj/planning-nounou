@@ -106,6 +106,29 @@ class MonthlyDeclaration(UUIDModel):
         max_digits=8, decimal_places=2, default=Decimal("0"), validators=NON_NEGATIVE
     )
 
+    # --- congés payés: the « rappel de 1/10 » -----------------------------
+    # The net top-up owed when the règle du 1/10 beats the maintien de salaire
+    # already paid (art. 140.1.2 CCN 3239). Settled once a year, so both are set only
+    # on the reference period's closing month (May) or the contract's final month, and
+    # are NULL every other month — null, not zero, so "no rappel this month" reads apart
+    # from "reconciled, and nothing was owed". Kept out of total_amount: it is its own
+    # pajemploi line, like the advantages.
+    paid_leave_rappel = models.DecimalField(
+        max_digits=8, decimal_places=2, null=True, blank=True, validators=NON_NEGATIVE
+    )
+    # The full reconciliation behind that amount, so the closing month can show the
+    # calculation rather than a bare figure: the annual assiette, its tenth, the
+    # maintien already paid, and the brut/net rappel. Shape mirrors
+    # :class:`TenthReconciliationSerializer`.
+    paid_leave_tenth = models.JSONField(null=True, blank=True)
+    # The indemnité compensatrice de congés payés: the net value of leave acquired but
+    # not taken, paid out when the contract ends (its solde de tout compte). Set only on
+    # the contract's final month — NULL every other month, a regular May close included,
+    # where untaken leave is not cashed out. Its own pajemploi line, like the rappel.
+    paid_leave_compensatrice = models.DecimalField(
+        max_digits=8, decimal_places=2, null=True, blank=True, validators=NON_NEGATIVE
+    )
+
     # --- snapshot of the terms these numbers were priced with -------------
     # The rates in force on the month's LAST day: what the UI shows, and correct
     # whenever the month has a single terms snapshot (nearly always).

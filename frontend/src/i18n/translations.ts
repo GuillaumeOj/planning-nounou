@@ -290,6 +290,18 @@ const en = {
   'declaration.extras': 'Expenses and benefits',
   'declaration.transportAmount': 'Transport',
   'declaration.benefitsInKind': 'Benefits in kind',
+  'declaration.tenth.title': 'Paid-leave 1/10 top-up',
+  'declaration.tenth.assiette': 'Gross pay over the year',
+  'declaration.tenth.tenth': '1/10 of it (10%)',
+  'declaration.tenth.maintien': 'Salary kept during leave',
+  'declaration.tenth.rappelBrut': 'Shortfall (gross)',
+  'declaration.tenth.rappelNet': 'Top-up owed (net)',
+  'declaration.tenth.explanation':
+    'The law owes the higher of the salary kept during leave and 1/10 of the year’s gross pay (art. 140.1.2). Here the 1/10 is higher, so this net difference is due by 31 May.',
+  'declaration.compensatrice.title': 'Untaken paid-leave payout',
+  'declaration.compensatrice.amount': 'Net owed',
+  'declaration.compensatrice.explanation':
+    'Leave acquired but not taken is paid out when the contract ends — the indemnité compensatrice de congés payés (art. 140.1.2).',
   'declaration.kilometers': 'Kilometres driven',
   'declaration.kilometersHint':
     'The one figure only you know. Everything else is computed.',
@@ -299,6 +311,7 @@ const en = {
   'declaration.saveError': 'Could not save the kilometres.',
   'declaration.rates': 'Rates applied',
   'declaration.netHourlyRate': 'Net hourly rate',
+  'declaration.grossHourlyRate': 'Gross hourly rate',
   'declaration.nightPresenceRate': 'Night presence rate',
   'declaration.mileageRate': 'Mileage rate',
   'declaration.perHour': '/hour',
@@ -1084,6 +1097,18 @@ const fr: Record<TranslationKey, string> = {
   'declaration.extras': 'Frais et avantages',
   'declaration.transportAmount': 'Transport',
   'declaration.benefitsInKind': 'Avantages en nature',
+  'declaration.tenth.title': 'Rappel congés payés (1/10)',
+  'declaration.tenth.assiette': 'Rémunération brute de l’année',
+  'declaration.tenth.tenth': '1/10 (10 %)',
+  'declaration.tenth.maintien': 'Salaire maintenu pendant les congés',
+  'declaration.tenth.rappelBrut': 'Écart (brut)',
+  'declaration.tenth.rappelNet': 'Rappel dû (net)',
+  'declaration.tenth.explanation':
+    'La loi impose le plus élevé entre le salaire maintenu pendant les congés et 1/10 de la rémunération brute annuelle (art. 140.1.2). Ici le 1/10 est supérieur, cet écart net est donc dû avant le 31 mai.',
+  'declaration.compensatrice.title': 'Indemnité compensatrice de congés payés',
+  'declaration.compensatrice.amount': 'Net à verser',
+  'declaration.compensatrice.explanation':
+    'Les congés acquis mais non pris sont réglés à la fin du contrat — l’indemnité compensatrice de congés payés (art. 140.1.2).',
   'declaration.kilometers': 'Kilomètres parcourus',
   'declaration.kilometersHint':
     'Le seul chiffre que vous seul connaissez. Tout le reste est calculé.',
@@ -1093,6 +1118,7 @@ const fr: Record<TranslationKey, string> = {
   'declaration.saveError': 'Impossible d’enregistrer les kilomètres.',
   'declaration.rates': 'Taux appliqués',
   'declaration.netHourlyRate': 'Salaire horaire net',
+  'declaration.grossHourlyRate': 'Salaire horaire brut',
   'declaration.nightPresenceRate': 'Taux de présence de nuit',
   'declaration.mileageRate': 'Barème kilométrique',
   'declaration.perHour': '/heure',

@@ -20,7 +20,7 @@ from contracts.models import (
     ScheduleBlock,
 )
 from nannies.models import Nanny
-from reference.models import BankHoliday, MinimumWage
+from reference.models import BankHoliday, MinimumWage, SalaryContributionRate
 
 pytestmark = pytest.mark.django_db
 
@@ -61,8 +61,8 @@ def test_creates_the_whole_object_graph():
     assert Family.objects.count() == 3
     assert Nanny.objects.count() == 2
     assert Child.objects.exists()
-    # One contract per family, the shared one, and the behalf-family shared one.
-    assert Contract.objects.count() == 4
+    # One per family, the shared one, the behalf-family shared one, and one ended.
+    assert Contract.objects.count() == 5
     for contract in Contract.objects.all():
         assert contract.current_terms() is not None
         assert contract.current_schedule() is not None
@@ -170,6 +170,23 @@ def test_tops_up_the_global_reference_data():
 
     assert BankHoliday.objects.exists()
     assert MinimumWage.objects.count() == 2
+    # The cotisations-salariales rate the congés-payés rappel needs: seeded by
+    # migration and back-dated by populate_dev for the demo's older contracts.
+    assert SalaryContributionRate.objects.exists()
+
+
+def test_a_closing_month_declaration_shows_a_paid_leave_rappel():
+    call_command("populate_dev", verbosity=0)
+    # The demo's year-round contracts cross a 31 May close with paid leave taken, so
+    # at least one declaration carries a reconciled « rappel de 1/10 » (non-null).
+    assert MonthlyDeclaration.objects.filter(paid_leave_rappel__isnull=False).exists()
+
+
+def test_the_ended_contracts_final_month_shows_the_compensatrice():
+    call_command("populate_dev", verbosity=0)
+    # The ended contract's final month cashes out untaken leave, so its declaration
+    # carries the indemnité compensatrice (non-null, even if a reconciled zero).
+    assert MonthlyDeclaration.objects.filter(paid_leave_compensatrice__isnull=False).exists()
 
 
 def test_same_seed_gives_the_same_dataset():
@@ -198,15 +215,15 @@ def test_rerunning_resets_rather_than_piles_up():
 
     assert Family.objects.count() == 3
     assert Nanny.objects.count() == 2
-    assert Contract.objects.count() == 4
+    assert Contract.objects.count() == 5
     assert User.objects.filter(email=f"admin@{DEMO_DOMAIN}").count() == 1
     # Cascades reached the leaves of the graph, not just the roots. _flush only
     # deletes Contract, Nanny and Family; everything below must come with them,
     # or a re-run doubles it.
     # Two solo contracts (1 share each) + two two-family contracts (2 each) = 6.
-    assert ContractShare.objects.count() == 6
-    # Four contracts, five leaves each.
-    assert Leave.objects.count() == 20
+    assert ContractShare.objects.count() == 7
+    # Five contracts, five leaves each.
+    assert Leave.objects.count() == 25
     demo = f"@{DEMO_DOMAIN}"
     for model, path in (
         (ContractChild, "contract__created_by__email__endswith"),

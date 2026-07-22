@@ -23,7 +23,12 @@ from rest_framework.serializers import BaseSerializer
 from accounts.models import Family, User
 from accounts.views import FamilyScopedMixin
 from contracts.declarations import first_of_month, month_bounds
-from contracts.declarations_repo import declarations_for, file_declaration, paid_leave_balance
+from contracts.declarations_repo import (
+    declarations_for,
+    file_declaration,
+    paid_leave_balance,
+    tenth_reconciliation_total,
+)
 from contracts.models import (
     Contract,
     ContractChild,
@@ -133,7 +138,12 @@ class ContractViewSet(FamilyScopedMixin, viewsets.ModelViewSet):
             Contract.objects.filter(families=self.get_family()), pk=self.kwargs["pk"]
         )
         balance = paid_leave_balance(contract)
-        return Response(PaidLeaveBalanceSerializer(balance).data)
+        # The « rappel de 1/10 » estimate rides alongside the balance, passed through
+        # the serializer (not dict-patched) so the OpenAPI schema — and the generated
+        # client — carry the `tenth` field.
+        tenth = tenth_reconciliation_total(contract)
+        serializer = PaidLeaveBalanceSerializer(balance, context={"tenth": tenth})
+        return Response(serializer.data)
 
     @extend_schema(
         request=inline_serializer("AttachFamilyRequest", {"family_id": serializers.UUIDField()}),
