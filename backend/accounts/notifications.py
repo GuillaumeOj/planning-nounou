@@ -20,10 +20,10 @@ from anymail.message import AnymailMessage
 from django.conf import settings
 from django.utils.translation import get_language
 
-from .models import FamilyMembership
+from accounts.models import FamilyMembership
 
 if TYPE_CHECKING:
-    from .models import Invitation, User
+    from accounts.models import Invitation, User
 
 # Mirrors accounts/email.py: the SPA sends an explicit fr/en Accept-Language, an
 # unsupported/missing header resolves upstream to LANGUAGE_CODE ("en"), and this

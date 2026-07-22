@@ -8,10 +8,9 @@ from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
+from accounts.managers import UserManager
+from accounts.tokens import default_invitation_expiry, generate_invitation_token
 from config.models import UUIDModel
-
-from .managers import UserManager
-from .tokens import default_invitation_expiry, generate_invitation_token
 
 if TYPE_CHECKING:
     from django.db.models.fields.related_descriptors import RelatedManager

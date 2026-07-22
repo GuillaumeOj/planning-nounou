@@ -35,7 +35,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from fractions import Fraction
 from typing import TYPE_CHECKING
 
-from .declarations import Holiday, LeaveSpan, Schedule, days_between, in_force
+from contracts.declarations import Holiday, LeaveSpan, Schedule, days_between, in_force
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

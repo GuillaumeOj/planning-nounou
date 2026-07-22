@@ -11,19 +11,18 @@ from django.utils.translation import gettext_lazy as _
 
 from accounts.tokens import default_invitation_expiry, generate_invitation_token
 from config.models import UUIDModel
+from contracts.models._common import current_snapshot
 from nannies.models import Nanny
-
-from ._common import current_snapshot
 
 if TYPE_CHECKING:
     from django.db.models.fields.related_descriptors import RelatedManager
 
-    from .coverage import ContractChild
-    from .declaration import MonthlyDeclaration
-    from .exceptional import ExceptionalHours, ExceptionalPresence
-    from .leave import Leave
-    from .schedule import ContractSchedule
-    from .terms import ContractTerms
+    from contracts.models.coverage import ContractChild
+    from contracts.models.declaration import MonthlyDeclaration
+    from contracts.models.exceptional import ExceptionalHours, ExceptionalPresence
+    from contracts.models.leave import Leave
+    from contracts.models.schedule import ContractSchedule
+    from contracts.models.terms import ContractTerms
 
 
 class ContractQuerySet(models.QuerySet):
@@ -39,13 +38,13 @@ class ContractQuerySet(models.QuerySet):
 
     def with_current_terms(self, on: date | None = None) -> models.QuerySet[Contract]:
         """Annotate the id of the terms snapshot effective on `on` (today)."""
-        from .terms import ContractTerms
+        from contracts.models.terms import ContractTerms
 
         return self._annotate_current(ContractTerms, "current_terms_id", on)
 
     def with_current_schedule(self, on: date | None = None) -> models.QuerySet[Contract]:
         """Annotate the id of the schedule snapshot effective on `on` (today)."""
-        from .schedule import ContractSchedule
+        from contracts.models.schedule import ContractSchedule
 
         return self._annotate_current(ContractSchedule, "current_schedule_id", on)
 

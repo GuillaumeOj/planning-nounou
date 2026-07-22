@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Child
+from children.models import Child
 
 
 @admin.register(Child)

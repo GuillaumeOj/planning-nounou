@@ -9,8 +9,7 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from config.models import UUIDModel
-
-from .contract import Contract
+from contracts.models.contract import Contract
 
 
 class ContractSchedule(UUIDModel):

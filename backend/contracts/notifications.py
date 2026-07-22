@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 from accounts.notifications import display_name, frontend_url, send_template_email
 
 if TYPE_CHECKING:
-    from .models.contract import ContractInvitation
+    from contracts.models.contract import ContractInvitation
 
 
 def send_contract_invitation_email(invitation: ContractInvitation) -> None:

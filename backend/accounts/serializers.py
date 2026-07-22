@@ -5,8 +5,8 @@ from djoser.serializers import UserCreateSerializer as DjoserUserCreateSerialize
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
-from .models import Family, FamilyMembership, Invitation, User
-from .notifications import send_family_invitation_email
+from accounts.models import Family, FamilyMembership, Invitation, User
+from accounts.notifications import send_family_invitation_email
 
 
 def _case_insensitive_unique_email() -> UniqueValidator:

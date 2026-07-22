@@ -2,9 +2,8 @@ from rest_framework import permissions, viewsets
 from rest_framework.serializers import BaseSerializer
 
 from accounts.views import FamilyScopedMixin
-
-from .models import Child
-from .serializers import ChildSerializer
+from children.models import Child
+from children.serializers import ChildSerializer
 
 
 class ChildViewSet(FamilyScopedMixin, viewsets.ModelViewSet):
