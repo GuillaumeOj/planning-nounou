@@ -28,6 +28,8 @@ Four traps live here, all of which read as correct:
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import dataclass
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from django.db import transaction
@@ -35,6 +37,7 @@ from django.utils import timezone
 
 from contracts import declarations as dec
 from contracts import paid_leave as pl
+from contracts import paid_leave_tenth as plt
 from contracts.models import (
     Contract,
     ContractChild,
@@ -45,11 +48,10 @@ from contracts.models import (
     Leave,
     MonthlyDeclaration,
 )
-from reference.models import BankHoliday
+from reference.models import BankHoliday, SalaryContributionRate
 
 if TYPE_CHECKING:
     from datetime import date
-    from decimal import Decimal
     from uuid import UUID
 
 
@@ -233,6 +235,286 @@ def paid_leave_balance(contract: Contract, on: date | None = None) -> pl.PaidLea
     )
 
 
+def tenth_reconciliation(
+    contract: Contract, on: date | None = None
+) -> dict[UUID, plt.TenthReconciliation]:
+    """Each family's congés-payés « rappel de 1/10 » for the reference period around ``on``.
+
+    Per family, because each is a distinct pajemploi employer that declares and owes
+    its own rappel: sums that family's whole *année de référence* — twelve months of
+    :func:`declarations_for`'s computation — into the 1/10 base (art. L3141-24), values
+    the paid-leave days it paid as maintien de salaire, and compares the two in brut.
+    Returns an empty dict when no cotisations-salariales rate is on file to cross the
+    net⇄brut line, so the caller omits the figure rather than invent a basis.
+
+    Recomputed live rather than read from stored :class:`MonthlyDeclaration` rows: the
+    dashboard wants a running estimate for a period whose months mostly are not filed
+    yet, and a live recompute is the same number ``declarations_for`` would write.
+    """
+    on = on or timezone.localdate()
+    period_start, period_end = pl.reference_period(on)
+
+    rate = SalaryContributionRate.applicable_on(period_end)
+    if rate is None:
+        return {}
+
+    period = _load_contract_period(contract, period_start, period_end)
+    if not period.family_ids:
+        return {}
+
+    # The assiette: each family's whole-month pay, summed over the twelve months. The
+    # whole reference year is loaded ONCE (compute_month clips the leaves, holidays and
+    # exceptional hours to each month itself), so this stays a handful of queries whether
+    # it runs for one contract or a dashboard full of them.
+    assiette_net: dict[UUID, Decimal] = {fid: Decimal("0") for fid in period.family_ids}
+    for offset in range(dec.MONTHS_PER_YEAR):
+        data = dec.ContractMonth(
+            month=dec.first_of_month(period_start, offset),
+            starting_date=contract.starting_date,
+            ending_date=contract.ending_date,
+            split_method=contract.split_method,
+            family_ids=period.family_ids,
+            children=period.children,
+            schedules=period.schedules,
+            terms=period.terms,
+            leaves=period.leaves,
+            exceptional=period.exceptional,
+            overrides=period.overrides,
+            holidays=period.holidays,
+        )
+        for family_id, result in dec.compute_month(data).items():
+            assiette_net[family_id] += plt.assiette_of(result)
+
+    non_workable = frozenset(h.day for h in period.holidays if not h.is_workable)
+    banded_by_date = _period_banded_by_date(
+        period.schedules,
+        period.children_by_id,
+        contract.split_method,
+        period.family_ids,
+        period_start,
+        period_end,
+    )
+
+    # The maintien the tenth is measured against is the ACQUIRED entitlement (which the
+    # mensualised pay already carries), not the leave taken: acquired days × each family's
+    # weekly base salary, taken from the contract's current week and rate.
+    rep_date = min(period_end, contract.ending_date) if contract.ending_date else period_end
+    rep_terms = dec.in_force(period.terms, rep_date)
+    accrued = pl.accrued_days(
+        contract.paid_leave_days, period_start, period_end, contract.starting_date, rep_date
+    )
+    maintien_entitlement = plt.maintien_entitlement(
+        accrued_days=accrued,
+        week=banded_by_date.get(rep_date),
+        net_hourly_rate=rep_terms.net_hourly_rate if rep_terms else Decimal("0"),
+        family_ids=period.family_ids,
+    )
+    # The maintien for leave actually taken feeds the indemnité compensatrice (entitlement
+    # − taken), the value of leave acquired but not taken, owed when the contract ends.
+    maintien_taken = plt.maintien_by_family(
+        leaves=period.leaves,
+        banded_by_date=banded_by_date,
+        terms=period.terms,
+        non_workable=non_workable,
+        family_ids=period.family_ids,
+        period_start=period_start,
+        period_end=period_end,
+        contract_start=contract.starting_date,
+        contract_end=contract.ending_date,
+    )
+
+    return {
+        family_id: plt.reconcile_tenth(
+            period_start=period_start,
+            period_end=period_end,
+            assiette_net=assiette_net.get(family_id, Decimal("0")),
+            maintien_net=maintien_entitlement.get(family_id, Decimal("0")),
+            maintien_taken_net=maintien_taken.get(family_id, Decimal("0")),
+            contribution_rate=rate,
+        )
+        for family_id in period.family_ids
+    }
+
+
+def tenth_reconciliation_total(
+    contract: Contract, on: date | None = None
+) -> plt.TenthReconciliation | None:
+    """The contract's whole-nanny « rappel de 1/10 », families folded into one.
+
+    The per-family figures (each its own pajemploi line) summed for the dashboard,
+    which shows one running estimate for the contract. ``None`` when there is nothing
+    to reconcile (no rate on file, or no families).
+    """
+    by_family = tenth_reconciliation(contract, on)
+    if not by_family:
+        return None
+    recs = list(by_family.values())
+    first = recs[0]
+
+    def total(field: str) -> Decimal:
+        return sum((getattr(r, field) for r in recs), Decimal("0"))
+
+    return plt.TenthReconciliation(
+        period_start=first.period_start,
+        period_end=first.period_end,
+        contribution_rate=first.contribution_rate,
+        assiette_brut=total("assiette_brut"),
+        tenth_brut=total("tenth_brut"),
+        maintien_brut=total("maintien_brut"),
+        rappel_brut=total("rappel_brut"),
+        rappel_net=total("rappel_net"),
+        compensatrice_brut=total("compensatrice_brut"),
+        compensatrice_net=total("compensatrice_net"),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class _ContractPeriod:
+    """One reference year of a contract, loaded once as the pure dataclasses.
+
+    Everything :func:`tenth_reconciliation` needs to run twelve months of
+    ``compute_month`` and price the maintien, in a fixed number of queries — not one
+    load per month. ``compute_month`` clips the month-scoped tuples (leaves, holidays,
+    exceptional, overrides) to each month itself, so the same tuples serve all twelve.
+    """
+
+    family_ids: tuple[UUID, ...]
+    schedules: tuple[dec.Schedule, ...]
+    terms: tuple[dec.Terms, ...]
+    children: tuple[dec.ChildPresence, ...]
+    children_by_id: dict[UUID, dec.ChildPresence]
+    leaves: tuple[dec.LeaveSpan, ...]
+    exceptional: tuple[dec.ExceptionalEntry, ...]
+    overrides: tuple[dec.PresenceOverride, ...]
+    holidays: tuple[dec.Holiday, ...]
+
+
+def _load_contract_period(
+    contract: Contract, period_start: date, period_end: date
+) -> _ContractPeriod:
+    """Load a contract's whole reference period once, as the pure dataclasses."""
+    family_ids = tuple(
+        share.family_id for share in contract.shares.all().order_by("added_at", "id")
+    )
+    schedules = tuple(
+        dec.Schedule(
+            effective_from=s.effective_from,
+            blocks=tuple(
+                dec.Block(weekday=b.weekday, start=b.start_time, end=b.end_time)
+                for b in s.blocks.all()
+            ),
+        )
+        for s in ContractSchedule.objects.filter(contract=contract, effective_from__lte=period_end)
+        .order_by("effective_from", "id")
+        .prefetch_related("blocks")
+    )
+    terms = tuple(
+        dec.Terms(
+            effective_from=row.effective_from,
+            net_hourly_rate=row.net_hourly_rate,
+            night_presence_rate=row.night_presence_rate,
+            transport_fee=row.transport_fee,
+            mileage_rate=row.mileage_rate,
+            benefits_in_kind=row.benefits_in_kind,
+        )
+        for row in ContractTerms.objects.filter(
+            contract=contract, effective_from__lte=period_end
+        ).order_by("effective_from", "id")
+    )
+    children_by_id = {
+        link.child_id: dec.ChildPresence(
+            child_id=link.child_id,
+            family_id=link.child.family_id,
+            windows=tuple(
+                dec.Window(weekday=w.weekday, start=w.start_time, end=w.end_time)
+                for w in link.windows.all()
+            ),
+        )
+        for link in ContractChild.objects.filter(contract=contract)
+        .select_related("child")
+        .prefetch_related("windows")
+    }
+    # Overlap filters, not single-month: a leave or an entry straddling the period's
+    # edge still spends its days inside it. compute_month clips per month.
+    leaves = tuple(
+        dec.LeaveSpan(
+            leave_type=leave.leave_type,
+            start_date=leave.start_date,
+            end_date=leave.end_date,
+            portion=leave.portion,
+            hours=leave.hours,
+        )
+        for leave in Leave.objects.filter(
+            contract=contract, start_date__lte=period_end, end_date__gte=period_start
+        )
+    )
+    exceptional = tuple(
+        dec.ExceptionalEntry(
+            family_id=entry.family_id,
+            kind=entry.kind,
+            start_date=entry.start_date,
+            start_time=entry.start_time,
+            end_date=entry.end_date,
+            end_time=entry.end_time,
+            interventions=entry.interventions,
+            is_shared=entry.is_shared,
+        )
+        for entry in ExceptionalHours.objects.filter(
+            contract=contract, start_date__lte=period_end, end_date__gte=period_start
+        ).order_by("start_date", "start_time", "id")
+    )
+    overrides = tuple(
+        dec.PresenceOverride(child_id=p.child_id, day=p.date, start=p.start_time, end=p.end_time)
+        for p in ExceptionalPresence.objects.filter(
+            contract=contract, date__range=(period_start, period_end)
+        )
+    )
+    holidays = tuple(
+        dec.Holiday(day=h.date, is_workable=h.is_workable, is_solidarity=h.is_solidarity)
+        for h in BankHoliday.objects.filter(date__range=(period_start, period_end))
+    )
+    return _ContractPeriod(
+        family_ids=family_ids,
+        schedules=schedules,
+        terms=terms,
+        children=tuple(children_by_id.values()),
+        children_by_id=children_by_id,
+        leaves=leaves,
+        exceptional=exceptional,
+        overrides=overrides,
+        holidays=holidays,
+    )
+
+
+def _period_banded_by_date(
+    schedules: tuple[dec.Schedule, ...],
+    children: dict[UUID, dec.ChildPresence],
+    split_method: str,
+    family_ids: tuple[UUID, ...],
+    period_start: date,
+    period_end: date,
+) -> dict[date, dec.WeekBands]:
+    """The per-weekday, per-family banding of every date in the reference period.
+
+    The same shape :func:`declarations.build_base` builds a month at a time, here
+    spanning the year so :func:`paid_leave_tenth.maintien_by_family` can read each
+    family's share of a paid-leave day. Each in-force schedule's week is banded once
+    and reused across the dates it governs.
+    """
+    week_cache: dict[date, dec.WeekBands] = {}
+    banded: dict[date, dec.WeekBands] = {}
+    for day in dec.days_between(period_start, period_end):
+        schedule = dec.in_force(schedules, day)
+        if schedule is None:
+            continue
+        week = week_cache.get(schedule.effective_from)
+        if week is None:
+            week = dec.band_week(schedule, children, split_method, family_ids)
+            week_cache[schedule.effective_from] = week
+        banded[day] = week
+    return banded
+
+
 def _kilometers_on_file(contract: Contract, month: date) -> dict[UUID, Decimal]:
     """Kilometres already entered for this month, so recomputing keeps them."""
     return {
@@ -266,6 +548,20 @@ def declarations_for(contract: Contract, month: date) -> list[MonthlyDeclaration
     data = load_contract_month(contract, first, kilometers=_kilometers_on_file(contract, first))
     results = dec.compute_month(data)
 
+    # The congés-payés rappel is settled once a year: compute it only on the reference
+    # period's closing month (May) or the contract's final month, and leave it NULL
+    # otherwise. Reconciling the whole année de référence is the heavy part, so it is
+    # gated behind that check rather than run on every month's read.
+    rappels = (
+        tenth_reconciliation(contract, on=first)
+        if _closes_reference_period(contract, first)
+        else {}
+    )
+
+    # The indemnité compensatrice (untaken leave cashed out) is due only when the
+    # contract ends — not at a regular May close, where untaken leave is lost or carried.
+    final_month = _is_contract_final_month(contract, first)
+
     rows: list[MonthlyDeclaration] = []
     for family_id in data.family_ids:
         row = existing.get(family_id)
@@ -278,7 +574,19 @@ def declarations_for(contract: Contract, month: date) -> list[MonthlyDeclaration
         is_new = row is None
         if is_new:
             row = MonthlyDeclaration(contract=contract, family_id=family_id, month=first)
-        changed = _apply(row, result)
+        reconciliation = rappels.get(family_id)
+        rappel = reconciliation.rappel_net if reconciliation is not None else None
+        detail = _tenth_detail(reconciliation) if reconciliation is not None else None
+        compensatrice = (
+            reconciliation.compensatrice_net if reconciliation is not None and final_month else None
+        )
+        changed = _apply(
+            row,
+            result,
+            paid_leave_rappel=rappel,
+            paid_leave_tenth=detail,
+            paid_leave_compensatrice=compensatrice,
+        )
         # A new row must be written; an existing one only when its numbers actually
         # moved. Merely opening the home dashboard reads several months across every
         # contract, and each read recomputes; without this it would also rewrite
@@ -289,13 +597,62 @@ def declarations_for(contract: Contract, month: date) -> list[MonthlyDeclaration
     return rows
 
 
-def _apply(row: MonthlyDeclaration, result: dec.FamilyResult) -> bool:
+def _closes_reference_period(contract: Contract, first: date) -> bool:
+    """Is ``first``'s month where a congés-payés reference period is settled?
+
+    Either May — the 1 June–31 May année de référence's close — or the contract's
+    final month, when the rappel falls due with the solde de tout compte.
+    """
+    if first.month == pl.REFERENCE_PERIOD_START_MONTH - 1:  # May, the period's last month
+        return True
+    return _is_contract_final_month(contract, first)
+
+
+def _is_contract_final_month(contract: Contract, first: date) -> bool:
+    """Is ``first``'s month the contract's last one? Where untaken leave is cashed out."""
+    end = contract.ending_date
+    return end is not None and (end.year, end.month) == (first.year, first.month)
+
+
+def _tenth_detail(rec: plt.TenthReconciliation) -> dict[str, str]:
+    """The « rappel de 1/10 » reconciliation as a stored dict, for the closing month.
+
+    Mirrors :class:`TenthReconciliationSerializer` (decimals as strings, dates ISO) so
+    the declaration can show the whole calculation — assiette, its tenth, the maintien
+    already paid, the brut rappel and the net owed — rather than a bare figure.
+    """
+    return {
+        "period_start": rec.period_start.isoformat(),
+        "period_end": rec.period_end.isoformat(),
+        "assiette_brut": str(rec.assiette_brut),
+        "tenth_brut": str(rec.tenth_brut),
+        "maintien_brut": str(rec.maintien_brut),
+        "rappel_brut": str(rec.rappel_brut),
+        "rappel_net": str(rec.rappel_net),
+    }
+
+
+def _apply(
+    row: MonthlyDeclaration,
+    result: dec.FamilyResult,
+    paid_leave_rappel: Decimal | None = None,
+    paid_leave_tenth: dict[str, str] | None = None,
+    paid_leave_compensatrice: Decimal | None = None,
+) -> bool:
     """Copy a computed month onto its row. Snapshots the rates, not just the hours.
+
+    ``paid_leave_rappel`` / ``paid_leave_tenth`` are the closing month's congés-payés
+    top-up and the calculation behind it; ``paid_leave_compensatrice`` is the untaken-leave
+    cash-out on the contract's final month (all None every other month, which is how a
+    non-closing month reads apart from a reconciled zero).
 
     Returns whether anything actually changed, so an unchanged draft is left
     untouched rather than rewritten on every read.
     """
     values = {
+        "paid_leave_rappel": paid_leave_rappel,
+        "paid_leave_tenth": paid_leave_tenth,
+        "paid_leave_compensatrice": paid_leave_compensatrice,
         "normal_hours": result.normal_hours,
         "hours_25": result.hours_25,
         "hours_50": result.hours_50,

@@ -4554,10 +4554,31 @@ components:
           format: decimal
           pattern: ^-?\d{0,6}(?:\.\d{0,2})?$
           readOnly: true
+        paid_leave_rappel:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,2})?$
+          readOnly: true
+          nullable: true
+        paid_leave_tenth:
+          allOf:
+          - $ref: '#/components/schemas/TenthReconciliation'
+          nullable: true
+          readOnly: true
+        paid_leave_compensatrice:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,2})?$
+          readOnly: true
+          nullable: true
         net_hourly_rate:
           type: string
           format: decimal
           pattern: ^-?\d{0,4}(?:\.\d{0,2})?$
+          readOnly: true
+        gross_hourly_rate:
+          type: string
+          nullable: true
           readOnly: true
         night_presence_rate:
           type: string
@@ -4613,7 +4634,11 @@ components:
       - night_count
       - night_indemnity
       - holiday_majoration
+      - paid_leave_rappel
+      - paid_leave_tenth
+      - paid_leave_compensatrice
       - net_hourly_rate
+      - gross_hourly_rate
       - night_presence_rate
       - mileage_rate
       - rate_periods
@@ -4725,7 +4750,8 @@ components:
 
         Not a model: the balance is computed on the fly by :mod:`contracts.paid_leave`.
         Days are decimals (a half-day is 0.5) and ``remaining`` may be negative when
-        leave is booked ahead of what has accrued so far.
+        leave is booked ahead of what has accrued so far. ``tenth`` is the « rappel de 1/10 »
+        estimate, passed in via context (null when there is no cotisations rate to reconcile).
       properties:
         period_start:
           type: string
@@ -4755,6 +4781,11 @@ components:
           format: decimal
           pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
           readOnly: true
+        tenth:
+          allOf:
+          - $ref: '#/components/schemas/TenthReconciliation'
+          nullable: true
+          readOnly: true
       required:
       - period_start
       - period_end
@@ -4762,6 +4793,7 @@ components:
       - accrued
       - taken
       - remaining
+      - tenth
     PasswordResetConfirm:
       type: object
       properties:
@@ -5437,6 +5469,57 @@ components:
       description: |-
         * `equal` - Equally between the families present
         * `by_children` - In proportion to the children present
+    TenthReconciliation:
+      type: object
+      description: |-
+        A contract's congés-payés « rappel de 1/10 » estimate for the reference period.
+
+        Not a model: computed on the fly by :mod:`contracts.paid_leave_tenth`. The figures
+        are brut, as art. L3141-24 frames the comparison; ``rappel_net`` is the top-up as it
+        would actually be declared and paid. A running estimate on the dashboard — it is
+        only settled, and written onto a declaration, on the period's closing month.
+      properties:
+        period_start:
+          type: string
+          format: date
+          readOnly: true
+        period_end:
+          type: string
+          format: date
+          readOnly: true
+        assiette_brut:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        tenth_brut:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        maintien_brut:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        rappel_brut:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+        rappel_net:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          readOnly: true
+      required:
+      - period_start
+      - period_end
+      - assiette_brut
+      - tenth_brut
+      - maintien_brut
+      - rappel_brut
+      - rappel_net
     TokenBlacklistRequest:
       type: object
       properties:

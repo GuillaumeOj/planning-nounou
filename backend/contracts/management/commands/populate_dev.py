@@ -44,7 +44,7 @@ from contracts.models import (
     ScheduleBlock,
 )
 from nannies.models import Nanny
-from reference.models import BankHoliday, MinimumWage
+from reference.models import BankHoliday, MinimumWage, SalaryContributionRate
 
 if TYPE_CHECKING:
     from argparse import ArgumentParser
@@ -235,6 +235,14 @@ class Command(BaseCommand):
             behalf = self._create_unclaimed_family(rng, self._owner(families[0]))
             nanny2 = nannies[(len(families) + 1) % len(nannies)]
             contracts.append(self._create_contract(rng, nanny2, [families[0], behalf]))
+            # A contract that has ENDED last month: its final declaration cashes out the
+            # leave acquired but not taken as the indemnité compensatrice — a state the
+            # ongoing contracts never reach.
+            ended_nanny = nannies[(len(families) + 2) % len(nannies)]
+            last_month_end = first_of_month(timezone.localdate(), 0) - timedelta(days=1)
+            contracts.append(
+                self._create_contract(rng, ended_nanny, [families[0]], ending_date=last_month_end)
+            )
         return contracts
 
     def _create_unclaimed_family(self, rng: random.Random, creator: User) -> Family:
@@ -247,7 +255,11 @@ class Command(BaseCommand):
         return family
 
     def _create_contract(
-        self, rng: random.Random, nanny: Nanny, families: list[Family]
+        self,
+        rng: random.Random,
+        nanny: Nanny,
+        families: list[Family],
+        ending_date: date | None = None,
     ) -> Contract:
         owner = self._owner(families[0])
         shared = len(families) > 1
@@ -255,6 +267,7 @@ class Command(BaseCommand):
             nanny=nanny,
             created_by=owner,
             starting_date=timezone.localdate() - timedelta(days=rng.randint(300, 700)),
+            ending_date=ending_date,
             paid_leave_days=rng.choice([25, 27, 30]),
             # Only a garde partagée has anything to split, and the two methods
             # give different money for the same children — so show both.
@@ -279,17 +292,21 @@ class Command(BaseCommand):
         return contract
 
     def _file_past_declarations(self, contract: Contract, owner: User) -> None:
-        """File a couple of past months, so the filed states are seen in dev.
+        """File a few past months, so the filed states are seen in dev.
 
         The month one back is still inside its edit grace window — filed, yet
         editable in place — while the older one has locked. Both matter: the
         planning and declarations pages read very differently for the two, and the
-        home page summarises the recent months off exactly these rows.
+        home page summarises the recent months off exactly these rows. The last
+        completed reference period's close (31 May) is filed too, so the congés-payés
+        « rappel de 1/10 » it carries is visible without waiting for a real year to pass.
         """
         today = timezone.localdate()
         contract_month = contract.starting_date.replace(day=1)
-        for months_back in (1, 4):
-            month = first_of_month(today, -months_back)
+        # The May that closed the last complete 1 Jun–31 May période de référence.
+        last_close = date(today.year if today >= date(today.year, 6, 1) else today.year - 1, 5, 1)
+        months = {first_of_month(today, -1), first_of_month(today, -4), last_close}
+        for month in sorted(months):
             if month < contract_month:
                 continue
             for row in declarations_for(contract, month):
@@ -569,6 +586,13 @@ class Command(BaseCommand):
             )
         # PaidLeaveAllowance is seeded by migration 0004 (a single national figure,
         # unlike the illustrative dev rates above), so there is nothing to top up here.
+        # The cotisations-salariales rate (net⇄brut for the congés-payés rappel) is
+        # seeded from 2025 by migration 0006; back-date an illustrative row so the demo's
+        # older contracts also reconcile their reference periods.
+        SalaryContributionRate.objects.get_or_create(
+            effective_from=date(year - 2, 1, 1),
+            defaults={"rate": Decimal("0.2188025")},
+        )
 
     # --- output -----------------------------------------------------------
 

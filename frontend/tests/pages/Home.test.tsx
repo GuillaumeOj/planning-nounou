@@ -32,6 +32,8 @@ const balance: PaidLeaveBalanceRead = {
   taken: '2.00',
   // remaining is the strong line: accrued 5 − taken 2 = 3, priced on the backend.
   remaining: '3.00',
+  // The dashboard leaves the « rappel de 1/10 » estimate out (served on demand).
+  tenth: null,
 }
 
 function recent(o: Partial<RecentDeclarationRead> = {}): RecentDeclarationRead {

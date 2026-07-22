@@ -368,6 +368,16 @@ def test_listing_computes_a_draft_per_family_and_returns_only_yours(
     ).exists()
 
 
+def test_a_declaration_shows_the_gross_hourly_rate(client, owner, family, wired):
+    client.force_authenticate(user=owner)
+    resp = client.get(declarations_url(family, wired), {"month": "2026-07"})
+    assert resp.status_code == 200
+    row = resp.data[0]
+    assert row["net_hourly_rate"] == "12.00"
+    # Grossed up by the seeded cotisations-salariales rate (0.2188025): 12 / 0.7811975.
+    assert row["gross_hourly_rate"] == "15.36"
+
+
 def test_a_bad_month_is_a_400_not_a_500(client, owner, family, wired):
     client.force_authenticate(user=owner)
     assert client.get(declarations_url(family, wired), {"month": "juillet"}).status_code == 400

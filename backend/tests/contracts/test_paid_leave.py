@@ -50,33 +50,51 @@ def test_months_elapsed_counts_both_ends_inclusive():
 # --- accrual -----------------------------------------------------------------
 
 
+PERIOD_START = date(2026, 6, 1)
+PERIOD_END = date(2027, 5, 31)
+
+
 def test_accrual_prorates_the_agreed_days_by_the_month():
     # 30 days / 12 × 5 months = 12.5.
-    accrued = pl.accrued_days(30, date(2026, 6, 1), date(2024, 1, 1), date(2026, 10, 15))
+    accrued = pl.accrued_days(30, PERIOD_START, PERIOD_END, date(2024, 1, 1), date(2026, 10, 15))
     assert accrued == Decimal("12.5")
 
 
 def test_accrual_starts_at_the_contract_when_it_begins_mid_period():
     # Contract opens in September: September through November is three months.
-    accrued = pl.accrued_days(30, date(2026, 6, 1), date(2026, 9, 10), date(2026, 11, 15))
+    accrued = pl.accrued_days(30, PERIOD_START, PERIOD_END, date(2026, 9, 10), date(2026, 11, 15))
     assert accrued == Decimal("7.5")
 
 
 def test_accrual_is_capped_at_the_full_entitlement():
-    accrued = pl.accrued_days(30, date(2026, 6, 1), date(2020, 1, 1), date(2027, 5, 20))
+    accrued = pl.accrued_days(30, PERIOD_START, PERIOD_END, date(2020, 1, 1), date(2027, 5, 20))
     assert accrued == Decimal("30")
 
 
 def test_nothing_accrues_before_the_contract_starts():
-    accrued = pl.accrued_days(30, date(2026, 6, 1), date(2026, 9, 1), date(2026, 7, 1))
+    accrued = pl.accrued_days(30, PERIOD_START, PERIOD_END, date(2026, 9, 1), date(2026, 7, 1))
     assert accrued == Decimal("0")
 
 
 def test_accrual_rounds_to_the_nearest_half_day():
-    # 25 / 12 × 5 = 10.4166… → 10.5.
-    assert pl.accrued_days(25, date(2026, 6, 1), date(2024, 1, 1), date(2026, 10, 15)) == Decimal(
-        "10.5"
-    )
+    # A generous 35-day contract, above the floor: 35 / 12 × 5 = 14.583… → 14.5.
+    assert pl.accrued_days(
+        35, PERIOD_START, PERIOD_END, date(2024, 1, 1), date(2026, 10, 15)
+    ) == Decimal("14.5")
+
+
+def test_accrual_never_falls_below_the_statutory_floor():
+    # A sub-legal 20-day contract still shows the statutory 2.5 × 5 = 12.5, not 8.33.
+    assert pl.accrued_days(
+        20, PERIOD_START, PERIOD_END, date(2024, 1, 1), date(2026, 10, 15)
+    ) == Decimal("12.5")
+
+
+def test_accrual_rounds_up_to_a_whole_day_once_the_period_has_closed():
+    # A contract worked Sept–May earns 2.5 × 9 = 22.5; past 31 May it rounds up to 23.
+    assert pl.accrued_days(
+        30, PERIOD_START, PERIOD_END, date(2026, 9, 1), date(2027, 6, 15)
+    ) == Decimal("23")
 
 
 # --- taken -------------------------------------------------------------------

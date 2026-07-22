@@ -47,6 +47,18 @@ def test_paid_leave_returns_the_six_figures(client, owner, family, scheduled):
         "accrued",
         "taken",
         "remaining",
+        "tenth",
+    }
+    # A cotisations-salariales rate is seeded, so the tenth estimate is present (all
+    # zeros here — no terms priced — but shaped as the dashboard expects).
+    assert set(body["tenth"]) == {
+        "period_start",
+        "period_end",
+        "assiette_brut",
+        "tenth_brut",
+        "maintien_brut",
+        "rappel_brut",
+        "rappel_net",
     }
     assert body["total_days"] == "30.00"
     # remaining is always accrued − taken, whatever today makes those.

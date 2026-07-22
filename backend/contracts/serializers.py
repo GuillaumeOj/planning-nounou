@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import date as date_cls
 from datetime import datetime, time, timedelta
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import cast
 
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -28,7 +28,7 @@ from contracts.notifications import send_contract_invitation_email
 from contracts.sources import source_for
 from nannies.models import Nanny
 from nannies.serializers import NannyBriefSerializer
-from reference.models import MinimumWage
+from reference.models import MinimumWage, SalaryContributionRate
 from reference.serializers import BankHolidaySerializer
 
 NON_NEGATIVE_DECIMAL = {"min_value": Decimal("0")}
@@ -392,12 +392,31 @@ class ContractSerializer(serializers.ModelSerializer):
         return super().update(instance, validated_data)
 
 
+class TenthReconciliationSerializer(serializers.Serializer):
+    """A contract's congés-payés « rappel de 1/10 » estimate for the reference period.
+
+    Not a model: computed on the fly by :mod:`contracts.paid_leave_tenth`. The figures
+    are brut, as art. L3141-24 frames the comparison; ``rappel_net`` is the top-up as it
+    would actually be declared and paid. A running estimate on the dashboard — it is
+    only settled, and written onto a declaration, on the period's closing month.
+    """
+
+    period_start = serializers.DateField(read_only=True)
+    period_end = serializers.DateField(read_only=True)
+    assiette_brut = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    tenth_brut = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    maintien_brut = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    rappel_brut = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+    rappel_net = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
+
+
 class PaidLeaveBalanceSerializer(serializers.Serializer):
     """A contract's congés-payés standing for the current reference period.
 
     Not a model: the balance is computed on the fly by :mod:`contracts.paid_leave`.
     Days are decimals (a half-day is 0.5) and ``remaining`` may be negative when
-    leave is booked ahead of what has accrued so far.
+    leave is booked ahead of what has accrued so far. ``tenth`` is the « rappel de 1/10 »
+    estimate, passed in via context (null when there is no cotisations rate to reconcile).
     """
 
     period_start = serializers.DateField(read_only=True)
@@ -406,6 +425,14 @@ class PaidLeaveBalanceSerializer(serializers.Serializer):
     accrued = serializers.DecimalField(max_digits=5, decimal_places=2, read_only=True)
     taken = serializers.DecimalField(max_digits=5, decimal_places=2, read_only=True)
     remaining = serializers.DecimalField(max_digits=5, decimal_places=2, read_only=True)
+    tenth = serializers.SerializerMethodField()
+
+    @extend_schema_field(TenthReconciliationSerializer(allow_null=True))
+    def get_tenth(self, obj) -> dict | None:
+        # The reconciliation rides alongside the balance via context (both the standalone
+        # endpoint and the dashboard pass it); null when there is no rate to reconcile.
+        tenth = self.context.get("tenth")
+        return TenthReconciliationSerializer(tenth).data if tenth is not None else None
 
 
 class ContractInvitationSerializer(serializers.ModelSerializer):
@@ -682,6 +709,13 @@ class MonthlyDeclarationSerializer(serializers.ModelSerializer):
     # read-only method field so the generated frontend type is precise instead of `any`.
     # The value is passed through unchanged — this only annotates the schema.
     rate_periods = serializers.SerializerMethodField()
+    # The net hourly rate grossed up by the cotisations salariales in force — shown on
+    # every declaration so a parent sees what the nanny costs in brut, the basis the
+    # congés-payés « rappel de 1/10 » is compared in. Null when no rate is on file.
+    gross_hourly_rate = serializers.SerializerMethodField()
+    # The « rappel de 1/10 » calculation behind `paid_leave_rappel`, so the closing
+    # month can show its working. A stored dict (null every other month).
+    paid_leave_tenth = serializers.SerializerMethodField()
     family_name = serializers.CharField(source="family.name", read_only=True)
     # Model properties, not columns: a filed row stays editable in place until the
     # end of its grace window, after which it locks. The UI shows the kilometres
@@ -709,7 +743,11 @@ class MonthlyDeclarationSerializer(serializers.ModelSerializer):
             "night_count",
             "night_indemnity",
             "holiday_majoration",
+            "paid_leave_rappel",
+            "paid_leave_tenth",
+            "paid_leave_compensatrice",
             "net_hourly_rate",
+            "gross_hourly_rate",
             "night_presence_rate",
             "mileage_rate",
             "rate_periods",
@@ -753,6 +791,27 @@ class MonthlyDeclarationSerializer(serializers.ModelSerializer):
             source = source_for(code)
             out.append({"code": code, "source": SourceSerializer(source).data if source else None})
         return out
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_gross_hourly_rate(self, obj: MonthlyDeclaration) -> str | None:
+        # The rate in force in the declaration's month, memoised so a list of rows does
+        # not re-query it. Rate changes are effective-dated (never mid-month), so the
+        # month's first day resolves the same value its last day would.
+        cache = self.__dict__.setdefault("_rate_by_month", {})
+        if obj.month not in cache:
+            cache[obj.month] = SalaryContributionRate.applicable_on(obj.month)
+        rate = cache[obj.month]
+        if rate is None:
+            return None
+        gross = obj.net_hourly_rate / (Decimal("1") - rate)
+        # ROUND_HALF_UP to match the money rounding used across the pay engine.
+        return f"{gross.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)}"
+
+    @extend_schema_field(TenthReconciliationSerializer(allow_null=True))
+    def get_paid_leave_tenth(self, obj: MonthlyDeclaration) -> dict | None:
+        # The stored reconciliation dict (already the TenthReconciliation shape) or None;
+        # the decorator only types the schema so the generated client is precise.
+        return obj.paid_leave_tenth
 
 
 # --- aggregate read-only endpoints (Home dashboard + Planning calendar) --------
@@ -802,6 +861,9 @@ class DashboardContractSerializer(ContractSerializer):
     # FamilyDashboardView, so they exist at runtime but not on the Contract type.
     @extend_schema_field(PaidLeaveBalanceSerializer())
     def get_paid_leave_balance(self, obj: Contract) -> dict:
+        # The dashboard stays light per contract (its query budget is the whole point),
+        # so the « rappel de 1/10 » is left out here — `tenth` serialises to null. The
+        # running estimate is served on demand by the dedicated paid-leave endpoint.
         balance = obj.dashboard_balance  # ty: ignore[unresolved-attribute]
         return PaidLeaveBalanceSerializer(balance).data
 

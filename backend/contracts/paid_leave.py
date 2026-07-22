@@ -31,7 +31,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_CEILING, ROUND_HALF_UP, Decimal
 from fractions import Fraction
 from typing import TYPE_CHECKING
 
@@ -43,6 +43,11 @@ if TYPE_CHECKING:
 #: The année de référence opens on 1 June.
 REFERENCE_PERIOD_START_MONTH = 6
 MONTHS_PER_YEAR = 12
+#: The statutory floor: 2.5 jours ouvrables per month worked, capped at a 30-day
+#: year (5 semaines), art. L3141-3. The dashboard never accrues below it, whatever a
+#: contract's agreed figure — an agreed number cannot lawfully sit under the minimum.
+STATUTORY_DAYS_PER_MONTH = Fraction(5, 2)
+STATUTORY_ANNUAL_DAYS = 30
 #: Only paid leave draws down the congés-payés balance.
 PAID_LEAVE_TYPE = "paid"
 _FULL_DAY, _HALF_DAY = "full_day", "half_day"
@@ -89,20 +94,35 @@ def _to_half_days(value: Fraction) -> Decimal:
 
 
 def accrued_days(
-    paid_leave_days: int, period_start: date, contract_start: date, on: date
+    paid_leave_days: int,
+    period_start: date,
+    period_end: date,
+    contract_start: date,
+    on: date,
 ) -> Decimal:
-    """The agreed annual days earned so far this period, prorated by the month.
+    """The days earned so far this period: the agreed figure, never below the floor.
 
     Accrual starts at the later of the period's opening and the contract's start,
     so a contract signed mid-year does not claim months before it existed. Capped
-    at the full entitlement — a period cannot earn more than a year's worth.
+    at the full entitlement — a period cannot earn more than a year's worth — and
+    floored at the statutory 2.5 jours ouvrables per month worked, so a contract
+    whose agreed figure sits under the legal minimum still shows the minimum. Once
+    the reference period has closed (``on`` past 31 May) the running half-day figure
+    is rounded UP to whole days, the « arrondi à l'entier supérieur au 31 mai ».
     """
     eff_start = max(period_start, contract_start)
     if on < eff_start:
         return Decimal("0")
-    elapsed = min(MONTHS_PER_YEAR, months_elapsed(eff_start, on))
-    exact = Fraction(paid_leave_days * elapsed, MONTHS_PER_YEAR)
-    return _to_half_days(min(Fraction(paid_leave_days), exact))
+    # Clamp to 31 May: months past the period's close are next year's, not this one's.
+    elapsed = min(MONTHS_PER_YEAR, months_elapsed(eff_start, min(on, period_end)))
+    agreed = min(Fraction(paid_leave_days), Fraction(paid_leave_days * elapsed, MONTHS_PER_YEAR))
+    floor = min(Fraction(STATUTORY_ANNUAL_DAYS), STATUTORY_DAYS_PER_MONTH * elapsed)
+    earned = max(agreed, floor)
+    if on >= period_end:
+        # The period is over: the entitlement is fixed, and rounds up to whole days.
+        exact = Decimal(earned.numerator) / Decimal(earned.denominator)
+        return exact.quantize(Decimal("1"), rounding=ROUND_CEILING)
+    return _to_half_days(earned)
 
 
 def _portion_days(portion: str) -> Fraction:
@@ -161,7 +181,7 @@ def compute_balance(
     """A contract's congés-payés balance for the reference period containing ``on``."""
     period_start, period_end = reference_period(on)
     non_workable = frozenset(h.day for h in holidays if not h.is_workable)
-    accrued = accrued_days(paid_leave_days, period_start, contract_start, on)
+    accrued = accrued_days(paid_leave_days, period_start, period_end, contract_start, on)
     taken = taken_days(
         leaves,
         schedules,

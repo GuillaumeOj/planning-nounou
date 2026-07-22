@@ -154,6 +154,8 @@ def test_dashboard_returns_balance_and_recent_declarations(client, owner, family
         "accrued",
         "taken",
         "remaining",
+        # The congés-payés « rappel de 1/10 » estimate rides alongside the balance.
+        "tenth",
     }
     recent = contract["recent_declarations"]
     assert recent, "a live contract has recent declarations"
