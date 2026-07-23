@@ -8,7 +8,7 @@ count that follows the nanny's actual working days rather than the calendar.
 from datetime import date, time
 from decimal import Decimal
 
-from contracts import paid_leave as pl
+from contracts import paid_leave
 from contracts.declarations import Block, Holiday, LeaveSpan, Schedule
 
 MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY = 0, 1, 2, 3, 4, 5
@@ -29,22 +29,22 @@ def paid(start, end, portion="full_day"):
 
 
 def test_reference_period_after_june_opens_that_june():
-    assert pl.reference_period(date(2026, 7, 17)) == (date(2026, 6, 1), date(2027, 5, 31))
+    assert paid_leave.reference_period(date(2026, 7, 17)) == (date(2026, 6, 1), date(2027, 5, 31))
 
 
 def test_reference_period_before_june_opens_the_previous_june():
-    assert pl.reference_period(date(2026, 3, 1)) == (date(2025, 6, 1), date(2026, 5, 31))
+    assert paid_leave.reference_period(date(2026, 3, 1)) == (date(2025, 6, 1), date(2026, 5, 31))
 
 
 def test_reference_period_first_of_june_is_the_new_period():
-    assert pl.reference_period(date(2026, 6, 1)) == (date(2026, 6, 1), date(2027, 5, 31))
+    assert paid_leave.reference_period(date(2026, 6, 1)) == (date(2026, 6, 1), date(2027, 5, 31))
 
 
 def test_months_elapsed_counts_both_ends_inclusive():
-    assert pl.months_elapsed(date(2026, 6, 1), date(2026, 6, 15)) == 1
-    assert pl.months_elapsed(date(2026, 6, 1), date(2026, 10, 15)) == 5
+    assert paid_leave.months_elapsed(date(2026, 6, 1), date(2026, 6, 15)) == 1
+    assert paid_leave.months_elapsed(date(2026, 6, 1), date(2026, 10, 15)) == 5
     # A day before the start is not a month into the year.
-    assert pl.months_elapsed(date(2026, 6, 1), date(2026, 5, 31)) == 0
+    assert paid_leave.months_elapsed(date(2026, 6, 1), date(2026, 5, 31)) == 0
 
 
 # --- accrual -----------------------------------------------------------------
@@ -56,43 +56,51 @@ PERIOD_END = date(2027, 5, 31)
 
 def test_accrual_prorates_the_agreed_days_by_the_month():
     # 30 days / 12 × 5 months = 12.5.
-    accrued = pl.accrued_days(30, PERIOD_START, PERIOD_END, date(2024, 1, 1), date(2026, 10, 15))
+    accrued = paid_leave.accrued_days(
+        30, PERIOD_START, PERIOD_END, date(2024, 1, 1), date(2026, 10, 15)
+    )
     assert accrued == Decimal("12.5")
 
 
 def test_accrual_starts_at_the_contract_when_it_begins_mid_period():
     # Contract opens in September: September through November is three months.
-    accrued = pl.accrued_days(30, PERIOD_START, PERIOD_END, date(2026, 9, 10), date(2026, 11, 15))
+    accrued = paid_leave.accrued_days(
+        30, PERIOD_START, PERIOD_END, date(2026, 9, 10), date(2026, 11, 15)
+    )
     assert accrued == Decimal("7.5")
 
 
 def test_accrual_is_capped_at_the_full_entitlement():
-    accrued = pl.accrued_days(30, PERIOD_START, PERIOD_END, date(2020, 1, 1), date(2027, 5, 20))
+    accrued = paid_leave.accrued_days(
+        30, PERIOD_START, PERIOD_END, date(2020, 1, 1), date(2027, 5, 20)
+    )
     assert accrued == Decimal("30")
 
 
 def test_nothing_accrues_before_the_contract_starts():
-    accrued = pl.accrued_days(30, PERIOD_START, PERIOD_END, date(2026, 9, 1), date(2026, 7, 1))
+    accrued = paid_leave.accrued_days(
+        30, PERIOD_START, PERIOD_END, date(2026, 9, 1), date(2026, 7, 1)
+    )
     assert accrued == Decimal("0")
 
 
 def test_accrual_rounds_to_the_nearest_half_day():
     # A generous 35-day contract, above the floor: 35 / 12 × 5 = 14.583… → 14.5.
-    assert pl.accrued_days(
+    assert paid_leave.accrued_days(
         35, PERIOD_START, PERIOD_END, date(2024, 1, 1), date(2026, 10, 15)
     ) == Decimal("14.5")
 
 
 def test_accrual_never_falls_below_the_statutory_floor():
     # A sub-legal 20-day contract still shows the statutory 2.5 × 5 = 12.5, not 8.33.
-    assert pl.accrued_days(
+    assert paid_leave.accrued_days(
         20, PERIOD_START, PERIOD_END, date(2024, 1, 1), date(2026, 10, 15)
     ) == Decimal("12.5")
 
 
 def test_accrual_rounds_up_to_a_whole_day_once_the_period_has_closed():
     # A contract worked Sept–May earns 2.5 × 9 = 22.5; past 31 May it rounds up to 23.
-    assert pl.accrued_days(
+    assert paid_leave.accrued_days(
         30, PERIOD_START, PERIOD_END, date(2026, 9, 1), date(2027, 6, 15)
     ) == Decimal("23")
 
@@ -104,7 +112,7 @@ def test_taken_counts_only_scheduled_working_days():
     schedules = [weekdays_schedule(MONDAY, TUESDAY, THURSDAY, FRIDAY)]
     # A whole week off, but Wednesday is not worked, so four days come off.
     leave = paid(date(2026, 6, 15), date(2026, 6, 19))
-    taken = pl.taken_days(
+    taken = paid_leave.taken_days(
         [leave], schedules, frozenset(), date(2026, 6, 1), date(2027, 5, 31), date(2020, 1, 1), None
     )
     assert taken == Decimal("4")
@@ -113,7 +121,7 @@ def test_taken_counts_only_scheduled_working_days():
 def test_taken_ignores_the_weekend():
     schedules = [weekdays_schedule(MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY)]
     leave = paid(date(2026, 6, 20), date(2026, 6, 21))  # Sat–Sun
-    taken = pl.taken_days(
+    taken = paid_leave.taken_days(
         [leave], schedules, frozenset(), date(2026, 6, 1), date(2027, 5, 31), date(2020, 1, 1), None
     )
     assert taken == Decimal("0")
@@ -122,7 +130,7 @@ def test_taken_ignores_the_weekend():
 def test_taken_halves_a_half_day():
     schedules = [weekdays_schedule(MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY)]
     leave = paid(date(2026, 6, 15), date(2026, 6, 15), portion="half_day")
-    taken = pl.taken_days(
+    taken = paid_leave.taken_days(
         [leave], schedules, frozenset(), date(2026, 6, 1), date(2027, 5, 31), date(2020, 1, 1), None
     )
     assert taken == Decimal("0.5")
@@ -132,7 +140,7 @@ def test_taken_skips_a_non_workable_holiday_inside_the_leave():
     schedules = [weekdays_schedule(MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY)]
     leave = paid(date(2026, 6, 15), date(2026, 6, 19))
     # 18 June falls on a Thursday this week; take it out.
-    taken = pl.taken_days(
+    taken = paid_leave.taken_days(
         [leave],
         schedules,
         frozenset({date(2026, 6, 18)}),
@@ -152,7 +160,7 @@ def test_taken_ignores_unpaid_leave():
         end_date=date(2026, 6, 19),
         portion="full_day",
     )
-    taken = pl.taken_days(
+    taken = paid_leave.taken_days(
         [unpaid],
         schedules,
         frozenset(),
@@ -168,7 +176,7 @@ def test_taken_clips_a_leave_to_the_period():
     schedules = [weekdays_schedule(MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY)]
     # Runs in from May (the previous period) into June: only the June days count.
     leave = paid(date(2026, 5, 28), date(2026, 6, 2))
-    taken = pl.taken_days(
+    taken = paid_leave.taken_days(
         [leave], schedules, frozenset(), date(2026, 6, 1), date(2027, 5, 31), date(2020, 1, 1), None
     )
     # 1 June is a Monday, 2 June a Tuesday → two working days in the period.
@@ -182,7 +190,7 @@ def test_compute_balance_ties_accrual_and_consumption_together():
     schedules = [weekdays_schedule(MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY)]
     leaves = [paid(date(2026, 6, 15), date(2026, 6, 17))]  # Mon–Wed, 3 days
     holidays: list[Holiday] = []
-    balance = pl.compute_balance(
+    balance = paid_leave.compute_balance(
         paid_leave_days=30,
         contract_start=date(2024, 1, 1),
         contract_end=None,

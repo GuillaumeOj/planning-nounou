@@ -134,9 +134,7 @@ def test_read_requires_family_access(client, outsider, family, contract):
 
 
 def term_url(family, contract, term_id):
-    from django.urls import reverse as _reverse
-
-    return _reverse("contracts:contract-term", args=[family.id, contract.id, term_id])
+    return reverse("contracts:contract-term", args=[family.id, contract.id, term_id])
 
 
 def test_fresh_terms_are_not_marked_edited(client, owner, family, contract):

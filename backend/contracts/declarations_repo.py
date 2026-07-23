@@ -35,10 +35,7 @@ from typing import TYPE_CHECKING
 from django.db import transaction
 from django.utils import timezone
 
-from contracts import declarations as dec
-from contracts import paid_leave as pl
-from contracts import paid_leave_tenth as plt
-from contracts import simulation as sim
+from contracts import declarations, paid_leave, paid_leave_tenth, simulation
 from contracts.models import (
     Contract,
     ContractChild,
@@ -58,19 +55,19 @@ if TYPE_CHECKING:
 
 def load_contract_month(
     contract: Contract, month: date, *, kilometers: dict[UUID, Decimal] | None = None
-) -> dec.ContractMonth:
+) -> declarations.ContractMonth:
     """One month of one contract, as the pure domain wants it."""
-    first, last = dec.month_bounds(month)
+    first, last = declarations.month_bounds(month)
 
     family_ids = tuple(
         share.family_id for share in contract.shares.all().order_by("added_at", "id")
     )
 
     schedules = tuple(
-        dec.Schedule(
+        declarations.Schedule(
             effective_from=schedule.effective_from,
             blocks=tuple(
-                dec.Block(weekday=b.weekday, start=b.start_time, end=b.end_time)
+                declarations.Block(weekday=b.weekday, start=b.start_time, end=b.end_time)
                 for b in schedule.blocks.all()
             ),
         )
@@ -81,7 +78,7 @@ def load_contract_month(
     )
 
     terms = tuple(
-        dec.Terms(
+        declarations.Terms(
             effective_from=row.effective_from,
             net_hourly_rate=row.net_hourly_rate,
             night_presence_rate=row.night_presence_rate,
@@ -95,13 +92,13 @@ def load_contract_month(
     )
 
     children = tuple(
-        dec.ChildPresence(
+        declarations.ChildPresence(
             child_id=link.child_id,
             family_id=link.child.family_id,
             # Grouped here, once. Filtering link.windows per weekday inside the
             # segmentation loop would re-query on every block of every day.
             windows=tuple(
-                dec.Window(weekday=w.weekday, start=w.start_time, end=w.end_time)
+                declarations.Window(weekday=w.weekday, start=w.start_time, end=w.end_time)
                 for w in link.windows.all()
             ),
         )
@@ -111,7 +108,7 @@ def load_contract_month(
     )
 
     leaves = tuple(
-        dec.LeaveSpan(
+        declarations.LeaveSpan(
             leave_type=leave.leave_type,
             start_date=leave.start_date,
             end_date=leave.end_date,
@@ -125,7 +122,7 @@ def load_contract_month(
     )
 
     exceptional = tuple(
-        dec.ExceptionalEntry(
+        declarations.ExceptionalEntry(
             family_id=entry.family_id,
             kind=entry.kind,
             start_date=entry.start_date,
@@ -143,7 +140,7 @@ def load_contract_month(
     )
 
     overrides = tuple(
-        dec.PresenceOverride(
+        declarations.PresenceOverride(
             child_id=presence.child_id,
             day=presence.date,
             start=presence.start_time,
@@ -155,11 +152,11 @@ def load_contract_month(
     )
 
     holidays = tuple(
-        dec.Holiday(day=h.date, is_workable=h.is_workable, is_solidarity=h.is_solidarity)
+        declarations.Holiday(day=h.date, is_workable=h.is_workable, is_solidarity=h.is_solidarity)
         for h in BankHoliday.objects.filter(date__range=(first, last))
     )
 
-    return dec.ContractMonth(
+    return declarations.ContractMonth(
         month=first,
         starting_date=contract.starting_date,
         ending_date=contract.ending_date,
@@ -176,7 +173,7 @@ def load_contract_month(
     )
 
 
-def paid_leave_balance(contract: Contract, on: date | None = None) -> pl.PaidLeaveBalance:
+def paid_leave_balance(contract: Contract, on: date | None = None) -> paid_leave.PaidLeaveBalance:
     """One contract's congés-payés balance for the reference period around ``on``.
 
     Loads only what the balance needs — the schedules (to know which days are
@@ -184,13 +181,13 @@ def paid_leave_balance(contract: Contract, on: date | None = None) -> pl.PaidLea
     inside it — and hands them to the pure :mod:`contracts.paid_leave` domain.
     """
     on = on or timezone.localdate()
-    period_start, period_end = pl.reference_period(on)
+    period_start, period_end = paid_leave.reference_period(on)
 
     schedules = tuple(
-        dec.Schedule(
+        declarations.Schedule(
             effective_from=schedule.effective_from,
             blocks=tuple(
-                dec.Block(weekday=b.weekday, start=b.start_time, end=b.end_time)
+                declarations.Block(weekday=b.weekday, start=b.start_time, end=b.end_time)
                 for b in schedule.blocks.all()
             ),
         )
@@ -203,7 +200,7 @@ def paid_leave_balance(contract: Contract, on: date | None = None) -> pl.PaidLea
     )
 
     leaves = tuple(
-        dec.LeaveSpan(
+        declarations.LeaveSpan(
             leave_type=leave.leave_type,
             start_date=leave.start_date,
             end_date=leave.end_date,
@@ -221,11 +218,11 @@ def paid_leave_balance(contract: Contract, on: date | None = None) -> pl.PaidLea
     )
 
     holidays = tuple(
-        dec.Holiday(day=h.date, is_workable=h.is_workable, is_solidarity=h.is_solidarity)
+        declarations.Holiday(day=h.date, is_workable=h.is_workable, is_solidarity=h.is_solidarity)
         for h in BankHoliday.objects.filter(date__range=(period_start, period_end))
     )
 
-    return pl.compute_balance(
+    return paid_leave.compute_balance(
         paid_leave_days=contract.paid_leave_days,
         contract_start=contract.starting_date,
         contract_end=contract.ending_date,
@@ -238,7 +235,7 @@ def paid_leave_balance(contract: Contract, on: date | None = None) -> pl.PaidLea
 
 def tenth_reconciliation(
     contract: Contract, on: date | None = None
-) -> dict[UUID, plt.TenthReconciliation]:
+) -> dict[UUID, paid_leave_tenth.TenthReconciliation]:
     """Each family's congés-payés « rappel de 1/10 » for the reference period around ``on``.
 
     Per family, because each is a distinct pajemploi employer that declares and owes
@@ -253,7 +250,7 @@ def tenth_reconciliation(
     yet, and a live recompute is the same number ``declarations_for`` would write.
     """
     on = on or timezone.localdate()
-    period_start, period_end = pl.reference_period(on)
+    period_start, period_end = paid_leave.reference_period(on)
 
     rate = SalaryContributionRate.applicable_on(period_end)
     if rate is None:
@@ -268,9 +265,9 @@ def tenth_reconciliation(
     # exceptional hours to each month itself), so this stays a handful of queries whether
     # it runs for one contract or a dashboard full of them.
     assiette_net: dict[UUID, Decimal] = {fid: Decimal("0") for fid in period.family_ids}
-    for offset in range(dec.MONTHS_PER_YEAR):
-        data = dec.ContractMonth(
-            month=dec.first_of_month(period_start, offset),
+    for offset in range(declarations.MONTHS_PER_YEAR):
+        data = declarations.ContractMonth(
+            month=declarations.first_of_month(period_start, offset),
             starting_date=contract.starting_date,
             ending_date=contract.ending_date,
             split_method=contract.split_method,
@@ -283,8 +280,8 @@ def tenth_reconciliation(
             overrides=period.overrides,
             holidays=period.holidays,
         )
-        for family_id, result in dec.compute_month(data).items():
-            assiette_net[family_id] += plt.assiette_of(result)
+        for family_id, result in declarations.compute_month(data).items():
+            assiette_net[family_id] += paid_leave_tenth.assiette_of(result)
 
     non_workable = frozenset(h.day for h in period.holidays if not h.is_workable)
     banded_by_date = _period_banded_by_date(
@@ -300,11 +297,11 @@ def tenth_reconciliation(
     # mensualised pay already carries), not the leave taken: acquired days × each family's
     # weekly base salary, taken from the contract's current week and rate.
     rep_date = min(period_end, contract.ending_date) if contract.ending_date else period_end
-    rep_terms = dec.in_force(period.terms, rep_date)
-    accrued = pl.accrued_days(
+    rep_terms = declarations.in_force(period.terms, rep_date)
+    accrued = paid_leave.accrued_days(
         contract.paid_leave_days, period_start, period_end, contract.starting_date, rep_date
     )
-    maintien_entitlement = plt.maintien_entitlement(
+    maintien_entitlement = paid_leave_tenth.maintien_entitlement(
         accrued_days=accrued,
         week=banded_by_date.get(rep_date),
         net_hourly_rate=rep_terms.net_hourly_rate if rep_terms else Decimal("0"),
@@ -312,7 +309,7 @@ def tenth_reconciliation(
     )
     # The maintien for leave actually taken feeds the indemnité compensatrice (entitlement
     # − taken), the value of leave acquired but not taken, owed when the contract ends.
-    maintien_taken = plt.maintien_by_family(
+    maintien_taken = paid_leave_tenth.maintien_by_family(
         leaves=period.leaves,
         banded_by_date=banded_by_date,
         terms=period.terms,
@@ -325,7 +322,7 @@ def tenth_reconciliation(
     )
 
     return {
-        family_id: plt.reconcile_tenth(
+        family_id: paid_leave_tenth.reconcile_tenth(
             period_start=period_start,
             period_end=period_end,
             assiette_net=assiette_net.get(family_id, Decimal("0")),
@@ -339,7 +336,7 @@ def tenth_reconciliation(
 
 def tenth_reconciliation_total(
     contract: Contract, on: date | None = None
-) -> plt.TenthReconciliation | None:
+) -> paid_leave_tenth.TenthReconciliation | None:
     """The contract's whole-nanny « rappel de 1/10 », families folded into one.
 
     The per-family figures (each its own pajemploi line) summed for the dashboard,
@@ -355,7 +352,7 @@ def tenth_reconciliation_total(
     def total(field: str) -> Decimal:
         return sum((getattr(r, field) for r in recs), Decimal("0"))
 
-    return plt.TenthReconciliation(
+    return paid_leave_tenth.TenthReconciliation(
         period_start=first.period_start,
         period_end=first.period_end,
         contribution_rate=first.contribution_rate,
@@ -380,14 +377,14 @@ class _ContractPeriod:
     """
 
     family_ids: tuple[UUID, ...]
-    schedules: tuple[dec.Schedule, ...]
-    terms: tuple[dec.Terms, ...]
-    children: tuple[dec.ChildPresence, ...]
-    children_by_id: dict[UUID, dec.ChildPresence]
-    leaves: tuple[dec.LeaveSpan, ...]
-    exceptional: tuple[dec.ExceptionalEntry, ...]
-    overrides: tuple[dec.PresenceOverride, ...]
-    holidays: tuple[dec.Holiday, ...]
+    schedules: tuple[declarations.Schedule, ...]
+    terms: tuple[declarations.Terms, ...]
+    children: tuple[declarations.ChildPresence, ...]
+    children_by_id: dict[UUID, declarations.ChildPresence]
+    leaves: tuple[declarations.LeaveSpan, ...]
+    exceptional: tuple[declarations.ExceptionalEntry, ...]
+    overrides: tuple[declarations.PresenceOverride, ...]
+    holidays: tuple[declarations.Holiday, ...]
 
 
 def _load_contract_period(
@@ -398,10 +395,10 @@ def _load_contract_period(
         share.family_id for share in contract.shares.all().order_by("added_at", "id")
     )
     schedules = tuple(
-        dec.Schedule(
+        declarations.Schedule(
             effective_from=s.effective_from,
             blocks=tuple(
-                dec.Block(weekday=b.weekday, start=b.start_time, end=b.end_time)
+                declarations.Block(weekday=b.weekday, start=b.start_time, end=b.end_time)
                 for b in s.blocks.all()
             ),
         )
@@ -410,7 +407,7 @@ def _load_contract_period(
         .prefetch_related("blocks")
     )
     terms = tuple(
-        dec.Terms(
+        declarations.Terms(
             effective_from=row.effective_from,
             net_hourly_rate=row.net_hourly_rate,
             night_presence_rate=row.night_presence_rate,
@@ -423,11 +420,11 @@ def _load_contract_period(
         ).order_by("effective_from", "id")
     )
     children_by_id = {
-        link.child_id: dec.ChildPresence(
+        link.child_id: declarations.ChildPresence(
             child_id=link.child_id,
             family_id=link.child.family_id,
             windows=tuple(
-                dec.Window(weekday=w.weekday, start=w.start_time, end=w.end_time)
+                declarations.Window(weekday=w.weekday, start=w.start_time, end=w.end_time)
                 for w in link.windows.all()
             ),
         )
@@ -438,7 +435,7 @@ def _load_contract_period(
     # Overlap filters, not single-month: a leave or an entry straddling the period's
     # edge still spends its days inside it. compute_month clips per month.
     leaves = tuple(
-        dec.LeaveSpan(
+        declarations.LeaveSpan(
             leave_type=leave.leave_type,
             start_date=leave.start_date,
             end_date=leave.end_date,
@@ -450,7 +447,7 @@ def _load_contract_period(
         )
     )
     exceptional = tuple(
-        dec.ExceptionalEntry(
+        declarations.ExceptionalEntry(
             family_id=entry.family_id,
             kind=entry.kind,
             start_date=entry.start_date,
@@ -465,13 +462,15 @@ def _load_contract_period(
         ).order_by("start_date", "start_time", "id")
     )
     overrides = tuple(
-        dec.PresenceOverride(child_id=p.child_id, day=p.date, start=p.start_time, end=p.end_time)
+        declarations.PresenceOverride(
+            child_id=p.child_id, day=p.date, start=p.start_time, end=p.end_time
+        )
         for p in ExceptionalPresence.objects.filter(
             contract=contract, date__range=(period_start, period_end)
         )
     )
     holidays = tuple(
-        dec.Holiday(day=h.date, is_workable=h.is_workable, is_solidarity=h.is_solidarity)
+        declarations.Holiday(day=h.date, is_workable=h.is_workable, is_solidarity=h.is_solidarity)
         for h in BankHoliday.objects.filter(date__range=(period_start, period_end))
     )
     return _ContractPeriod(
@@ -488,13 +487,13 @@ def _load_contract_period(
 
 
 def _period_banded_by_date(
-    schedules: tuple[dec.Schedule, ...],
-    children: dict[UUID, dec.ChildPresence],
+    schedules: tuple[declarations.Schedule, ...],
+    children: dict[UUID, declarations.ChildPresence],
     split_method: str,
     family_ids: tuple[UUID, ...],
     period_start: date,
     period_end: date,
-) -> dict[date, dec.WeekBands]:
+) -> dict[date, declarations.WeekBands]:
     """The per-weekday, per-family banding of every date in the reference period.
 
     The same shape :func:`declarations.build_base` builds a month at a time, here
@@ -502,15 +501,15 @@ def _period_banded_by_date(
     family's share of a paid-leave day. Each in-force schedule's week is banded once
     and reused across the dates it governs.
     """
-    week_cache: dict[date, dec.WeekBands] = {}
-    banded: dict[date, dec.WeekBands] = {}
-    for day in dec.days_between(period_start, period_end):
-        schedule = dec.in_force(schedules, day)
+    week_cache: dict[date, declarations.WeekBands] = {}
+    banded: dict[date, declarations.WeekBands] = {}
+    for day in declarations.days_between(period_start, period_end):
+        schedule = declarations.in_force(schedules, day)
         if schedule is None:
             continue
         week = week_cache.get(schedule.effective_from)
         if week is None:
-            week = dec.band_week(schedule, children, split_method, family_ids)
+            week = declarations.band_week(schedule, children, split_method, family_ids)
             week_cache[schedule.effective_from] = week
         banded[day] = week
     return banded
@@ -534,7 +533,7 @@ def declarations_for(contract: Contract, month: date) -> list[MonthlyDeclaration
     terms, the windows or the children afterwards. That freeze is what lets the
     presence models stay flat instead of effective-dated.
     """
-    first, _ = dec.month_bounds(month)
+    first, _ = declarations.month_bounds(month)
     # Serialise concurrent recomputes of the same contract. A list read computes
     # and writes *both* families' rows, so two families opening the month at the
     # same time would each find no row for the other and each INSERT it, tripping
@@ -547,7 +546,7 @@ def declarations_for(contract: Contract, month: date) -> list[MonthlyDeclaration
         for row in MonthlyDeclaration.objects.filter(contract=contract, month=first)
     }
     data = load_contract_month(contract, first, kilometers=_kilometers_on_file(contract, first))
-    results = dec.compute_month(data)
+    results = declarations.compute_month(data)
 
     # The congés-payés rappel is settled once a year: compute it only on the reference
     # period's closing month (May) or the contract's final month, and leave it NULL
@@ -604,7 +603,7 @@ def _closes_reference_period(contract: Contract, first: date) -> bool:
     Either May — the 1 June–31 May année de référence's close — or the contract's
     final month, when the rappel falls due with the solde de tout compte.
     """
-    if first.month == pl.REFERENCE_PERIOD_START_MONTH - 1:  # May, the period's last month
+    if first.month == paid_leave.REFERENCE_PERIOD_START_MONTH - 1:  # May, the period's last month
         return True
     return _is_contract_final_month(contract, first)
 
@@ -615,7 +614,7 @@ def _is_contract_final_month(contract: Contract, first: date) -> bool:
     return end is not None and (end.year, end.month) == (first.year, first.month)
 
 
-def _tenth_detail(rec: plt.TenthReconciliation) -> dict[str, str]:
+def _tenth_detail(rec: paid_leave_tenth.TenthReconciliation) -> dict[str, str]:
     """The « rappel de 1/10 » reconciliation as a stored dict, for the closing month.
 
     Mirrors :class:`TenthReconciliationSerializer` (decimals as strings, dates ISO) so
@@ -635,7 +634,7 @@ def _tenth_detail(rec: plt.TenthReconciliation) -> dict[str, str]:
 
 def _apply(
     row: MonthlyDeclaration,
-    result: dec.FamilyResult,
+    result: declarations.FamilyResult,
     paid_leave_rappel: Decimal | None = None,
     paid_leave_tenth: dict[str, str] | None = None,
     paid_leave_compensatrice: Decimal | None = None,
@@ -702,13 +701,16 @@ class SimulatedMonth:
     breakdown of what it pays that month (see :mod:`contracts.simulation`)."""
 
     month: date
-    breakdown: sim.MonthlyPayBreakdown
+    breakdown: simulation.MonthlyPayBreakdown
 
 
 def _months_in(start: date, end: date) -> list[date]:
     """First-of-month dates from ``start``'s month through ``end``'s, inclusive."""
     start = start.replace(day=1)
-    return [dec.first_of_month(start, offset) for offset in range(dec.months_inclusive(start, end))]
+    return [
+        declarations.first_of_month(start, offset)
+        for offset in range(declarations.months_inclusive(start, end))
+    ]
 
 
 def _kilometers_by_month(contract: Contract, months: list[date]) -> dict[date, dict[UUID, Decimal]]:
@@ -772,7 +774,7 @@ def simulate_range(
         # A month before the contract started, or after it ended, is paid nothing.
         if month < start_first or (end_first is not None and month > end_first):
             continue
-        data = dec.ContractMonth(
+        data = declarations.ContractMonth(
             month=month,
             starting_date=contract.starting_date,
             ending_date=contract.ending_date,
@@ -788,8 +790,8 @@ def simulate_range(
             kilometers=km_by_month.get(month),
         )
         rappels = rappel_by_month.get(month, {})
-        for family_id, result in dec.compute_month(data).items():
-            breakdown = sim.breakdown_of(
+        for family_id, result in declarations.compute_month(data).items():
+            breakdown = simulation.breakdown_of(
                 result, paid_leave_rappel=rappels.get(family_id, Decimal("0"))
             )
             # ``out`` already holds every family_id in period.family_ids, which is the
@@ -798,7 +800,7 @@ def simulate_range(
     return out
 
 
-def group_windows_by_weekday(children: tuple[dec.ChildPresence, ...]):
+def group_windows_by_weekday(children: tuple[declarations.ChildPresence, ...]):
     """Windows keyed by weekday, per child.
 
     Not used by the loader — the domain reads the whole tuple, which is the point
@@ -806,9 +808,9 @@ def group_windows_by_weekday(children: tuple[dec.ChildPresence, ...]):
     per-weekday view cannot make). Kept as the shape any caller tempted to
     ``.filter(weekday=...)`` in a loop should build instead.
     """
-    out: dict[UUID, defaultdict[int, list[dec.Window]]] = {}
+    out: dict[UUID, defaultdict[int, list[declarations.Window]]] = {}
     for child in children:
-        by_day: defaultdict[int, list[dec.Window]] = defaultdict(list)
+        by_day: defaultdict[int, list[declarations.Window]] = defaultdict(list)
         for window in child.windows:
             by_day[window.weekday].append(window)
         out[child.child_id] = by_day

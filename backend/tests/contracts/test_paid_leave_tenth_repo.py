@@ -12,7 +12,7 @@ from decimal import Decimal
 import pytest
 
 from children.models import Child
-from contracts import declarations_repo as repo
+from contracts import declarations_repo
 from contracts.models import (
     ContractChild,
     ContractSchedule,
@@ -61,7 +61,7 @@ def take_five_weeks(contract):
 
 def test_reconciliation_is_per_family_with_a_real_assiette(year_round, family):
     take_five_weeks(year_round)
-    by_family = repo.tenth_reconciliation(year_round, on=ON)
+    by_family = declarations_repo.tenth_reconciliation(year_round, on=ON)
 
     assert set(by_family) == {family.id}
     rec = by_family[family.id]
@@ -72,7 +72,7 @@ def test_reconciliation_is_per_family_with_a_real_assiette(year_round, family):
 
 def test_the_tenth_beats_maintien_so_a_rappel_is_owed(year_round, family):
     take_five_weeks(year_round)
-    rec = repo.tenth_reconciliation(year_round, on=ON)[family.id]
+    rec = declarations_repo.tenth_reconciliation(year_round, on=ON)[family.id]
     # Classic année-complète result: 10% of 52 weeks beats the 5 weeks of maintien.
     assert rec.rappel_net > Decimal("0")
     assert rec.rappel_brut > rec.rappel_net  # reported brut, declared net
@@ -82,26 +82,32 @@ def test_no_rappel_without_a_contribution_rate(year_round, family):
     from reference.models import SalaryContributionRate
 
     SalaryContributionRate.objects.all().delete()
-    assert repo.tenth_reconciliation(year_round, on=ON) == {}
+    assert declarations_repo.tenth_reconciliation(year_round, on=ON) == {}
 
 
 def test_the_closing_month_declaration_carries_the_rappel(year_round, family):
     take_five_weeks(year_round)
-    row = next(r for r in repo.declarations_for(year_round, MAY) if r.family_id == family.id)
+    row = next(
+        r for r in declarations_repo.declarations_for(year_round, MAY) if r.family_id == family.id
+    )
     assert row.paid_leave_rappel is not None
     assert row.paid_leave_rappel > Decimal("0")
 
 
 def test_an_ordinary_month_declaration_has_no_rappel(year_round, family):
     take_five_weeks(year_round)
-    row = next(r for r in repo.declarations_for(year_round, JULY) if r.family_id == family.id)
+    row = next(
+        r for r in declarations_repo.declarations_for(year_round, JULY) if r.family_id == family.id
+    )
     assert row.paid_leave_rappel is None
     assert row.paid_leave_tenth is None
 
 
 def test_the_closing_month_declaration_carries_the_calculation_detail(year_round, family):
     take_five_weeks(year_round)
-    row = next(r for r in repo.declarations_for(year_round, MAY) if r.family_id == family.id)
+    row = next(
+        r for r in declarations_repo.declarations_for(year_round, MAY) if r.family_id == family.id
+    )
     detail = row.paid_leave_tenth
     assert detail is not None
     assert set(detail) == {
@@ -126,7 +132,9 @@ def test_the_final_month_of_a_closing_contract_carries_the_rappel(year_round, fa
     year_round.save(update_fields=["ending_date"])
     take_five_weeks(year_round)
     row = next(
-        r for r in repo.declarations_for(year_round, date(2027, 2, 1)) if r.family_id == family.id
+        r
+        for r in declarations_repo.declarations_for(year_round, date(2027, 2, 1))
+        if r.family_id == family.id
     )
     assert row.paid_leave_rappel is not None
 
@@ -137,7 +145,9 @@ def test_the_final_month_cashes_out_untaken_leave_as_the_compensatrice(year_roun
     year_round.ending_date = date(2027, 2, 28)
     year_round.save(update_fields=["ending_date"])
     row = next(
-        r for r in repo.declarations_for(year_round, date(2027, 2, 1)) if r.family_id == family.id
+        r
+        for r in declarations_repo.declarations_for(year_round, date(2027, 2, 1))
+        if r.family_id == family.id
     )
     assert row.paid_leave_compensatrice is not None
     assert row.paid_leave_compensatrice > Decimal("0")
@@ -146,15 +156,17 @@ def test_the_final_month_cashes_out_untaken_leave_as_the_compensatrice(year_roun
 def test_a_regular_may_close_does_not_cash_out_untaken_leave(year_round, family):
     # An ongoing contract's May close reconciles the rappel but does NOT pay the
     # compensatrice — untaken leave is lost or carried, not cashed out mid-contract.
-    row = next(r for r in repo.declarations_for(year_round, MAY) if r.family_id == family.id)
+    row = next(
+        r for r in declarations_repo.declarations_for(year_round, MAY) if r.family_id == family.id
+    )
     assert row.paid_leave_rappel is not None
     assert row.paid_leave_compensatrice is None
 
 
 def test_the_total_folds_the_families_into_one(year_round, family):
     take_five_weeks(year_round)
-    total = repo.tenth_reconciliation_total(year_round, on=ON)
-    per_family = repo.tenth_reconciliation(year_round, on=ON)[family.id]
+    total = declarations_repo.tenth_reconciliation_total(year_round, on=ON)
+    per_family = declarations_repo.tenth_reconciliation(year_round, on=ON)[family.id]
     assert total is not None
     # One family, so the fold equals it.
     assert total.rappel_net == per_family.rappel_net
@@ -163,7 +175,9 @@ def test_the_total_folds_the_families_into_one(year_round, family):
 
 def test_a_declaration_read_is_serialisable_with_the_rappel(year_round, family):
     take_five_weeks(year_round)
-    row = next(r for r in repo.declarations_for(year_round, MAY) if r.family_id == family.id)
+    row = next(
+        r for r in declarations_repo.declarations_for(year_round, MAY) if r.family_id == family.id
+    )
     row.refresh_from_db()
     assert isinstance(row.paid_leave_rappel, Decimal)
 
@@ -171,5 +185,5 @@ def test_a_declaration_read_is_serialisable_with_the_rappel(year_round, family):
 def test_a_month_with_no_declaration_row_still_computes(year_round, family):
     # Sanity: MonthlyDeclaration starts empty and declarations_for creates the row.
     assert not MonthlyDeclaration.objects.filter(contract=year_round, month=MAY).exists()
-    repo.declarations_for(year_round, MAY)
+    declarations_repo.declarations_for(year_round, MAY)
     assert MonthlyDeclaration.objects.filter(contract=year_round, month=MAY).exists()

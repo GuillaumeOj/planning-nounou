@@ -11,7 +11,7 @@ from datetime import date, time
 from decimal import Decimal
 from uuid import uuid4
 
-from contracts import paid_leave_tenth as plt
+from contracts import paid_leave_tenth
 from contracts.declarations import Block, FamilyResult, LeaveSpan, Schedule, Terms, band_week
 
 PERIOD = (date(2025, 6, 1), date(2026, 5, 31))
@@ -19,7 +19,7 @@ MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY = 0, 1, 2, 3, 4
 
 
 def reconcile(assiette_net, maintien_net, rate=Decimal("0"), maintien_taken=None):
-    return plt.reconcile_tenth(
+    return paid_leave_tenth.reconcile_tenth(
         period_start=PERIOD[0],
         period_end=PERIOD[1],
         assiette_net=Decimal(assiette_net),
@@ -68,7 +68,7 @@ def test_the_rappel_reports_in_brut_and_declares_in_net():
     rate = Decimal("0.2188025")
     result = reconcile(assiette_net=52 * 200, maintien_net=5 * 200, rate=rate)
     # Reported figures are grossed up (art. L3141-24 says brute totale)...
-    assert result.assiette_brut == plt._money(Decimal(52 * 200) / (1 - rate))
+    assert result.assiette_brut == paid_leave_tenth._money(Decimal(52 * 200) / (1 - rate))
     # ...but the declarable rappel comes back to net, and the winner is basis-
     # invariant: it is the same 40 € the rate-free case produced.
     assert result.rappel_net == Decimal("40.00")
@@ -126,7 +126,7 @@ def test_assiette_sums_pay_and_excludes_frais():
         transport_amount=Decimal("40"),
         mileage_amount=Decimal("60"),
     )
-    assert plt.assiette_of(result) == Decimal("1100")
+    assert paid_leave_tenth.assiette_of(result) == Decimal("1100")
 
 
 # --- the maintien already paid -----------------------------------------------
@@ -157,7 +157,7 @@ def banded(schedule, days):
 
 
 def maintien(leaves, schedule, terms, dates, non_workable=frozenset()):
-    return plt.maintien_by_family(
+    return paid_leave_tenth.maintien_by_family(
         leaves=leaves,
         banded_by_date=banded(schedule, dates),
         terms=terms,
@@ -218,19 +218,25 @@ def full_week():
 def test_maintien_entitlement_values_the_acquired_days_not_the_taken_ones():
     # 30 jours ouvrables acquired = 5 weeks; 20h/wk × 10 € = 200 €/wk → 1000 €. It does
     # not matter how much leave was actually taken — the salary already carries it.
-    result = plt.maintien_entitlement(Decimal("30"), full_week(), Decimal("10"), (FAMILY,))
+    result = paid_leave_tenth.maintien_entitlement(
+        Decimal("30"), full_week(), Decimal("10"), (FAMILY,)
+    )
     assert result[FAMILY] == Decimal("1000.00")
 
 
 def test_maintien_entitlement_prorates_a_partial_entitlement():
     # Half a year acquired → 15 jours ouvrables = 2.5 weeks → 500 €.
-    result = plt.maintien_entitlement(Decimal("15"), full_week(), Decimal("10"), (FAMILY,))
+    result = paid_leave_tenth.maintien_entitlement(
+        Decimal("15"), full_week(), Decimal("10"), (FAMILY,)
+    )
     assert result[FAMILY] == Decimal("500.00")
 
 
 def test_maintien_entitlement_is_zero_without_a_week_or_days():
-    no_week = plt.maintien_entitlement(Decimal("30"), None, Decimal("10"), (FAMILY,))
-    no_days = plt.maintien_entitlement(Decimal("0"), full_week(), Decimal("10"), (FAMILY,))
+    no_week = paid_leave_tenth.maintien_entitlement(Decimal("30"), None, Decimal("10"), (FAMILY,))
+    no_days = paid_leave_tenth.maintien_entitlement(
+        Decimal("0"), full_week(), Decimal("10"), (FAMILY,)
+    )
     assert no_week[FAMILY] == Decimal("0")
     assert no_days[FAMILY] == Decimal("0")
 

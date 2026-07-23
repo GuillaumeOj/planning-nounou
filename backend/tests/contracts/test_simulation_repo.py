@@ -13,7 +13,7 @@ from decimal import Decimal
 import pytest
 
 from children.models import Child
-from contracts import declarations_repo as repo
+from contracts import declarations, declarations_repo
 from contracts.models import (
     ContractChild,
     ContractSchedule,
@@ -64,14 +64,14 @@ def take_five_weeks(contract):
 
 
 def test_returns_one_entry_per_month_of_the_reference_period(year_round, family):
-    rows = repo.simulate_range(year_round, PERIOD_START, PERIOD_END)[family.id]
+    rows = declarations_repo.simulate_range(year_round, PERIOD_START, PERIOD_END)[family.id]
     assert [r.month for r in rows] == [
-        repo.dec.first_of_month(PERIOD_START, offset) for offset in range(12)
+        declarations.first_of_month(PERIOD_START, offset) for offset in range(12)
     ]
 
 
 def test_each_month_carries_the_outlay_components(year_round, family):
-    rows = repo.simulate_range(year_round, PERIOD_START, PERIOD_END)[family.id]
+    rows = declarations_repo.simulate_range(year_round, PERIOD_START, PERIOD_END)[family.id]
     june = rows[0].breakdown
     # A full 40h month priced at 12 €/h, plus the fixed transport and benefits from terms.
     assert june.net_wage > Decimal("1500")
@@ -84,7 +84,7 @@ def test_each_month_carries_the_outlay_components(year_round, family):
 
 def test_the_rappel_lands_only_on_the_closing_month(year_round, family):
     take_five_weeks(year_round)
-    rows = repo.simulate_range(year_round, PERIOD_START, PERIOD_END)[family.id]
+    rows = declarations_repo.simulate_range(year_round, PERIOD_START, PERIOD_END)[family.id]
     by_month = {r.month: r.breakdown for r in rows}
     # A full-year 40h contract: the tenth beats five weeks of maintien, so May owes a rappel.
     assert by_month[MAY].paid_leave_rappel > Decimal("0")
@@ -98,9 +98,9 @@ def test_the_rappel_lands_only_on_the_closing_month(year_round, family):
 
 def test_the_rappel_matches_the_reconciliation(year_round, family):
     take_five_weeks(year_round)
-    rows = repo.simulate_range(year_round, PERIOD_START, PERIOD_END)[family.id]
+    rows = declarations_repo.simulate_range(year_round, PERIOD_START, PERIOD_END)[family.id]
     may = next(r for r in rows if r.month == MAY)
-    rec = repo.tenth_reconciliation(year_round, on=MAY)[family.id]
+    rec = declarations_repo.tenth_reconciliation(year_round, on=MAY)[family.id]
     assert may.breakdown.paid_leave_rappel == rec.rappel_net
 
 
@@ -118,7 +118,7 @@ def test_months_outside_the_contract_life_are_skipped(family, make_contract):
     child = Child.objects.create(family=family, first_name="Léa")
     ContractChild.objects.create(contract=contract, child=child)
 
-    rows = repo.simulate_range(contract, PERIOD_START, PERIOD_END)[family.id]
+    rows = declarations_repo.simulate_range(contract, PERIOD_START, PERIOD_END)[family.id]
     assert [r.month for r in rows] == [date(2027, 3, 1), date(2027, 4, 1), date(2027, 5, 1)]
 
 
@@ -126,13 +126,13 @@ def test_past_month_mileage_reflects_the_kilometres_on_file(year_round, family):
     """A declaration's entered kilométrage prices that month's mileage; a future month,
     having none, projects zero."""
     # File June's declaration, then set a kilométrage on the acting family's row.
-    repo.declarations_for(year_round, date(2026, 6, 1))
+    declarations_repo.declarations_for(year_round, date(2026, 6, 1))
     ContractTerms.objects.filter(contract=year_round).update(mileage_rate=Decimal("0.50"))
     MonthlyDeclaration.objects.filter(
         contract=year_round, family=family, month=date(2026, 6, 1)
     ).update(kilometers=Decimal("100"))
 
-    rows = repo.simulate_range(year_round, PERIOD_START, PERIOD_END)[family.id]
+    rows = declarations_repo.simulate_range(year_round, PERIOD_START, PERIOD_END)[family.id]
     by_month = {r.month: r.breakdown for r in rows}
     assert by_month[date(2026, 6, 1)].mileage == Decimal("50.00")  # 100 km × 0.50
     assert by_month[MAY].mileage == Decimal("0")  # future month, nothing on file
